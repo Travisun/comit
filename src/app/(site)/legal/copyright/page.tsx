@@ -1,0 +1,129 @@
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { LegalDoc, LegalSection } from "../legal-doc";
+
+export const metadata: Metadata = pageMetadata({
+  title: "内容权利与版权声明",
+  description:
+    "comit.sh 版权声明：内容归属、平台许可范围、侵权举报流程与转载规范（推荐 CC BY-SA 4.0）。提交的主角始终是你。",
+  path: "/legal/copyright",
+});
+
+export default function CopyrightPage() {
+  return (
+    <LegalDoc title="内容权利与版权声明（Copyright）" updated="2026-09-12">
+      <p>
+        本声明说明 comit.sh（下称“本平台”）上内容的版权归属、平台获得许可的范围、侵权举报流程，以及内容转载的推荐规范。
+        comit.sh 为每一次提交留下主页，而提交内容的权利，自始至终属于提交者本人。
+      </p>
+
+      <LegalSection
+        title="一、版权归属声明"
+        en={
+          <>
+            <p>
+              All content published on the platform — articles, short posts, comments, images and media
+              — remains the intellectual property of its original author. The platform does not claim
+              ownership of user content. Republication elsewhere without authorization may constitute
+              infringement.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 用户在本平台发布的全部内容（文章、短动态、评论、图片及其他媒体）的著作权归内容作者本人所有，本平台不对用户内容主张任何所有权。
+        </p>
+        <p>2. 转载、引用他人内容应获得授权或符合法定许可条件；未经授权的复制、传播可能构成侵权。</p>
+        <p>
+          3. 页面展示的站点名称、Logo、界面设计等归本平台所有，但用户通过子域名与外观设置形成的个性化展示归用户创作范畴。
+        </p>
+      </LegalSection>
+
+      <LegalSection
+        title="二、平台许可范围"
+        en={
+          <>
+            <p>
+              By publishing, you grant the platform an unconditional, royalty-free, non-exclusive,
+              worldwide license to reproduce, distribute, use and publicly display your content for
+              commercial or non-commercial purposes and for research purposes — including aggregated
+              feeds, archives, snapshots and datasets derived from the public service. This license does
+              not transfer ownership and does not restrict your right to license the same content to
+              others.
+            </p>
+          </>
+        }
+      >
+        <blockquote>
+          <p>
+            <strong>
+              你向本平台授予无条件的、免费的、非独占的全球许可：复制、分发、使用、公开展示你发布的内容，用于营利性或非营利性用途及研究用途。
+            </strong>
+          </p>
+        </blockquote>
+        <p>
+          1. 该许可仅用于运营与分发本平台服务（包括页面展示、RSS/Atom 订阅源、归档、公开数据集与研究用途），不意味着内容权属的转移。comit.sh
+          为「提交」而建，但提交者始终是你：许可的存在只为让服务运行，内容的作者身份与所有权不可剥夺。
+        </p>
+        <p>2. 本许可为非独占许可：你保留将同一内容授权给任何第三方的全部权利。</p>
+        <p>
+          3. 你删除内容后，本平台将停止新的公开展示；依据《隐私政策》与《服务协议》，已产生的缓存、备份与研究数据集不受追溯影响。
+        </p>
+        <p>完整条款见《服务协议》第二条“内容权利”。</p>
+      </LegalSection>
+
+      <LegalSection
+        title="三、侵权举报流程"
+        en={
+          <>
+            <p>
+              If you believe content on the platform infringes your rights, submit a report via the
+              “report” entry on the post page (or contact the administrator directly), including: (1) the
+              infringing content URL, (2) proof of your right ownership, (3) your contact information,
+              and (4) a good-faith statement. Administrators review reports, may remove content and
+              notify the author; repeat infringers may be banned. Submitting knowingly false reports may
+              make you liable.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. <strong>举报入口</strong>：在涉嫌侵权内容的文章页点击“举报”按钮提交，或直接通过管理员邮箱联系（见页脚）。
+        </p>
+        <p>2. <strong>举报材料</strong>：请尽量提供：① 被举报内容的链接；② 你对相关权利的证明（如原文链接、发表时间截图、权属证明）；③ 你的联系方式；④ 善意声明（确认举报信息真实）。</p>
+        <p>
+          3. <strong>处理流程</strong>：管理员收到举报后依规审核，对确认侵权的内容采取下架、隐藏等措施，并通知作者；对多次侵权的账户可封禁处理。
+        </p>
+        <p>4. 提交虚假恶意举报、恶意投诉的，由此产生的法律责任由举报人自行承担。</p>
+      </LegalSection>
+
+      <LegalSection
+        title="四、转载规范建议"
+        en={
+          <>
+            <p>
+              Authors are encouraged to mark their works with an open license. We recommend
+              <strong> CC BY-SA 4.0</strong> (Attribution-ShareAlike): anyone may share and adapt your
+              work as long as they credit you and distribute under the same license. You may also choose
+              CC BY, CC BY-NC or full copyright; stating the license at the top or bottom of your article
+              makes reuse unambiguous.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 建议作者在文章开头或结尾标注授权方式，明确他人可以如何使用你的作品。本平台推荐使用
+          <strong> CC BY-SA 4.0（署名—相同方式共享）</strong>：他人可自由转载、修改你的作品，但必须署名并以相同许可共享。
+        </p>
+        <p>2. 其他可选授权：CC BY（仅署名）、CC BY-NC（非商业性使用）或保留所有权利。</p>
+        <p>
+          3. 转载他人作品到本平台时，请获得授权并注明原文出处与作者；平台内转推功能会自动保留原文链接与署名。
+        </p>
+        <p>
+          4. 授权说明文字示例：
+          <code>本文采用 CC BY-SA 4.0 许可，转载请署名并以相同方式共享。</code>
+        </p>
+      </LegalSection>
+    </LegalDoc>
+  );
+}

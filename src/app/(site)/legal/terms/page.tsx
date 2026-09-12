@@ -1,0 +1,220 @@
+import type { Metadata } from "next";
+import { routes } from "@/core/routes";
+import { pageMetadata } from "@/lib/seo";
+import { LegalDoc, LegalSection } from "../legal-doc";
+
+export const metadata: Metadata = pageMetadata({
+  title: "服务协议",
+  description:
+    "comit.sh 服务协议：账户与注册、内容权利与平台许可、行为规范、子域名规则与责任限制——为每一次提交，留下主页。",
+  path: routes.legal.terms,
+});
+
+export default function TermsPage() {
+  return (
+    <LegalDoc title="服务协议（Terms of Service）" updated="2026-09-12">
+      <p>
+        欢迎使用 comit.sh（下称“本平台”）。comit.sh 为每一次提交提供归宿；本协议界定你与本平台之间关于账户、内容与服务的全部约定。
+        注册或使用本平台即表示你已阅读、理解并同意本协议的全部内容。若你不同意本协议，请停止注册或使用本平台。
+      </p>
+
+      <LegalSection
+        title="一、账户与注册"
+        en={
+          <>
+            <p>
+              You must provide a valid email address, choose a unique username, and (where required) an
+              invitation code to register. Two-factor authentication (TOTP) is mandatory. You are
+              responsible for safeguarding your credentials and recovery codes and for all activity under
+              your account. You must be at least 16 years old, or the minimum age required by your local
+              law, to register.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 注册本平台需要提供有效邮箱地址，设置唯一的用户名；站点开启邀请制时，你还需要持有有效的邀请码方可完成注册。邀请码由已注册用户或管理员生成，请通过正规渠道获取。
+        </p>
+        <p>
+          2. 本平台强制启用两步验证（TOTP）。你有责任妥善保管验证器、密码与恢复代码，并对账户下的全部活动负责。
+        </p>
+        <p>
+          3. 你承诺注册信息真实、合法，不得冒用他人身份或机构名义。你须达到你所在司法辖区规定的最低注册年龄（未满 14 周岁的未成年人请勿注册）。
+        </p>
+        <p>4. 不得转让、出售、出借账户；发现账户被盗用应立即联系管理员。</p>
+      </LegalSection>
+
+      <LegalSection
+        title="二、内容权利"
+        en={
+          <>
+            <p>
+              You retain full copyright of everything you publish. You grant the platform an
+              unconditional, royalty-free, non-exclusive, worldwide license to reproduce, distribute,
+              use, and publicly display your content for commercial or non-commercial purposes and for
+              research purposes (including within aggregated feeds, archives, snapshots and datasets
+              derived from the public service).
+            </p>
+          </>
+        }
+      >
+        <blockquote>
+          <p>
+            <strong>
+              你保留你所发布内容的完整著作权。作为对本平台服务的对价，你向本平台授予无条件的、免费的、非独占的全球许可：复制、分发、使用、公开展示你发布的内容，用于营利性或非营利性用途及研究用途（包括在聚合订阅源、归档、快照及基于公开服务形成的数据集中使用）。
+            </strong>
+          </p>
+        </blockquote>
+        <p>
+          1. 你在本平台发布的文章、短动态、评论、图片及其他内容，其著作权始终归你或原始权利人所有。本平台不会因你使用服务而获得内容的所有权——提交，是技术世界最古老的仪式，而仪式的主角始终是你。
+        </p>
+        <p>
+          2. 上述许可在本平台公开服务范围内存续；你删除内容后，本平台将按照《隐私政策》的约定停止新的展示，但已发生的缓存、备份、第三方缓存及研究数据集不受追溯影响。
+        </p>
+        <p>
+          3. 你保证所发布内容不侵犯任何第三方的著作权、商标权、名誉权、隐私权及其他合法权益；因你的内容引起的纠纷由你自行承担。
+        </p>
+        <p>4. 他人在评论区、转推等场景下产生的内容，其权利关系同样适用本条。</p>
+      </LegalSection>
+
+      <LegalSection
+        title="三、行为规范与内容审核"
+        en={
+          <>
+            <p>
+              Illegal, pornographic, violent, hateful, privacy-invading and spam content is prohibited.
+              Submissions pass keyword filtering and may additionally be reviewed by an automated LLM
+              service and/or human moderators before publication. Violations may lead to removal,
+              suspension or termination.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 你不得发布、传播法律法规禁止的内容，包括但不限于：违法违规、色情低俗、暴力恐怖、仇恨歧视、侵犯他人隐私、垃圾营销与恶意刷屏内容。
+        </p>
+        <p>
+          2. 本平台结合关键词审核与 LLM（大语言模型）审核对发布内容进行合规检查，必要时进行人工复核。审核结果不影响你对内容的著作权，仅决定内容能否在平台公开分发。
+        </p>
+        <p>
+          3. 对违规内容，本平台有权采取隐藏、下架、驳回等措施；对违规账户，视情节给予警告、禁言、封禁直至注销处理。
+        </p>
+        <p>4. 你可以通过举报入口对违规内容进行举报，本平台管理员将依规处理。</p>
+      </LegalSection>
+
+      <LegalSection
+        title="四、子域名规则"
+        en={
+          <>
+            <p>
+              Eligible users may bind one custom subdomain (e.g. alice.example.com) to their blog. A
+              subdomain can only be set once and cannot be changed afterwards. It must not infringe
+              trademarks, impersonate others, or conflict with reserved names. Misused subdomains may be
+              reclaimed without notice.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 在站点开启子域名功能后，符合条件的用户可以将一个子域名（如 <code>alice.example.com</code>）绑定到自己的博客，通过该子域名独立访问。
+        </p>
+        <p>2. 子域名一经设定不可更改；请谨慎选择。</p>
+        <p>
+          3. 子域名不得侵犯他人商标权或姓名权，不得用于仿冒、钓鱼或误导性用途，不得与本平台保留字冲突。违规子域名本平台有权不经通知直接回收。
+        </p>
+        <p>
+          4. 子域名指向的内容、外观与交互由用户自定义，但不免除本协议对内容与行为的全部约束。
+        </p>
+      </LegalSection>
+
+      <LegalSection
+        title="五、服务的按现状提供"
+        en={
+          <>
+            <p>
+              The service is provided “as is” and “as available”, without warranties of any kind, express
+              or implied, including merchantability, fitness for a particular purpose and
+              non-infringement. We do not warrant uninterrupted or error-free operation.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 本平台按“现状”和“现有”基础提供服务，不对服务的可用性、及时性、安全性、准确性作出任何明示或默示的保证。
+        </p>
+        <p>
+          2. 因系统维护、升级、故障、第三方服务中断、不可抗力等原因导致服务暂时中断或数据丢失的，本平台不承担由此产生的损失赔偿责任，但将尽合理努力恢复服务。
+        </p>
+      </LegalSection>
+
+      <LegalSection
+        title="六、责任限制"
+        en={
+          <>
+            <p>
+              To the maximum extent permitted by law, the platform shall not be liable for any indirect,
+              incidental, special, consequential or punitive damages, or for loss of profits, data or
+              goodwill arising from your use of the service. Nothing in these terms limits liability that
+              cannot be limited by law.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 在法律允许的最大范围内，本平台不对任何间接的、偶然的、特殊的、惩罚性的损害承担责任，亦不对利润损失、数据损失或商誉损失承担责任。
+        </p>
+        <p>
+          2. 用户之间的纠纷（如抄袭、名誉争议等）由当事人自行解决；本平台在收到有效通知与证据后提供必要的协助（如删除侵权内容）。
+        </p>
+      </LegalSection>
+
+      <LegalSection
+        title="七、协议的变更"
+        en={
+          <>
+            <p>
+              We may update these terms to reflect service or legal changes. Material changes will be
+              announced on the site (and/or by email) before taking effect. Continued use after the
+              effective date constitutes acceptance of the updated terms.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 本平台可根据服务发展与法律要求修订本协议，修订后的协议将在本页面公布；重大变更将通过站内公告或邮件提前通知。
+        </p>
+        <p>
+          2. 若你在协议生效后继续使用本平台，即视为接受修订后的协议；若你不同意，请停止使用并可注销账户。
+        </p>
+      </LegalSection>
+
+      <LegalSection
+        title="八、协议的终止"
+        en={
+          <>
+            <p>
+              You may stop using the service and delete your account at any time from Settings → Data.
+              We may suspend or terminate accounts that violate these terms or the law. Upon
+              termination, the license in Section 2 survives only for already-published caches,
+              backups and research datasets as described in the Privacy Policy.
+            </p>
+          </>
+        }
+      >
+        <p>
+          1. 你可随时在“设置 → 数据与导出”中导出你的数据并删除账户，账户删除后本协议对你终止。
+        </p>
+        <p>
+          2. 你违反本协议或法律的，本平台有权暂停或终止向你提供服务，并依法保存相关证据。
+        </p>
+        <p>
+          3. 协议终止后，第二条项下许可仅就已产生的缓存、备份与研究数据集按《隐私政策》约定继续存续。
+        </p>
+      </LegalSection>
+
+      <p>
+        本协议适用中华人民共和国法律（不含港澳台地区法律）。如对协议有任何疑问，请通过页脚联系方式或管理员邮箱与我们联系。
+      </p>
+    </LegalDoc>
+  );
+}

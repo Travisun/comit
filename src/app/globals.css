@@ -1,26 +1,348 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
+/* ============================================================
+   comit.sh design system — Cloudflare-style flat design.
+   Engineering feel: solid fills, visible 1px borders, sharp
+   6/8px radii, NO shadows on surfaces (only floating overlays
+   get a single ultra-light elevation shadow).
+   All colors route through CSS variables so light/dark are
+   pure token swaps (shadcn/ui-compatible naming).
+   ============================================================ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* panels 8px; controls use rounded-md (6px) via the scale below */
+  --radius: 8px;
+
+  /* flat canvas — solid color, no gradients */
+  --background: #f2f3f5;
+  --foreground: #22252a;
+
+  --card: #ffffff;
+  --card-foreground: #22252a;
+
+  --popover: #ffffff;
+  --popover-foreground: #22252a;
+
+  /* Cool black primary */
+  --primary: #101014;
+  --primary-hover: #1a1a1f;
+  --primary-foreground: #ffffff;
+
+  --secondary: #f0f1f3;
+  --secondary-foreground: #22252a;
+
+  /* Stripe-style muted/input surface */
+  --muted: #f4f7fa;
+  --muted-foreground: #6b6f76;
+
+  --accent: #f4f7fa;
+  --accent-foreground: #22252a;
+
+  /* semantic status */
+  --success: #2e7d46;
+  --warning: #b7791f;
+  --destructive: #c52228;
+  --destructive-foreground: #ffffff;
+
+  /* visible 1px flat separation — borders, not shadows */
+  --border: #dedee3;
+  --input: #f4f7fa;
+  --ring: rgba(16, 16, 20, 0.35);
+
+  /* interaction surfaces */
+  --hover: #f7f8f8; /* row/control hover */
+  --selected: #eef4fb; /* selected light blue-gray */
+
+  /* editorial / body link blue */
+  --link: #1c64d9;
+
+  /* the ONLY allowed elevation: floating layers (dropdown/dialog/popover) */
+  --shadow-overlay: 0 4px 16px rgba(34, 37, 42, 0.08);
+
+  --header-h: 3.75rem;
+}
+
+.dark {
+  --background: #16181c;
+  --foreground: #e8eaed;
+
+  --card: #1e2126;
+  --card-foreground: #e8eaed;
+
+  --popover: #23262b;
+  --popover-foreground: #e8eaed;
+
+  --primary: #101014;
+  --primary-hover: #1a1a1f;
+  --primary-foreground: #ffffff;
+
+  --secondary: #26292e;
+  --secondary-foreground: #c6c9cd;
+
+  --muted: #1f242a;
+  --muted-foreground: #9aa0a6;
+
+  --accent: #1f242a;
+  --accent-foreground: #e8eaed;
+
+  --success: #4ea768;
+  --warning: #d9a53f;
+  --destructive: #e05252;
+  --destructive-foreground: #ffffff;
+
+  --border: #33373d;
+  --input: #1f242a;
+  --ring: rgba(16, 16, 20, 0.45);
+
+  --hover: #24272c;
+  --selected: #232d3f;
+
+  --link: #6ba4f5;
+
+  --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.5);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-hover: var(--hover);
+  --color-selected: var(--selected);
+  --color-link: var(--link);
+
+  --radius-sm: calc(var(--radius) - 4px); /* 4px — kbd, tiny chips */
+  --radius-md: calc(var(--radius) - 2px); /* 6px — controls: buttons/inputs */
+  --radius-lg: var(--radius); /* 8px — panels: cards/dialogs/popovers */
+  --radius-xl: calc(var(--radius) + 4px); /* 12px — large hero surfaces */
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC",
+    "Source Han Sans SC", sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+  --font-serif: Georgia, "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
+
+  --animate-fade-in: fade-in 0.25s ease both;
+  --animate-slide-up: slide-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-pop-in: pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+/* ============================ base ============================ */
+* {
+  border-color: var(--border);
+}
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
 body {
+  /* flat solid canvas — no gradients, no ambient blobs */
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  font-feature-settings: "tnum" on, "lnum" on;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.75;
+}
+::selection {
+  background: color-mix(in srgb, var(--primary) 25%, transparent);
+}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--foreground) 18%, transparent); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Chinese typography helpers */
+.text-balance { text-wrap: balance; }
+.num { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Article typography (.article-prose) — hand-rolled prose tuned
+   for CJK + code + math + tables. Used for rendered markdown.
+   ============================================================ */
+.article-prose {
+  font-size: 1.0625rem;
+  line-height: 1.9;
+  color: var(--foreground);
+  overflow-wrap: break-word;
+}
+.article-prose > * + * { margin-top: 1.1em; }
+.article-prose h1, .article-prose h2, .article-prose h3, .article-prose h4 {
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  scroll-margin-top: calc(var(--header-h) + 1rem);
+}
+.article-prose h1 { font-size: 1.75em; margin-top: 1.6em; }
+.article-prose h2 { font-size: 1.4em; margin-top: 1.8em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+.article-prose h3 { font-size: 1.18em; margin-top: 1.6em; }
+.article-prose h4 { font-size: 1.05em; margin-top: 1.4em; }
+.article-prose p { margin-top: 1.1em; }
+.article-prose a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--link) 35%, transparent);
+}
+.article-prose a:hover { text-decoration-color: var(--link); }
+.article-prose strong { font-weight: 650; }
+.article-prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin-inline: auto;
+  display: block;
+  border: 1px solid var(--border);
+}
+.article-prose blockquote {
+  border-left: 3px solid var(--primary);
+  background: color-mix(in srgb, var(--primary) 5%, var(--card));
+  padding: 0.75em 1.15em;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--muted-foreground);
+}
+.article-prose blockquote p { margin: 0.3em 0; }
+.article-prose ul, .article-prose ol { padding-left: 1.6em; }
+.article-prose ul { list-style: disc; }
+.article-prose ol { list-style: decimal; }
+.article-prose li + li { margin-top: 0.35em; }
+.article-prose li::marker { color: var(--muted-foreground); }
+.article-prose hr { border: none; border-top: 1px solid var(--border); margin: 2.5em 0; }
+
+/* inline code — light gray fill + visible 1px border (light value: #f0f1f3) */
+.article-prose code:not(pre code) {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  padding: 0.12em 0.4em;
+  border-radius: 6px;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
+  color: var(--foreground);
+}
+
+/* code blocks (shiki output — dual theme vars; we pin the dark palette) */
+.article-prose pre {
+  background: var(--shiki-dark-bg, #22272e);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem 1.15rem;
+  overflow-x: auto;
+  font-size: 0.875rem;
+  line-height: 1.7;
+  position: relative;
+}
+.article-prose pre code {
+  font-family: var(--font-mono);
+  background: transparent;
+  color: var(--shiki-dark, #adbac7);
+}
+.article-prose pre code span {
+  color: var(--shiki-dark, inherit);
+}
+
+/* tables */
+.article-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.925em;
+  display: block;
+  overflow-x: auto;
+}
+.article-prose th, .article-prose td {
+  border: 1px solid var(--border);
+  padding: 0.5em 0.9em;
+  text-align: left;
+}
+.article-prose th { background: var(--muted); font-weight: 600; white-space: nowrap; }
+.article-prose tr:nth-child(2n) td { background: color-mix(in srgb, var(--muted) 45%, transparent); }
+
+/* katex */
+.article-prose .katex { font-size: 1.05em; }
+.article-prose .katex-display { overflow-x: auto; overflow-y: hidden; padding: 0.4em 0; }
+
+/* mermaid placeholder */
+.article-prose .mermaid-block {
+  display: flex;
+  justify-content: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  overflow-x: auto;
+}
+.article-prose .mermaid-block svg { max-width: 100%; height: auto; }
+.article-prose .mermaid-error { color: var(--destructive); font-size: 0.85rem; }
+
+/* details/summary */
+.article-prose details {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.6em 1em;
+  background: var(--card);
+}
+.article-prose summary { cursor: pointer; font-weight: 600; }
+
+/* footnotes */
+.article-prose .footnotes { font-size: 0.9em; color: var(--muted-foreground); }
+
+/* ============================================================
+   Utilities
+   ============================================================ */
+/* flat card surface: 1px border, 8px radius, no shadow */
+.card-surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.link-muted { color: var(--muted-foreground); }
+.link-muted:hover { color: var(--foreground); }
+.line-clamp-2-fix { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* key-cap chip (command-bar hints, keyboard shortcuts) — CF style:
+   square 4px corners, gray border, flat fill, no shadow */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--input);
+  border-radius: 4px;
+  background: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted-foreground);
 }

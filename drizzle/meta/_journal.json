@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789137165598,
+      "tag": "0000_skinny_dragon_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789151031812,
+      "tag": "0001_youthful_wraith",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789153853934,
+      "tag": "0002_tan_lady_deathstrike",
+      "breakpoints": true
+    }
+  ]
+}

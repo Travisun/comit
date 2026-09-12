@@ -1,0 +1,317 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { CalendarPlus, Copy, HardDrive, Images, Search, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/primitives";
+import {
+  ConfirmDialog,
+} from "@/components/admin/post-actions";
+import { EmptyState, PageHeader, Pagination, StatCard, TableSkeleton } from "@/components/admin/bits";
+import { api } from "@/components/admin/client";
+import { formatBytes, timeAgo } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
+
+interface MediaItem {
+  id: string;
+  userId: string;
+  path: string;
+  filename: string;
+  mime: string;
+  size: number;
+  width: number;
+  height: number;
+  kind: string;
+  alt: string;
+  createdAt: string;
+  ownerUsername: string;
+  ownerDisplayName: string;
+  ownerAvatar: string | null;
+}
+
+interface MediaData {
+  items: MediaItem[];
+  total: number;
+  stats: { files: number; bytes: number; monthFiles: number };
+}
+
+const PAGE_SIZE = 30;
+
+const KIND_OPTIONS = [
+  { value: "", label: "全部类型" },
+  { value: "inline", label: "正文配图" },
+  { value: "avatar", label: "头像" },
+  { value: "cover", label: "封面" },
+  { value: "featured", label: "精选" },
+];
+
+const KIND_LABELS: Record<string, string> = {
+  inline: "正文配图",
+  avatar: "头像",
+  cover: "封面",
+  featured: "精选",
+};
+
+function src(path: string): string {
+  return `/api/media/file/${path}`;
+}
+
+/** Fetches and renders one page of media; remounted (via key) on query change. */
+function MediaGrid({
+  kind,
+  query,
+  offset,
+  onPage,
+  onChanged,
+}: {
+  kind: string;
+  query: string;
+  offset: number;
+  onPage: (next: number) => void;
+  onChanged: () => void;
+}) {
+  const { locale } = useI18n();
+  const [data, setData] = useState<MediaData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<MediaItem | null>(null);
+  const [deleting, setDeleting] = useState<MediaItem | null>(null);
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (kind) params.set("kind", kind);
+    if (query) params.set("q", query);
+    api<MediaData>(`/api/admin/media?${params}`)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((err: Error) => {
+        if (!cancelled) setError(err.message);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [kind, query, offset, onChanged]);
+
+  async function remove(item: MediaItem) {
+    setPending(true);
+    try {
+      await api(`/api/admin/media/${item.id}`, { method: "DELETE" });
+      toast.success(`已删除 ${item.filename}`);
+      setDeleting(null);
+      setViewing(null);
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "删除失败");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  if (error) return <EmptyState title="加载失败" hint={error} />;
+  if (!data) return <TableSkeleton rows={6} cols={4} />;
+  if (data.items.length === 0)
+    return <EmptyState title="没有匹配的媒体文件" hint="试试调整类型或搜索词" />;
+
+  return (
+    <>
+      {/* stats */}
+      <div className="mb-5 grid gap-3 sm:grid-cols-3">
+        <StatCard label="文件总数" value={data.stats.files} icon={<Images />} />
+        <StatCard label="总占用空间" value={formatBytes(data.stats.bytes)} icon={<HardDrive />} />
+        <StatCard label="本月新增" value={data.stats.monthFiles} icon={<CalendarPlus />} />
+      </div>
+
+      {/* grid */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        {data.items.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setViewing(m)}
+            className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/40"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={src(m.path)}
+              alt={m.alt || m.filename}
+              loading="lazy"
+              className="size-full object-cover transition-transform group-hover:scale-105"
+            />
+            <div className="absolute inset-x-0 bottom-0 space-y-0.5 bg-gradient-to-t from-black/70 to-transparent p-2 text-left text-[11px] leading-tight text-white opacity-0 transition-opacity group-hover:opacity-100">
+              <p className="truncate">{m.filename}</p>
+              <p className="text-white/80">
+                {formatBytes(m.size)} · {m.width}×{m.height} · @{m.ownerUsername}
+              </p>
+              <p className="text-white/70">{timeAgo(m.createdAt, locale)}</p>
+            </div>
+            <Badge variant="secondary" className="absolute left-2 top-2 px-1.5 py-0 text-[10px]">
+              {KIND_LABELS[m.kind] ?? m.kind}
+            </Badge>
+          </button>
+        ))}
+      </div>
+      <div className="mt-3">
+        <Pagination offset={offset} limit={PAGE_SIZE} total={data.total} onPage={onPage} />
+      </div>
+
+      {/* viewer */}
+      <Dialog open={viewing !== null} onOpenChange={(v) => !v && setViewing(null)}>
+        <DialogContent className="max-w-2xl">
+          {viewing ? (
+            <>
+              <DialogHeader>
+                <DialogTitle className="pr-8">{viewing.filename}</DialogTitle>
+                <DialogDescription>
+                  {KIND_LABELS[viewing.kind] ?? viewing.kind} · {formatBytes(viewing.size)} ·{" "}
+                  {viewing.width}×{viewing.height}
+                </DialogDescription>
+              </DialogHeader>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src(viewing.path)}
+                alt={viewing.alt || viewing.filename}
+                className="max-h-[55vh] w-full rounded-lg object-contain"
+              />
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <p>
+                  归属：
+                  <a
+                    href={`/u/${viewing.ownerUsername}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-foreground hover:underline"
+                  >
+                    {viewing.ownerDisplayName} (@{viewing.ownerUsername})
+                  </a>
+                </p>
+                <p>上传时间：{new Date(viewing.createdAt).toLocaleString("zh-CN")}</p>
+                <p className="break-all font-mono text-xs">/api/media/file/{viewing.path}</p>
+              </div>
+              <DialogFooter className="sm:justify-between">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(`${location.origin}${src(viewing.path)}`)
+                      .then(() => toast.success("链接已复制"))
+                      .catch(() => toast.error("复制失败"));
+                  }}
+                >
+                  <Copy />
+                  复制链接
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={pending}
+                  onClick={() => {
+                    setViewing(null);
+                    setDeleting(viewing);
+                  }}
+                >
+                  <Trash2 />
+                  删除文件
+                </Button>
+              </DialogFooter>
+            </>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(v) => {
+          if (!v) setDeleting(null);
+        }}
+        title="删除该媒体文件？"
+        description={
+          deleting
+            ? `「${deleting.filename}」将从磁盘移除；引用它的文章/头像将显示为裂图，请确认没有正在使用。`
+            : undefined
+        }
+        confirmText="确认删除"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          if (deleting) void remove(deleting);
+        }}
+      />
+    </>
+  );
+}
+
+function MediaInner() {
+  const [kind, setKind] = useState("");
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
+  const [offset, setOffset] = useState(0);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setQuery(q.trim());
+      setOffset(0);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  const onPage = useCallback((next: number) => setOffset(next), []);
+
+  return (
+    <div>
+      <PageHeader title="媒体管理" description="全站图片资产：空间占用、归属与清理" />
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="relative w-full max-w-64">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="搜索文件名 / 用户名…"
+            className="pl-8"
+          />
+        </div>
+        <select
+          value={kind}
+          onChange={(e) => {
+            setKind(e.target.value);
+            setOffset(0);
+          }}
+          className="h-9 rounded-lg border border-input bg-[var(--muted)] px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+          aria-label="按类型筛选"
+        >
+          {KIND_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <MediaGrid
+        key={`${kind}|${query}|${offset}|${version}`}
+        kind={kind}
+        query={query}
+        offset={offset}
+        onPage={onPage}
+        onChanged={bump}
+      />
+    </div>
+  );
+}
+
+export default function AdminMediaPage() {
+  return <MediaInner />;
+}

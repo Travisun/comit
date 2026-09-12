@@ -1,0 +1,28 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: myblogs-postgres
+    environment:
+      POSTGRES_USER: blog
+      POSTGRES_PASSWORD: CHANGE_ME
+      POSTGRES_DB: myblogs
+    ports:
+      - "5433:5432"
+    volumes:
+      - myblogs_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog -d myblogs"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Dev-only local SMTP catcher: web UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: myblogs-mailpit
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+volumes:
+  myblogs_pgdata:
