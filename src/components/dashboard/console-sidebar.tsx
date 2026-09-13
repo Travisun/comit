@@ -3,16 +3,15 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { X } from "lucide-react";
+import { ArrowLeft, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BrandLogoPlaceholder } from "./console-topbar";
 
 /**
- * Console sidebar — shared by 创作中心 and 管理后台.
- * Desktop (lg+): sticky left rail (w-60) with uppercase 11px section labels,
- * active item = --selected wash + rounded-md. Mobile: slide-in drawer (fixed,
- * w-64, overlay) controlled by the parent's `open` state.
+ * Console sidebar — fixed full-height left column, Stripe new-chrome style:
+ * white surface, the brand wordmark on top, grouped nav, and a single
+ * vertical hairline separating it from the right-hand area (whose sticky
+ * header carries the account menu). Mobile: slide-in drawer.
  */
 
 export interface ConsoleNavItem {
@@ -49,13 +48,13 @@ export function ConsoleNavLink({
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors",
+        "flex h-[30px] items-center gap-2.5 rounded-md px-2.5 text-sm transition-colors",
         active
-          ? "bg-[var(--selected,#eef4fb)] font-semibold text-foreground"
-          : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground",
+          ? "bg-[var(--selected)] font-medium text-foreground"
+          : "text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground",
       )}
     >
-      <Icon className="size-4 shrink-0" />
+      <Icon className="size-4 shrink-0" strokeWidth={active ? 2.2 : 2} />
       <span className="truncate">{item.label}</span>
     </Link>
   );
@@ -69,10 +68,10 @@ function NavGroups({
   onNavigate?: () => void;
 }) {
   return (
-    <nav className="flex flex-col gap-4 py-4">
+    <nav className="flex flex-col gap-5">
       {groups.map((group) => (
         <div key={group.label}>
-          <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+          <div className="mb-1 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             {group.label}
           </div>
           <div className="flex flex-col gap-0.5">
@@ -83,6 +82,31 @@ function NavGroups({
         </div>
       ))}
     </nav>
+  );
+}
+
+function BackToSiteLink({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Link
+      href="/"
+      onClick={onNavigate}
+      className="flex h-[30px] items-center gap-2.5 rounded-md px-2.5 text-sm text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
+    >
+      <ArrowLeft className="size-4 shrink-0" />
+      返回网站
+    </Link>
+  );
+}
+
+function BrandMark() {
+  return (
+    <span
+      role="img"
+      aria-label="comit.sh"
+      className="inline-flex select-none items-baseline px-1.5 font-mono text-[17px] font-extrabold leading-none tracking-[-0.04em] text-foreground"
+    >
+      comit<span className="text-primary">.</span>sh
+    </span>
   );
 }
 
@@ -116,9 +140,19 @@ export function ConsoleSidebar({
 
   return (
     <>
-      {/* desktop rail */}
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 overflow-y-auto border-r border-border bg-white lg:block p-3 lg:p-4">
-        <NavGroups groups={groups} />
+      {/* desktop rail — fixed full-height white column; a single vertical
+          hairline ("one line splits the app in two") separates it from the
+          right-hand area, whose sticky header carries the account menu */}
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col bg-[var(--background)] shadow-[inset_-1px_0_var(--border)] lg:flex">
+        <div className="flex h-11 shrink-0 items-center px-3">
+          <BrandMark />
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pt-5">
+          <NavGroups groups={groups} />
+        </div>
+        <div className="shrink-0 p-2.5">
+          <BackToSiteLink />
+        </div>
       </aside>
 
       {/* mobile drawer + overlay */}
@@ -129,7 +163,7 @@ export function ConsoleSidebar({
         <div
           onClick={onClose}
           className={cn(
-            "absolute inset-0 bg-foreground/40 transition-opacity duration-200",
+            "absolute inset-0 bg-[rgba(79,86,107,0.25)] transition-opacity duration-200",
             open ? "opacity-100" : "opacity-0",
           )}
         />
@@ -138,31 +172,26 @@ export function ConsoleSidebar({
           aria-modal="true"
           aria-label={sectionLabel}
           className={cn(
-            "absolute inset-y-0 left-0 flex w-64 flex-col border-r border-border bg-white transition-transform duration-200 ease-out",
+            "absolute inset-y-0 left-0 flex w-64 flex-col bg-[var(--background)] shadow-[inset_-1px_0_var(--border)] transition-transform duration-200 ease-out",
             open ? "translate-x-0" : "-translate-x-full",
           )}
         >
-          <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-            <BrandLogoPlaceholder />
+          <div className="flex h-11 shrink-0 items-center justify-between border-b border-border pl-3 pr-2">
+            <BrandMark />
             <button
               type="button"
               aria-label="关闭菜单"
               onClick={onClose}
-              className="-mr-1.5 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground"
+              className="-mr-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
             >
               <X className="size-4.5" />
             </button>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
             <NavGroups groups={groups} onNavigate={onClose} />
           </div>
-          <div className="shrink-0 border-t border-border p-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground"
-            >
-              返回网站
-            </Link>
+          <div className="shrink-0 p-2.5">
+            <BackToSiteLink onNavigate={onClose} />
           </div>
         </aside>
       </div>

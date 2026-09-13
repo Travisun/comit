@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, Download, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SectionTabs } from "@/components/ui/settings";
 import { Input, Label } from "@/components/ui/input";
 import { Badge, Checkbox } from "@/components/ui/primitives";
 import {
@@ -71,12 +72,9 @@ function ExportCard({ initial }: { initial: ExportJobView[] }) {
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div className="space-y-1.5">
-          <h3 className="text-lg font-semibold">{t("settings.data.export")}</h3>
-          <p className="text-sm text-muted-foreground">{t("settings.data.exportDesc")}</p>
-        </div>
+        <p className="text-sm text-muted-foreground">{t("settings.data.exportDesc")}</p>
         <Button size="sm" onClick={start} disabled={busy || hasPending}>
           {busy || hasPending ? <Loader2 className="animate-spin" /> : <FileDown />}
           {t("settings.data.exportStart")}
@@ -149,14 +147,11 @@ function DangerZone({ hasPassword }: { hasPassword: boolean }) {
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6 border border-destructive/40">
-      <div className="mb-4">
-        <h3 className="flex items-center gap-2 text-destructive text-lg font-semibold">
-          <AlertTriangle className="size-4" />
-          {t("settings.data.delete")}
-        </h3>
-        <p className="text-sm text-muted-foreground">{t("settings.data.deleteDesc")}</p>
-      </div>
+    <div className="space-y-4 rounded-lg border border-destructive/30 bg-[color-mix(in_srgb,var(--destructive)_4%,transparent)] p-5">
+      <p className="mb-4 flex items-center gap-2 text-sm text-destructive">
+        <AlertTriangle className="size-4" />
+        {t("settings.data.deleteDesc")}
+      </p>
       <div className="space-y-4">
         {hasPassword && (
           <div className="grid max-w-md gap-2">
@@ -240,10 +235,21 @@ export function DataPanel({
   initial: ExportJobView[];
   hasPassword: boolean;
 }) {
+  const [tab, setTab] = useState<"export" | "danger">("export");
+  const { locale } = useI18n();
+
   return (
     <div className="space-y-6">
-      <ExportCard initial={initial} />
-      <DangerZone hasPassword={hasPassword} />
+      <SectionTabs
+        value={tab}
+        onChange={(id) => setTab(id as "export" | "danger")}
+        tabs={[
+          { id: "export", label: locale === "zh" ? "数据导出" : "Export" },
+          { id: "danger", label: locale === "zh" ? "危险操作" : "Danger zone" },
+        ]}
+      />
+      {tab === "export" && <ExportCard initial={initial} />}
+      {tab === "danger" && <DangerZone hasPassword={hasPassword} />}
     </div>
   );
 }

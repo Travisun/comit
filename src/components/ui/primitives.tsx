@@ -40,15 +40,15 @@ function PopoverContent({
 }
 
 /* --------------------------------- Tabs --------------------------------- */
-/* Stripe style: muted bordered container; active tab = muted block with a
-   visible 1px border. No shadows, no pill fills. */
+/* Stripe style: flat underline tabs on a hairline baseline; the active tab
+   gets dark text + a 2px blurple underline. No pill fills, no borders. */
 const Tabs = TabsPrimitive.Root;
 
 function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
       className={cn(
-        "inline-flex h-9 items-center justify-center gap-1 rounded-md border border-border bg-[var(--muted)] p-1 text-muted-foreground",
+        "flex items-center gap-5 border-b border-border text-muted-foreground",
         className,
       )}
       {...props}
@@ -60,9 +60,9 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[4px] border border-transparent px-3 py-1 text-sm font-medium transition-colors",
+        "-mb-px inline-flex items-center justify-center gap-1.5 whitespace-nowrap border-b-2 border-transparent px-0.5 pb-2.5 pt-1 text-sm font-medium transition-colors",
         "hover:text-foreground",
-        "data-[state=active]:border-border data-[state=active]:bg-[var(--muted)] data-[state=active]:text-foreground",
+        "data-[state=active]:border-primary data-[state=active]:text-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:pointer-events-none disabled:opacity-50",
         "[&_svg]:size-4",
         className,
@@ -77,17 +77,22 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
 }
 
 /* -------------------------------- Switch -------------------------------- */
+/* Stripe (bs-Switch) style: 46×26 gradient bevel with 1px #ced5db border and
+   inset shadow; checked = blue fill, white knob. */
 function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimitive.Root>) {
   return (
     <SwitchPrimitive.Root
       className={cn(
-        "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors",
-        "data-[state=checked]:bg-primary data-[state=unchecked]:bg-input focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+        "peer inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full border px-0.5 transition-colors",
+        "border-[#ced5db] bg-[linear-gradient(to_bottom,#e9ecef,#f0f3f5)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]",
+        "dark:border-[#3a4258] dark:bg-[linear-gradient(to_bottom,#232937,#1c212c)]",
+        "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:shadow-none",
+        "focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)]",
         className,
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb className="pointer-events-none block size-4 rounded-full bg-card ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
+      <SwitchPrimitive.Thumb className="pointer-events-none block size-5 rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.2)] transition-transform data-[state=checked]:translate-x-[20px] data-[state=unchecked]:translate-x-0" />
     </SwitchPrimitive.Root>
   );
 }
@@ -121,7 +126,7 @@ function Avatar({ className, ...props }: React.ComponentProps<typeof AvatarPrimi
   return (
     <AvatarPrimitive.Root
       className={cn(
-        "relative flex size-9 shrink-0 overflow-hidden rounded-full border border-border bg-[var(--muted)]",
+        "relative flex size-9 shrink-0 overflow-hidden rounded-full border border-border bg-secondary",
         className,
       )}
       {...props}
@@ -162,13 +167,15 @@ function Separator({
 }
 
 /* ------------------------------- Checkbox ------------------------------- */
+/* Stripe style: white box + translucent keyline ring; checked = blue fill. */
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        "peer size-4 shrink-0 rounded-[4px] border border-input bg-[var(--muted)] transition-colors",
-        "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+        "peer size-4 shrink-0 rounded-[3px] bg-card transition-colors",
+        "shadow-[0_0_0_1px_var(--field-line),0_1px_1px_rgba(0,0,0,0.08)]",
+        "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:shadow-none",
+        "focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)]",
         className,
       )}
       {...props}
@@ -181,22 +188,25 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
 }
 
 /* -------------------------------- Badge --------------------------------- */
-/* CF style: square 6px corners, soft tinted fills with deep text.
-   default = solid orange; status variants = soft bg + deep fg. */
+/* Stripe (bs-Badge) style: 20px pill, transparent fill, inset 1px ring of
+   the status color at 20% opacity, 12px/600 uppercase colored text. */
 const badgeVariants = cva(
-  "inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors [&_svg]:size-3",
+  "inline-flex h-5 items-center gap-1 rounded-full px-2 text-xs font-semibold uppercase leading-none transition-colors [&_svg]:size-3",
   {
     variants: {
       variant: {
-        default: "border-transparent bg-primary text-primary-foreground",
-        secondary: "border-transparent bg-muted text-muted-foreground",
-        outline: "border-border bg-transparent text-foreground",
+        default:
+          "text-[var(--primary)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_25%,transparent)]",
+        secondary:
+          "text-[#697386] shadow-[inset_0_0_0_1px_color-mix(in_srgb,#697386_20%,transparent)] dark:text-[#99a2b4]",
+        outline:
+          "text-[#697386] shadow-[inset_0_0_0_1px_color-mix(in_srgb,#697386_20%,transparent)] dark:text-[#99a2b4]",
         success:
-          "border-transparent bg-[color-mix(in_srgb,var(--success)_14%,transparent)] text-[var(--success)]",
+          "text-[var(--success)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--success)_25%,transparent)]",
         warning:
-          "border-transparent bg-[color-mix(in_srgb,var(--warning)_16%,transparent)] text-[color-mix(in_srgb,var(--warning)_78%,#000)]",
+          "text-[var(--warning)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--warning)_25%,transparent)]",
         destructive:
-          "border-transparent bg-[color-mix(in_srgb,var(--destructive)_12%,transparent)] text-destructive",
+          "text-[var(--destructive)] shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--destructive)_25%,transparent)]",
       },
     },
     defaultVariants: { variant: "default" },

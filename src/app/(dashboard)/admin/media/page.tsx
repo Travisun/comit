@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { CalendarPlus, Copy, HardDrive, Images, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/primitives";
+import { ConfirmDialog } from "@/components/admin/post-actions";
 import {
-  ConfirmDialog,
-} from "@/components/admin/post-actions";
-import { EmptyState, PageHeader, Pagination, StatCard, TableSkeleton } from "@/components/admin/bits";
+  EmptyState,
+  FilterChips,
+  PageHeader,
+  Pagination,
+  StatCard,
+  TableSkeleton,
+} from "@/components/admin/bits";
 import { api } from "@/components/admin/client";
 import { formatBytes, timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
@@ -64,6 +70,11 @@ const KIND_LABELS: Record<string, string> = {
 
 function src(path: string): string {
   return `/api/media/file/${path}`;
+}
+
+/** Keyline white card — the only boxed surface on this page (Stripe Home stat). */
+function StatTile({ children }: { children: ReactNode }) {
+  return <div className="rounded-lg border border-border bg-card p-4">{children}</div>;
 }
 
 /** Fetches and renders one page of media; remounted (via key) on query change. */
@@ -126,39 +137,47 @@ function MediaGrid({
 
   return (
     <>
-      {/* stats */}
+      {/* stats — keyline white cards, no shadow */}
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
-        <StatCard label="文件总数" value={data.stats.files} icon={<Images />} />
-        <StatCard label="总占用空间" value={formatBytes(data.stats.bytes)} icon={<HardDrive />} />
-        <StatCard label="本月新增" value={data.stats.monthFiles} icon={<CalendarPlus />} />
+        <StatTile>
+          <StatCard label="文件总数" value={data.stats.files} icon={<Images />} />
+        </StatTile>
+        <StatTile>
+          <StatCard label="总占用空间" value={formatBytes(data.stats.bytes)} icon={<HardDrive />} />
+        </StatTile>
+        <StatTile>
+          <StatCard label="本月新增" value={data.stats.monthFiles} icon={<CalendarPlus />} />
+        </StatTile>
       </div>
 
-      {/* grid */}
+      {/* grid — keyline card grid: 1px border white card + hairline footer strip */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {data.items.map((m) => (
           <button
             key={m.id}
             type="button"
             onClick={() => setViewing(m)}
-            className="group relative aspect-square overflow-hidden rounded-lg border border-border bg-muted/40"
+            className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:bg-[var(--hover)]"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={src(m.path)}
-              alt={m.alt || m.filename}
-              loading="lazy"
-              className="size-full object-cover transition-transform group-hover:scale-105"
-            />
-            <div className="absolute inset-x-0 bottom-0 space-y-0.5 bg-gradient-to-t from-black/70 to-transparent p-2 text-left text-[11px] leading-tight text-white opacity-0 transition-opacity group-hover:opacity-100">
-              <p className="truncate">{m.filename}</p>
-              <p className="text-white/80">
+            <div className="relative aspect-square overflow-hidden bg-[var(--muted)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src(m.path)}
+                alt={m.alt || m.filename}
+                loading="lazy"
+                className="size-full object-cover transition-transform group-hover:scale-105"
+              />
+              <Badge variant="secondary" className="absolute left-2 top-2 px-1.5 py-0 text-[10px]">
+                {KIND_LABELS[m.kind] ?? m.kind}
+              </Badge>
+            </div>
+            <div className="min-w-0 space-y-0.5 border-t border-border px-3 py-2">
+              <p className="truncate text-xs font-medium text-foreground">{m.filename}</p>
+              <p className="truncate text-xs text-muted-foreground tabular-nums">
                 {formatBytes(m.size)} · {m.width}×{m.height} · @{m.ownerUsername}
               </p>
-              <p className="text-white/70">{timeAgo(m.createdAt, locale)}</p>
+              <p className="text-xs text-muted-foreground">{timeAgo(m.createdAt, locale)}</p>
             </div>
-            <Badge variant="secondary" className="absolute left-2 top-2 px-1.5 py-0 text-[10px]">
-              {KIND_LABELS[m.kind] ?? m.kind}
-            </Badge>
           </button>
         ))}
       </div>
@@ -182,7 +201,7 @@ function MediaGrid({
               <img
                 src={src(viewing.path)}
                 alt={viewing.alt || viewing.filename}
-                className="max-h-[55vh] w-full rounded-lg object-contain"
+                className="max-h-[55vh] w-full rounded-lg border border-border object-contain"
               />
               <div className="space-y-1 text-sm text-muted-foreground">
                 <p>
@@ -273,8 +292,9 @@ function MediaInner() {
     <div>
       <PageHeader title="媒体管理" description="全站图片资产：空间占用、归属与清理" />
 
+      {/* toolbar — search (≤320px) + filter chips, per list-page pattern */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative w-full max-w-64">
+        <div className="relative w-full max-w-80">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
@@ -283,21 +303,14 @@ function MediaInner() {
             className="pl-8"
           />
         </div>
-        <select
+        <FilterChips
+          options={KIND_OPTIONS}
           value={kind}
-          onChange={(e) => {
-            setKind(e.target.value);
+          onChange={(v) => {
+            setKind(v);
             setOffset(0);
           }}
-          className="h-9 rounded-lg border border-input bg-[var(--muted)] px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-          aria-label="按类型筛选"
-        >
-          {KIND_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       <MediaGrid

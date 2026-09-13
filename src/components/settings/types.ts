@@ -10,12 +10,15 @@ export type SettingsTab =
   | "appearance"
   | "security"
   | "notifications"
+  | "site"
+  | "verification"
+  | "developers"
+  | "data"
+  // legacy single-item routes (redirect to their merged page)
   | "subdomain"
   | "invites"
-  | "verification"
   | "webhooks"
-  | "tokens"
-  | "data";
+  | "tokens";
 
 export interface NotificationEventDef {
   key: string;

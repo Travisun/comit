@@ -6,6 +6,7 @@ import { Eye, Heart, MessageSquare, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   EmptyState,
+  FilterChips,
   PageHeader,
   Pagination,
   PostStatusBadge,
@@ -104,7 +105,7 @@ function ArticleList({
                   href={`/p/${p.id}`}
                   target="_blank"
                   rel="noreferrer"
-                  className="block truncate font-medium hover:underline"
+                  className="block truncate font-medium text-foreground hover:underline"
                 >
                   {p.title ?? "（无标题）"}
                 </a>
@@ -137,7 +138,7 @@ function ArticleList({
                   </span>
                 </span>
               </td>
-              <td className="whitespace-nowrap text-right text-xs text-muted-foreground">
+              <td className="whitespace-nowrap text-right text-xs text-muted-foreground tabular-nums">
                 {timeAgo(p.publishedAt ?? p.createdAt, locale)}
               </td>
               <td className="text-right">
@@ -181,9 +182,9 @@ function ArticlesInner() {
     <div>
       <PageHeader title="文章管理" description="查看、审核与管理全站内容" />
 
-      {/* filters */}
+      {/* toolbar: search + status filter chips */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="relative w-full max-w-64">
+        <div className="relative w-full max-w-80">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
@@ -192,21 +193,14 @@ function ArticlesInner() {
             className="pl-8"
           />
         </div>
-        <select
+        <FilterChips
+          options={STATUS_OPTIONS}
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value);
+          onChange={(v) => {
+            setStatus(v);
             setOffset(0);
           }}
-          className="h-9 rounded-lg border border-input bg-[var(--muted)] px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
-          aria-label="按状态筛选"
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        />
       </div>
 
       <ArticleList

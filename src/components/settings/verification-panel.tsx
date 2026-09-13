@@ -64,7 +64,7 @@ export function VerificationPanel() {
 
   if (error) {
     return (
-      <div className="rounded-lg bg-[var(--muted)] p-6 pt-12">
+      <div className="space-y-4 pt-2">
         <p className="flex items-center gap-2 text-sm text-destructive">
           <CircleAlert className="size-4" /> {error}
         </p>
@@ -73,7 +73,7 @@ export function VerificationPanel() {
   }
   if (!data) {
     return (
-      <div className="rounded-lg bg-[var(--muted)] p-6 space-y-3 pt-12">
+      <div className="space-y-3 pt-2">
         <Skeleton className="h-5 w-32" />
         <Skeleton className="h-20 w-full" />
         <Skeleton className="h-32 w-full" />
@@ -124,7 +124,7 @@ export function VerificationPanel() {
         />
       ) : (
         !hasPending && (
-          <div className="rounded-lg bg-[var(--muted)] p-6">
+          <div className="space-y-4">
             <div className="flex flex-col items-start justify-between gap-3 pt-5 sm:flex-row sm:items-center">
               <p className="text-sm text-muted-foreground">
                 {zh ? "完善身份信息，获得平台认证徽章。" : "Get a verified badge on your profile."}
@@ -155,7 +155,7 @@ function VerifiedCard({ verified }: { verified: VerificationMeResponse["verified
   const canUpgrade = verificationUpgradeTargets(verified.type).length > 0;
 
   return (
-    <div className={cn("rounded-lg bg-[var(--muted)] p-6 border", style.card)}>
+    <div className={cn("rounded-lg bg-card p-6", style.card)}>
       <div className="flex items-center justify-between gap-4 mb-4">
         <div className="flex items-center gap-3">
           <span className={cn("grid size-11 place-items-center rounded-lg border", style.chip)}>
@@ -354,9 +354,9 @@ function ApplyCard({
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6 space-y-5">
+    <div className="space-y-4">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold">{upgrading ? (zh ? "重新认证" : "Re-verify") : zh ? "申请认证" : "Apply for verification"}</h3>
+        <h3 className="text-base font-semibold leading-6 text-foreground">{upgrading ? (zh ? "重新认证" : "Re-verify") : zh ? "申请认证" : "Apply for verification"}</h3>
         <p className="text-sm text-muted-foreground">
           {zh
             ? "选择认证类型，填写认证名称并上传证明材料，审核通过后徽章将展示在你的主页。"
@@ -497,7 +497,7 @@ function HistoryCard({ requests }: { requests: VerificationRequestView[] }) {
   const zh = locale === "zh";
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6">
+    <div className="space-y-4">
       <h3 className="text-base font-semibold mb-4">{zh ? "申请记录" : "Application history"}</h3>
       <ul className="divide-y divide-border">
         {requests.map((r) => {

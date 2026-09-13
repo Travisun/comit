@@ -4,8 +4,15 @@ import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { CircleUser, ImageUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/input";
+import { Input, Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
+import {
+  SectionTabs,
+  SettingField,
+  SettingsFooter,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { apiRequest, mediaUrl, uploadImage } from "./client";
@@ -33,6 +40,16 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const [coverPath, setCoverPath] = useState(initial.coverPath);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [saving, setSaving] = useState(false);
+  const dirty =
+    displayName !== initial.displayName ||
+    bio !== (initial.bio ?? "") ||
+    github !== (initial.github ?? "") ||
+    orcid !== (initial.orcid ?? "") ||
+    website !== (initial.website ?? "") ||
+    uiLocale !== initial.locale ||
+    avatarPath !== initial.avatarPath ||
+    coverPath !== initial.coverPath;
+  const [tab, setTab] = useState<"profile" | "social" | "cover">("profile");
   const avatarInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
 
@@ -76,108 +93,120 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const coverSrc = mediaUrl(coverPath);
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-lg bg-[var(--muted)] p-6 space-y-3">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold">{t("settings.profile.cover")}</h3>
-          <p className="text-sm text-muted-foreground">1920×840 · WebP</p>
-        </div>
+    <form onSubmit={(e) => { e.preventDefault(); void save(); }} className="space-y-6">
+      <SectionTabs
+        value={tab}
+        onChange={(id) => setTab(id as "cover" | "profile" | "social")}
+        tabs={[
+          { id: "profile", label: t("settings.tab.profile") },
+          { id: "social", label: t("settings.tab.social") },
+          { id: "cover", label: t("settings.profile.cover") },
+        ]}
+      />
+      {tab === "cover" && <SettingsSection>
+        <p className="text-sm text-muted-foreground">1920×840 · WebP</p>
         <button
           type="button"
           onClick={() => coverInput.current?.click()}
           className={cn(
-            "group relative block h-32 w-full overflow-hidden rounded-lg border border-dashed border-border sm:h-40",
-            "bg-muted transition-colors hover:border-primary/50",
+            "group relative block h-32 w-full overflow-hidden rounded-md border border-dashed border-border sm:h-40",
+            "bg-[var(--muted)] transition-colors hover:border-primary/50",
           )}
         >
-            {coverSrc ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverSrc} alt="" className="size-full object-cover" />
+          {coverSrc ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverSrc} alt="" className="size-full object-cover" />
+          ) : (
+            <span className="flex size-full items-center justify-center gap-2 text-sm text-muted-foreground">
+              <ImageUp className="size-5" />
+              {t("settings.profile.cover")}
+            </span>
+          )}
+          {uploading === "cover" && (
+            <span className="absolute inset-0 flex items-center justify-center bg-background/60">
+              <Loader2 className="size-5 animate-spin" />
+            </span>
+          )}
+        </button>
+        <input
+          ref={coverInput}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            void onPickImage("cover", e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </SettingsSection>}
+
+      {tab === "profile" && <SettingsSection>
+        <p className="text-sm text-muted-foreground">
+          {locale === "zh" ? "头像、昵称与个人资料会展示在你的主页。" : "Avatar, name and profile details appear on your public page."}
+        </p>
+        {/* avatar */}
+        <div className="mb-5 flex items-center gap-4">
+          <Avatar className="size-20">
+            {avatarSrc ? (
+              <AvatarImage src={avatarSrc} />
             ) : (
-              <span className="flex size-full items-center justify-center gap-2 text-sm text-muted-foreground">
-                <ImageUp className="size-5" />
-                {t("settings.profile.cover")}
-              </span>
+              <AvatarFallback className="text-xl">
+                {displayName.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
             )}
-            {uploading === "cover" && (
-              <span className="absolute inset-0 flex items-center justify-center bg-background/60">
-                <Loader2 className="size-5 animate-spin" />
-              </span>
+          </Avatar>
+          <div className="space-y-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => avatarInput.current?.click()}
+              disabled={uploading === "avatar"}
+            >
+              {uploading === "avatar" ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <CircleUser />
+              )}
+              {t("settings.profile.avatar")}
+            </Button>
+            {avatarPath && (
+              <button
+                type="button"
+                className="block text-xs text-muted-foreground hover:text-destructive"
+                onClick={() => setAvatarPath(null)}
+              >
+                {t("common.delete")}
+              </button>
             )}
-          </button>
+          </div>
           <input
-            ref={coverInput}
+            ref={avatarInput}
             type="file"
             accept="image/*"
             className="hidden"
             onChange={(e) => {
-              void onPickImage("cover", e.target.files?.[0]);
+              void onPickImage("avatar", e.target.files?.[0]);
               e.target.value = "";
             }}
           />
         </div>
 
-      <div className="rounded-lg bg-[var(--muted)] p-6 space-y-5">
-          {/* avatar */}
-          <div className="flex items-center gap-4">
-            <Avatar className="size-20">
-              {avatarSrc ? (
-                <AvatarImage src={avatarSrc} />
-              ) : (
-                <AvatarFallback className="text-xl">
-                  {displayName.slice(0, 1).toUpperCase()}
-                </AvatarFallback>
-              )}
-            </Avatar>
-            <div className="space-y-1.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => avatarInput.current?.click()}
-                disabled={uploading === "avatar"}
-              >
-                {uploading === "avatar" ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <CircleUser />
-                )}
-                {t("settings.profile.avatar")}
-              </Button>
-              {avatarPath && (
-                <button
-                  type="button"
-                  className="block text-xs text-muted-foreground hover:text-destructive"
-                  onClick={() => setAvatarPath(null)}
-                >
-                  {t("common.delete")}
-                </button>
-              )}
-            </div>
-            <input
-              ref={avatarInput}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => {
-                void onPickImage("avatar", e.target.files?.[0]);
-                e.target.value = "";
-              }}
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="displayName">{t("auth.displayName")}</Label>
+        <div className="grid max-w-2xl gap-4">
+          <SettingField label={t("auth.displayName")} htmlFor="displayName">
             <Input
               id="displayName"
               value={displayName}
               maxLength={80}
               onChange={(e) => setDisplayName(e.target.value)}
             />
-          </div>
+          </SettingField>
 
-          <div className="grid gap-2">
-            <Label htmlFor="bio">{t("settings.profile.bio")}</Label>
+          <SettingField
+            label={t("settings.profile.bio")}
+            htmlFor="bio"
+            hint={<span className="block text-right">{bio.length}/200</span>}
+          >
             <Textarea
               id="bio"
               value={bio}
@@ -186,67 +215,84 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
               placeholder={t("settings.profile.bioPlaceholder")}
               onChange={(e) => setBio(e.target.value)}
             />
-            <span className="self-end text-xs text-muted-foreground">{bio.length}/200</span>
-          </div>
+          </SettingField>
 
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="grid gap-2">
-              <Label htmlFor="github">{t("settings.profile.github")}</Label>
-              <Input
-                id="github"
-                value={github}
-                placeholder="octocat"
-                onChange={(e) => setGithub(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="orcid">{t("settings.profile.orcid")}</Label>
-              <Input
-                id="orcid"
-                value={orcid}
-                placeholder="0000-0002-1825-0097"
-                onChange={(e) => setOrcid(e.target.value)}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="website">{t("settings.profile.website")}</Label>
-              <Input
-                id="website"
-                value={website}
-                placeholder="https://example.com"
-                onChange={(e) => setWebsite(e.target.value)}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <Label>{t("settings.profile.locale")}</Label>
-            <div className="inline-flex w-fit rounded-lg bg-[var(--muted)] p-1">
+          <SettingField label={t("settings.profile.locale")}>
+            <div className="inline-flex w-fit rounded-md bg-[var(--muted)] p-[3px] shadow-[0_0_0_1px_var(--border)]">
               {(["zh", "en"] as const).map((l) => (
                 <button
                   key={l}
                   type="button"
                   onClick={() => setUiLocale(l)}
                   className={cn(
-                    "rounded-md border px-4 py-1.5 text-sm font-medium transition-colors",
+                    "inline-flex h-[30px] items-center rounded-[5px] px-4 text-sm transition-colors",
                     uiLocale === l
-                      ? "border-border bg-white text-foreground"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
+                      ? "bg-card font-medium text-foreground shadow-[0_0_0_1px_rgba(42,47,69,0.1),0_2px_5px_rgba(42,47,69,0.08)]"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {l === "zh" ? "简体中文" : "English"}
                 </button>
               ))}
             </div>
-          </div>
+          </SettingField>
+        </div>
 
-          <div className="flex justify-end border-t border-border pt-4">
-            <Button onClick={save} disabled={saving || !displayName.trim()}>
-              {saving && <Loader2 className="animate-spin" />}
-              {t("common.save")}
-            </Button>
+        <SettingsFooter
+          hint={dirty ? undefined : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"}
+        >
+          <Button type="submit" disabled={saving || !dirty || !displayName.trim()}>
+            {saving && <Loader2 className="animate-spin" />}
+            {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+          </Button>
+        </SettingsFooter>
+      </SettingsSection>}
+
+      {tab === "social" && (
+        <SettingsSection>
+          <SettingsSectionHeader
+            description={
+              locale === "zh"
+                ? "第三方账号与主页链接，展示在你的个人主页上。"
+                : "Third-party profiles and links shown on your public page."
+            }
+          />
+          <div className="grid max-w-2xl gap-4 sm:grid-cols-3">
+            <SettingField label={t("settings.profile.github")} htmlFor="github">
+              <Input
+                id="github"
+                value={github}
+                placeholder="octocat"
+                onChange={(e) => setGithub(e.target.value)}
+              />
+            </SettingField>
+            <SettingField label={t("settings.profile.orcid")} htmlFor="orcid">
+              <Input
+                id="orcid"
+                value={orcid}
+                placeholder="0000-0002-1825-0097"
+                onChange={(e) => setOrcid(e.target.value)}
+              />
+            </SettingField>
+            <SettingField label={t("settings.profile.website")} htmlFor="website">
+              <Input
+                id="website"
+                value={website}
+                placeholder="https://example.com"
+                onChange={(e) => setWebsite(e.target.value)}
+              />
+            </SettingField>
           </div>
-      </div>
-    </div>
+          <SettingsFooter
+            hint={dirty ? undefined : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"}
+          >
+            <Button type="submit" disabled={saving || !dirty || !displayName.trim()}>
+              {saving && <Loader2 className="animate-spin" />}
+              {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+            </Button>
+          </SettingsFooter>
+        </SettingsSection>
+      )}
+    </form>
   );
 }

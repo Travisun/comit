@@ -46,7 +46,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
     "rounded-full border border-border px-4 py-1.5 font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]";
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       <TimelineHeader title={`# ${topic.name}`} subtitle={`${topic.postCount} 条公开内容`} />
 
       {topic.description && (

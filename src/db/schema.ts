@@ -349,6 +349,27 @@ export const reposts = pgTable(
   (t) => [uniqueIndex("reposts_user_post_key").on(t.userId, t.postId)],
 );
 
+/** Discourse-style emoji reactions on posts — a user may react with many
+ * distinct emoji, but only once per emoji. */
+export const postReactions = pgTable(
+  "post_reactions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    emoji: varchar("emoji", { length: 16 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("post_reactions_post_user_emoji_key").on(t.postId, t.userId, t.emoji),
+    index("post_reactions_post_idx").on(t.postId),
+  ],
+);
+
 export const follows = pgTable(
   "follows",
   {

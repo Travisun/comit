@@ -14,7 +14,7 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status") ?? "all";
     const type = url.searchParams.get("type") ?? "all";
     const q = (url.searchParams.get("q") ?? "").trim();
-    const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 50);
+    const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 200);
     const offset = Number(url.searchParams.get("offset") ?? 0);
 
     const conds = [eq(posts.authorId, auth.user.id)];
@@ -31,6 +31,7 @@ export async function GET(req: Request) {
         .select({
           id: posts.id,
           type: posts.type,
+          collectionId: posts.collectionId,
           title: posts.title,
           slug: posts.slug,
           summary: posts.summary,

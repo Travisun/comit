@@ -6,6 +6,7 @@ import { ChevronLeft, ChevronRight, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/primitives";
+import { DataTable } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 /* ------------------------------ page header ----------------------------- */
@@ -22,7 +23,7 @@ export function PageHeader({
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 className="text-xl font-bold tracking-tight">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions}
@@ -99,7 +100,7 @@ export function StatCard({
     <div className="flex items-start justify-between gap-3">
       <div className="min-w-0">
         <p className="truncate text-sm text-muted-foreground">{label}</p>
-        <p className="mt-1 text-2xl font-bold tabular-nums tracking-tight">{value}</p>
+        <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
         {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
       </div>
       <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4.5">
@@ -120,7 +121,7 @@ export function StatCard({
 
 export function EmptyState({ title, hint }: { title: string; hint?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg bg-[var(--muted)] px-6 py-14 text-center">
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg bg-[var(--muted)] px-6 py-12 text-center">
       <div className="grid size-11 place-items-center rounded-full bg-[var(--muted)] text-muted-foreground">
         <Inbox className="size-5" />
       </div>
@@ -221,10 +222,10 @@ export function FilterChips({
             aria-pressed={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              "rounded-md border px-2.5 py-1 text-xs font-medium transition-colors",
+              "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors",
               active
-                ? "border-primary bg-primary/5 text-primary"
-                : "border-border bg-[var(--muted)] text-muted-foreground hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground",
+                ? "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-[var(--primary)]"
+                : "bg-[var(--muted)] text-[color:var(--text-body)] hover:bg-[var(--hover)]",
             )}
           >
             {o.label}
@@ -238,11 +239,5 @@ export function FilterChips({
 /* ------------------------------ table shell ----------------------------- */
 
 export function TableWrap({ children }: { children: ReactNode }) {
-  return (
-    <div className="overflow-x-auto rounded-lg bg-[var(--muted)]">
-      <table className="w-full text-left text-sm [&>tbody>tr]:border-b [&>tbody>tr]:border-[var(--border)] [&>tbody>tr]:transition-colors [&>tbody>tr:last-child]:border-0 [&>tbody>tr:hover]:bg-[var(--hover,#f7f8f8)] [&>thead>tr]:border-b [&>thead>tr]:border-[var(--border)] [&>thead>tr]:bg-[var(--muted)] [&>thead>tr]:text-xs [&>thead>tr]:uppercase [&>thead>tr]:tracking-wide [&>thead>tr]:text-muted-foreground [&>th]:px-3 [&>th]:py-2.5 [&>th]:font-medium [&>td]:px-3 [&>td]:py-2.5 [&>td]:align-middle">
-        {children}
-      </table>
-    </div>
-  );
+  return <DataTable>{children}</DataTable>;
 }

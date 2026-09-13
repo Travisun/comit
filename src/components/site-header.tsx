@@ -63,7 +63,7 @@ export function SiteHeader({
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white">
+    <header className="sticky top-0 z-40 w-full border-b border-border bg-card">
       <div className="mx-auto flex h-[var(--header-h)] max-w-6xl items-center gap-3 px-4">
         <Link href="/" className="flex items-center gap-2 font-bold text-[15px] tracking-tight">
           <span className="font-mono font-extrabold tracking-[-0.04em] text-primary">comit<span className="text-foreground">.</span>sh</span>
@@ -168,7 +168,7 @@ export function SiteHeader({
       </div>
 
       {mobileOpen && user && (
-        <nav className="bg-white px-4 py-2 md:hidden animate-[slide-up_0.2s_ease]">
+        <nav className="bg-card px-4 py-2 md:hidden animate-[slide-up_0.2s_ease]">
           {[...nav, { href: "/write", label: locale === "zh" ? "写文章" : "Write" }].map((item) => (
             <Link
               key={item.href}

@@ -14,9 +14,9 @@ export function AuthCard({
 }) {
   return (
     <div className="mx-auto w-full max-w-md px-4 py-10 sm:py-16">
-      <div className="rounded-lg bg-[var(--muted)] p-6">
+      <div className="rounded-lg border border-border bg-card p-6 shadow-[var(--shadow-card)]">
         <div className="mb-4">
-          <h1 className="text-xl font-semibold">{title}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{title}</h1>
           {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
         </div>
         <div className="flex flex-col gap-4">{children}</div>

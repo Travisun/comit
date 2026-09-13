@@ -29,7 +29,6 @@ import {
 import { VerifiedBadge } from "./verified-badge";
 import { ArticleCard } from "./article-card";
 import { ShortCard } from "./short-card";
-import { UserSidebar } from "./sidebar";
 import { SocialLinks } from "./sidebar-widgets";
 import type { UserStats, ViewerFollowState } from "./types";
 
@@ -74,14 +73,14 @@ export function ProfileHero({
             className="absolute inset-0 size-full object-cover"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/25 via-accent/50 to-primary/10 dark:from-primary/20 dark:via-accent/30 dark:to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-br from-[var(--muted)] to-[var(--selected)]" />
         )}
       </div>
 
-      <div className="px-4 pb-4">
+      <div className="px-4 pb-3">
         {/* identity row */}
         <div className="flex items-start justify-between gap-3">
-          <Avatar className="size-[88px] -mt-11 border-4 border-card shadow-none">
+          <Avatar className="size-24 -mt-12 ring-4 ring-card">
             {user.avatarPath && (
               <AvatarImage src={routes.media(user.avatarPath)} alt={user.displayName} />
             )}
@@ -100,7 +99,7 @@ export function ProfileHero({
                 </Button>
                 <Button asChild size="sm" variant="outline" className="rounded-full font-bold">
                   <Link href="/write/posts">
-                    <LayoutDashboard className="size-4" /> 创作中心
+                    <LayoutDashboard className="size-4" /> 管理文章
                   </Link>
                 </Button>
               </>
@@ -226,29 +225,20 @@ export async function UserProfileView({
   const stats = await getUserStats(user.id);
 
   return (
-    <div className="flex justify-center">
-      <main className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
-        <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} />
+    <main className="w-full">
+      <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} />
 
-        <ProfileTabs username={user.username} active={tab} />
+      <ProfileTabs username={user.username} active={tab} />
 
-        <div>
-          {tab === "posts" && <PostsTab user={user} page={page} tab={tab} stats={stats} />}
-          {tab === "short" && <ShortsTab user={user} page={page} tab={tab} />}
-          {tab === "collections" && <CollectionsTab user={user} />}
-          {tab === "followers" && <FollowsTab user={user} mode="followers" viewer={viewer} />}
-          {tab === "following" && <FollowsTab user={user} mode="following" viewer={viewer} />}
-          {tab === "about" && <AboutTab user={user} stats={stats} />}
-        </div>
-      </main>
-
-      <UserSidebar
-        user={user}
-        viewerName={viewer?.username ?? null}
-        viewerFollowing={Boolean(viewerState?.following)}
-        className="hidden w-[300px] shrink-0 px-5 py-4 lg:block"
-      />
-    </div>
+      <div>
+        {tab === "posts" && <PostsTab user={user} page={page} tab={tab} stats={stats} />}
+        {tab === "short" && <ShortsTab user={user} page={page} tab={tab} />}
+        {tab === "collections" && <CollectionsTab user={user} />}
+        {tab === "followers" && <FollowsTab user={user} mode="followers" viewer={viewer} />}
+        {tab === "following" && <FollowsTab user={user} mode="following" viewer={viewer} />}
+        {tab === "about" && <AboutTab user={user} stats={stats} />}
+      </div>
+    </main>
   );
 }
 
@@ -279,7 +269,7 @@ function ProfileTabs({ username, active }: { username: string; active: ProfileTa
               "relative grid place-items-center px-1 py-3.5 text-sm transition-colors",
               active === t.id
                 ? "font-bold text-foreground"
-                : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground",
+                : "text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground",
             )}
           >
             {t.label}
@@ -305,7 +295,7 @@ function Pager({
   hasMore: boolean;
 }) {
   if (page === 0 && !hasMore) return null;
-  const cls = "rounded-full border border-border px-4 py-1.5 font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]";
+  const cls = "rounded-full border border-border px-4 py-1.5 font-semibold transition-colors hover:bg-[var(--hover)]";
   return (
     <nav className="flex items-center justify-between px-4 py-4 text-sm" aria-label="Pagination">
       {page > 0 ? (
@@ -412,7 +402,7 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
   const isSelf = Boolean(viewer && viewer.id === card.id);
   const viewerState = isSelf || !viewer ? null : await getFollowState(viewer.id, card.id);
   return (
-    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
+    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover)]">
       <Link href={routes.profile(card.username)} className="shrink-0">
         <Avatar className="size-10">
           {card.avatarPath && <AvatarImage src={routes.media(card.avatarPath)} alt={card.displayName} />}
@@ -451,7 +441,7 @@ async function CollectionsTab({ user }: { user: User }) {
         <Link
           key={c.slug}
           href={routes.collection(user.username, c.slug)}
-          className="group rounded-lg border border-border p-4 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+          className="group rounded-lg border border-border p-4 transition-colors hover:bg-[var(--hover)]"
         >
           <div className="flex items-center gap-2 text-[15px] font-bold">
             <FolderOpen className="size-4 text-primary/70" />
@@ -541,28 +531,19 @@ export async function SingleUserHome({ user, viewer }: { user: User; viewer: Use
   ]);
 
   return (
-    <div className="flex justify-center">
-      <main className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
-        <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} variant="site" />
+    <main className="w-full">
+      <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} variant="site" />
 
-        <h2 className="border-b border-border px-4 pb-3 pt-4 text-[15px] font-bold">最新文章</h2>
-        {items.length === 0 ? (
-          <EmptyState text="还没有发布任何文章" />
-        ) : (
-          items.map((it) => {
-            const dto = toFeedItemDTO(it);
-            return <ArticleCard key={it.post.id} post={dto.post} author={dto.author} variant="list" />;
-          })
-        )}
-      </main>
-
-      <UserSidebar
-        user={user}
-        viewerName={viewer?.username ?? null}
-        viewerFollowing={Boolean(viewerState?.following)}
-        className="hidden w-[300px] shrink-0 px-5 py-4 lg:block"
-      />
-    </div>
+      <h2 className="border-b border-border px-4 pb-3 pt-4 text-[15px] font-bold">最新文章</h2>
+      {items.length === 0 ? (
+        <EmptyState text="还没有发布任何文章" />
+      ) : (
+        items.map((it) => {
+          const dto = toFeedItemDTO(it);
+          return <ArticleCard key={it.post.id} post={dto.post} author={dto.author} variant="list" />;
+        })
+      )}
+    </main>
   );
 }
 

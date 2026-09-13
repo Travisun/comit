@@ -5,8 +5,14 @@ import { Save } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator, Skeleton } from "@/components/ui/primitives";
+import { Skeleton } from "@/components/ui/primitives";
+import {
+  SectionTabs,
+  SettingField,
+  SettingsFooter,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/ui/settings";
 import { PageHeader } from "@/components/admin/bits";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { api } from "@/components/admin/client";
@@ -34,10 +40,13 @@ const SSO_KEYS: { key: string; label: string }[] = [
   { key: "sso.cfaccess", label: "Cloudflare Access" },
 ];
 
+type AdminTab = "general" | "mode" | "features" | "login";
+
 export default function AdminSettingsPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<AdminTab>("general");
 
   const [name, setName] = useState("");
   const [tagline, setTagline] = useState("");
@@ -116,13 +125,7 @@ export default function AdminSettingsPage() {
       <div className="space-y-4">
         <PageHeader title="站点设置" description="站点信息、模式与功能开关" />
         {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
-            <CardContent className="space-y-3 pt-5">
-              <Skeleton className="h-5 w-32" />
-              <Skeleton className="h-9 w-full" />
-              <Skeleton className="h-9 w-full" />
-            </CardContent>
-          </Card>
+          <Skeleton key={i} className="h-9 w-full" />
         ))}
       </div>
     );
@@ -141,14 +144,21 @@ export default function AdminSettingsPage() {
         }
       />
 
-      <div className="space-y-5">
-        {/* 常规 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>常规</CardTitle>
-            <CardDescription>站点对外展示的基本信息</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4">
+      <SectionTabs
+        value={tab}
+        onChange={(id) => setTab(id as AdminTab)}
+        tabs={[
+          { id: "general", label: "常规" },
+          { id: "mode", label: "用户模式" },
+          { id: "features", label: "功能开关" },
+          { id: "login", label: "登录" },
+        ]}
+      />
+
+      {tab === "general" && (
+        <SettingsSection className="max-w-2xl">
+          <SettingsSectionHeader description="站点对外展示的基本信息" />
+          <div className="grid gap-4">
             <Field label="站点名称">
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="comit.sh" />
             </Field>
@@ -158,16 +168,14 @@ export default function AdminSettingsPage() {
             <Field label="站点描述">
               <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
             </Field>
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
+      )}
 
-        {/* 模式 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>用户模式</CardTitle>
-            <CardDescription>{t("admin.settings.modeHint")}</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+      {tab === "mode" && (
+        <SettingsSection className="max-w-2xl">
+          <SettingsSectionHeader description={t("admin.settings.modeHint")} />
+          <div className="grid gap-4 sm:grid-cols-2">
             {(
               [
                 { value: "multi", title: "多用户社区", desc: "首页展示社区信息流，用户各自拥有空间" },
@@ -178,10 +186,11 @@ export default function AdminSettingsPage() {
                 key={opt.value}
                 type="button"
                 onClick={() => setMode(opt.value)}
+                aria-pressed={mode === opt.value}
                 className={
                   mode === opt.value
-                    ? "flex flex-col items-start gap-1 rounded-lg border border-primary bg-primary/5 p-3 text-left ring-1 ring-primary"
-                    : "flex flex-col items-start gap-1 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted/60"
+                    ? "flex flex-col items-start gap-1 rounded-md border border-primary bg-[color-mix(in_srgb,var(--primary)_5%,transparent)] p-3 text-left"
+                    : "flex flex-col items-start gap-1 rounded-md border border-border p-3 text-left transition-colors hover:bg-[var(--hover)]"
                 }
               >
                 <span className="text-sm font-semibold">{opt.title}</span>
@@ -208,16 +217,20 @@ export default function AdminSettingsPage() {
                 </Field>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+          <SettingsFooter hint="更改站点模式会立即改变首页形态。">
+            <Button onClick={save} disabled={saving}>
+              <Save className="size-4" />
+              {saving ? "保存中…" : "保存设置"}
+            </Button>
+          </SettingsFooter>
+        </SettingsSection>
+      )}
 
-        {/* 功能开关 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>功能开关</CardTitle>
-            <CardDescription>控制注册、域名与安全相关能力</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {tab === "features" && (
+        <SettingsSection>
+          <SettingsSectionHeader description="控制注册、域名与安全相关能力" />
+          <div>
             {FEATURE_KEYS.map((k, i) => (
               <SwitchRow
                 key={k.key}
@@ -228,35 +241,23 @@ export default function AdminSettingsPage() {
                 last={i === FEATURE_KEYS.length - 1}
               />
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </SettingsSection>
+      )}
 
-        {/* SSO */}
-        <Card>
-          <CardHeader>
-            <CardTitle>SSO / OAuth 登录</CardTitle>
-            <CardDescription>开启前需同时配置对应的环境变量密钥（client id / secret）</CardDescription>
-          </CardHeader>
-          <CardContent>
+      {tab === "login" && (
+        <SettingsSection className="max-w-2xl">
+          <SettingsSectionHeader description="第三方登录与事务邮件。开启 SSO 前需同时配置对应的环境变量密钥（client id / secret）。" />
+          <div>
             {SSO_KEYS.map((k, i) => (
               <SwitchRow
                 key={k.key}
                 label={k.label}
                 checked={switches[k.key] ?? false}
                 onCheckedChange={(v) => setSwitches((s) => ({ ...s, [k.key]: v }))}
-                last={i === SSO_KEYS.length - 1}
+                last={false}
               />
             ))}
-          </CardContent>
-        </Card>
-
-        {/* 邮件 */}
-        <Card>
-          <CardHeader>
-            <CardTitle>邮件通知</CardTitle>
-            <CardDescription>验证邮件、找回密码等事务邮件的发送开关</CardDescription>
-          </CardHeader>
-          <CardContent>
             <SwitchRow
               label="启用邮件发送"
               description="关闭后验证码/通知邮件将不再发出（需已配置 SMTP）"
@@ -264,17 +265,9 @@ export default function AdminSettingsPage() {
               onCheckedChange={(v) => setSwitches((s) => ({ ...s, "notify.emailEnabled": v }))}
               last
             />
-          </CardContent>
-        </Card>
-
-        <Separator />
-        <div className="flex justify-end">
-          <Button onClick={save} disabled={saving} size="lg">
-            <Save className="size-4" />
-            {saving ? "保存中…" : "保存设置"}
-          </Button>
-        </div>
-      </div>
+          </div>
+        </SettingsSection>
+      )}
     </div>
   );
 }

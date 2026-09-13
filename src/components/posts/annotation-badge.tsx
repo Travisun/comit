@@ -60,7 +60,7 @@ export function AnnotationBadge({
   );
 
   const shared = cn(
-    "inline-flex max-w-full items-center gap-1 rounded-full border font-medium transition-colors",
+    "label-chip inline-flex max-w-full items-center gap-1 rounded-full border font-medium transition-colors",
     size === "md" ? "px-3 py-1 text-xs [&_svg]:size-3.5" : "px-2 py-0.5 text-[11px] [&_svg]:size-3",
     isLink && "hover:brightness-95",
     className,

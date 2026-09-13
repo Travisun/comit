@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Eye, FileText, Monitor, RotateCcw, Save, Smartphone } from "lucide-react";
+import { Eye, Monitor, RotateCcw, Save, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge, Separator, Skeleton, Switch, Tabs, TabsList, TabsTrigger } from "@/components/ui/primitives";
+import { Badge, Skeleton, Switch } from "@/components/ui/primitives";
 import {
   Dialog,
   DialogContent,
@@ -14,8 +13,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PageHeader, TableWrap } from "@/components/admin/bits";
-import { Field } from "@/components/admin/switch-row";
+import {
+  SectionTabs,
+  SettingField,
+  SettingRow,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/ui/settings";
+import { EmptyState, FilterChips, PageHeader, TableWrap } from "@/components/admin/bits";
 import { api } from "@/components/admin/client";
 import { cn } from "@/lib/utils";
 
@@ -74,6 +79,8 @@ const IN_SITE_KEYS: { key: string; trigger: string }[] = [
   { key: "verification.approved / verification.rejected", trigger: "认证审核结果" },
 ];
 
+type AdminTab = "mail" | "insite";
+
 function formFromRow(row: TemplateRow): FormState {
   return {
     enabled: row.enabled,
@@ -95,6 +102,12 @@ function isDirty(form: FormState, row: TemplateRow | undefined): boolean {
   );
 }
 
+function TemplateStatusBadge({ row }: { row: TemplateRow }) {
+  if (!row.enabled) return <Badge variant="destructive">已停用</Badge>;
+  if (row.customized) return <Badge variant="warning">已定制</Badge>;
+  return <Badge variant="secondary">默认</Badge>;
+}
+
 /* ------------------------------------------------------------------ */
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
@@ -106,6 +119,7 @@ export default function TemplatesClient() {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [tab, setTab] = useState<AdminTab>("mail");
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLocale, setPreviewLocale] = useState<"zh" | "en">("zh");
@@ -240,9 +254,10 @@ export default function TemplatesClient() {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <PageHeader title="通知模板" description="邮件模板定制、启用与预览" />
-        <div className="grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+      <div className="space-y-5">
+        <PageHeader title="通知模板" description="邮件模板定制、启用与预览；站内通知由发送处直接生成" />
+        <div className="h-9 border-b border-border" />
+        <div className="grid items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
           <Skeleton className="h-96 rounded-lg" />
           <div className="space-y-4">
             <Skeleton className="h-8 w-48" />
@@ -260,189 +275,186 @@ export default function TemplatesClient() {
         description="邮件模板定制、启用与预览；站内通知由发送处直接生成"
       />
 
-      <div className="grid items-start gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-        {/* ---------------------------- list ---------------------------- */}
-        <Card className="lg:sticky lg:top-20">
-          <CardHeader>
-            <CardTitle className="text-sm">模板列表</CardTitle>
-            <CardDescription>共 {rows.length} 个邮件模板</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-1 p-2 pt-0">
-            {rows.map((row) => {
-              const active = row.key === selectedKey;
-              return (
-                <button
-                  key={row.key}
-                  type="button"
-                  onClick={() => selectRow(row)}
-                  className={cn(
-                    "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition-colors",
-                    active ? "bg-primary/10" : "hover:bg-muted/60",
-                  )}
-                >
-                  <span className="min-w-0">
-                    <span className={cn("block truncate text-sm font-medium", active && "text-primary")}>
-                      {row.name.zh}
-                    </span>
-                    <span className="block truncate font-mono text-xs text-muted-foreground">{row.key}</span>
-                  </span>
-                  {!row.enabled ? (
-                    <Badge variant="destructive">已停用</Badge>
-                  ) : row.customized ? (
-                    <Badge variant="warning">已定制</Badge>
-                  ) : (
-                    <Badge variant="secondary">默认</Badge>
-                  )}
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
+      <SectionTabs
+        value={tab}
+        onChange={(id) => setTab(id as AdminTab)}
+        tabs={[
+          { id: "mail", label: "邮件模板" },
+          { id: "insite", label: "站内通知" },
+        ]}
+      />
 
-        {/* --------------------------- editor --------------------------- */}
-        <div className="space-y-5">
+      {tab === "mail" && (
+        <div className="grid items-start gap-6 pt-5 lg:grid-cols-[280px_minmax(0,1fr)]">
+          {/* ------------------------ template list ------------------------ */}
+          <div className="lg:sticky lg:top-20">
+            <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">
+              模板列表 · 共 {rows.length} 个
+            </p>
+            <div className="overflow-hidden rounded-lg border border-border">
+              {rows.map((row, i) => {
+                const active = row.key === selectedKey;
+                return (
+                  <button
+                    key={row.key}
+                    type="button"
+                    onClick={() => selectRow(row)}
+                    className={cn(
+                      "flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left transition-colors",
+                      i > 0 && "border-t border-border",
+                      active ? "bg-[var(--selected)]" : "hover:bg-[var(--hover)]",
+                    )}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium">{row.name.zh}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">
+                        {row.key}
+                      </span>
+                    </span>
+                    <TemplateStatusBadge row={row} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* --------------------------- editor --------------------------- */}
           {selected ? (
-            <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="flex items-center gap-2 text-base font-bold tracking-tight">
-                    <FileText className="size-4 text-muted-foreground" />
+            <SettingsSection className="min-w-0">
+              <SettingsSectionHeader
+                title={
+                  <>
                     {selected.name.zh}
-                    <span className="font-mono text-xs font-normal text-muted-foreground">{selected.key}</span>
-                  </h3>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{selected.description.zh}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => renderPreview(previewLocale)} disabled={previewLoading}>
-                    <Eye className="size-4" />
-                    预览
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={reset} disabled={resetting}>
-                    <RotateCcw className="size-4" />
-                    重置为默认
-                  </Button>
-                  <Button size="sm" onClick={save} disabled={saving}>
-                    <Save className="size-4" />
-                    {saving ? "保存中…" : "保存"}
-                  </Button>
-                </div>
+                    <span className="font-mono text-xs font-normal text-muted-foreground">
+                      {selected.key}
+                    </span>
+                    <TemplateStatusBadge row={selected} />
+                  </>
+                }
+                description={selected.description.zh}
+                action={
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => renderPreview(previewLocale)}
+                      disabled={previewLoading}
+                    >
+                      <Eye className="size-4" />
+                      预览
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={reset} disabled={resetting}>
+                      <RotateCcw className="size-4" />
+                      重置为默认
+                    </Button>
+                    <Button size="sm" onClick={save} disabled={saving}>
+                      <Save className="size-4" />
+                      {saving ? "保存中…" : "保存"}
+                    </Button>
+                  </div>
+                }
+              />
+
+              <div>
+                <SettingRow
+                  label="启用模板"
+                  description="关闭后该模板的邮件将不再发送（渲染为空，邮件频道跳过投递）"
+                  control={
+                    <Switch
+                      checked={form.enabled}
+                      onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))}
+                    />
+                  }
+                />
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-sm">编辑模板</CardTitle>
-                  <CardDescription>
-                    正文使用 <code className="font-mono">{"{{变量}}"}</code> 占位；留空字段回落到内置文案
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-4">
-                  <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium">启用模板</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        关闭后该模板的邮件将不再发送（渲染为空，邮件频道跳过投递）
-                      </p>
-                    </div>
-                    <Switch checked={form.enabled} onCheckedChange={(v) => setForm((f) => ({ ...f, enabled: v }))} />
-                  </div>
+              <div className="grid gap-4">
+                {SUBJECT_FIELDS.map((f) => (
+                  <SettingField key={f.name} label={f.label}>
+                    <Input
+                      ref={(el) => {
+                        fieldRefs.current[f.name] = el;
+                      }}
+                      value={form[f.name]}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                      onFocus={() => (lastFocused.current = f.name)}
+                      placeholder={f.placeholder}
+                    />
+                  </SettingField>
+                ))}
 
-                  {SUBJECT_FIELDS.map((f) => (
-                    <Field key={f.name} label={f.label}>
-                      <Input
-                        ref={(el) => {
-                          fieldRefs.current[f.name] = el;
-                        }}
-                        value={form[f.name]}
-                        onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
-                        onFocus={() => (lastFocused.current = f.name)}
-                        placeholder={f.placeholder}
-                      />
-                    </Field>
-                  ))}
+                {BODY_FIELDS.map((f) => (
+                  <SettingField key={f.name} label={f.label} hint="正文使用 {{变量}} 占位；留空字段回落到内置文案">
+                    <Textarea
+                      ref={(el) => {
+                        fieldRefs.current[f.name] = el;
+                      }}
+                      rows={8}
+                      spellCheck={false}
+                      className="font-mono text-xs"
+                      value={form[f.name]}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
+                      onFocus={() => (lastFocused.current = f.name)}
+                      placeholder={
+                        "留空使用内置正文；例如：\n<p>你好 {{actor}}，请点击 <a href=\"{{url}}\">这里</a> 查看。</p>"
+                      }
+                    />
+                  </SettingField>
+                ))}
+              </div>
 
-                  {BODY_FIELDS.map((f) => (
-                    <Field key={f.name} label={f.label}>
-                      <Textarea
-                        ref={(el) => {
-                          fieldRefs.current[f.name] = el;
-                        }}
-                        rows={8}
-                        spellCheck={false}
-                        className="font-mono text-xs"
-                        value={form[f.name]}
-                        onChange={(e) => setForm((prev) => ({ ...prev, [f.name]: e.target.value }))}
-                        onFocus={() => (lastFocused.current = f.name)}
-                        placeholder={
-                          "留空使用内置正文；例如：\n<p>你好 {{actor}}，请点击 <a href=\"{{url}}\">这里</a> 查看。</p>"
-                        }
-                      />
-                    </Field>
-                  ))}
+              {/* variable chips */}
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">可用变量（点击插入到最近聚焦的输入框）：</span>
+                {selected.variables.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => insertVariable(v)}
+                    className="rounded-md bg-[var(--muted)] px-2 py-1 font-mono text-xs text-[color:var(--text-body)] transition-colors hover:bg-[var(--hover)]"
+                  >
+                    {`{{${v}}}`}
+                  </button>
+                ))}
+              </div>
 
-                  <Separator />
-
-                  {/* variable chips */}
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs text-muted-foreground">可用变量（点击插入到最近聚焦的输入框）：</span>
-                    {selected.variables.map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => insertVariable(v)}
-                        className="rounded-md border border-border bg-muted/60 px-2 py-0.5 font-mono text-xs transition-colors hover:bg-primary/10 hover:text-primary"
-                      >
-                        {`{{${v}}}`}
-                      </button>
-                    ))}
-                  </div>
-                  {dirty ? (
-                    <p className="text-xs text-amber-600">
-                      有未保存的修改；预览已包含当前编辑内容，保存后才会实际生效。
-                    </p>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </>
+              {dirty ? (
+                <p className="text-xs text-[var(--warning)]">
+                  有未保存的修改；预览已包含当前编辑内容，保存后才会实际生效。
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">没有未保存的更改。</p>
+              )}
+            </SettingsSection>
           ) : (
-            <Card>
-              <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                请选择左侧模板
-              </CardContent>
-            </Card>
+            <EmptyState title="请选择左侧模板" hint="从左侧列表选择一个邮件模板进行定制" />
           )}
-
-          {/* ------------------- in-site notice card ------------------- */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">站内通知说明</CardTitle>
-              <CardDescription>
-                站内通知的标题与正文由发送处直接生成，不经过邮件模板；此处管理的是邮件模板。完整说明见
-                docs/notifications.md。
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <TableWrap>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>通知 key</th>
-                      <th>触发点</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {IN_SITE_KEYS.map((r) => (
-                      <tr key={r.key}>
-                        <td className="font-mono text-xs">{r.key}</td>
-                        <td>{r.trigger}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </TableWrap>
-            </CardContent>
-          </Card>
         </div>
-      </div>
+      )}
+
+      {tab === "insite" && (
+        <SettingsSection className="pt-5">
+          <SettingsSectionHeader description="站内通知的标题与正文由发送处直接生成，不经过邮件模板；此处管理的是邮件模板。完整说明见 docs/notifications.md。" />
+          <TableWrap>
+            <table>
+              <thead>
+                <tr>
+                  <th>通知 key</th>
+                  <th>触发点</th>
+                </tr>
+              </thead>
+              <tbody>
+                {IN_SITE_KEYS.map((r) => (
+                  <tr key={r.key}>
+                    <td className="font-mono text-xs">{r.key}</td>
+                    <td>{r.trigger}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </TableWrap>
+        </SettingsSection>
+      )}
 
       {/* --------------------------- preview --------------------------- */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
@@ -454,12 +466,14 @@ export default function TemplatesClient() {
             </DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-between gap-2">
-            <Tabs value={previewLocale} onValueChange={(v) => renderPreview(v as "zh" | "en")}>
-              <TabsList>
-                <TabsTrigger value="zh">中文</TabsTrigger>
-                <TabsTrigger value="en">English</TabsTrigger>
-              </TabsList>
-            </Tabs>
+            <FilterChips
+              options={[
+                { value: "zh", label: "中文" },
+                { value: "en", label: "English" },
+              ]}
+              value={previewLocale}
+              onChange={(v) => renderPreview(v as "zh" | "en")}
+            />
             <div className="flex items-center gap-1">
               <Button
                 variant={previewNarrow ? "outline" : "secondary"}
@@ -479,7 +493,12 @@ export default function TemplatesClient() {
               </Button>
             </div>
           </div>
-          <div className={cn("mx-auto w-full transition-all", previewNarrow && "max-w-[375px]")}>
+          <div
+            className={cn(
+              "mx-auto w-full rounded-lg bg-[var(--muted)] p-3 transition-all",
+              previewNarrow && "max-w-[375px]",
+            )}
+          >
             {previewLoading && !preview ? (
               <Skeleton className="h-[60vh] w-full rounded-lg" />
             ) : (
@@ -487,7 +506,7 @@ export default function TemplatesClient() {
                 title="邮件预览"
                 sandbox=""
                 srcDoc={preview?.html ?? ""}
-                className="h-[60vh] w-full rounded-lg border border-border bg-[var(--muted)]"
+                className="h-[60vh] w-full rounded-md border border-border bg-card"
               />
             )}
           </div>

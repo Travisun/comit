@@ -64,6 +64,38 @@ export function FeedStream({
     return () => io.disconnect();
   }, [cursor, loadMore]);
 
+  // ---- auto-refresh: poll for new posts, show banner ----
+  const [newCount, setNewCount] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await fetch("/api/feed?limit=5");
+        if (!r.ok) return;
+        const data = (await r.json()) as { items: FeedItemDTO[] };
+        const fresh = data.items.filter(
+          (i) => !items.some((e) => e.post.id === i.post.id),
+        );
+        setNewCount(fresh.length);
+      } catch { /* silent */ }
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [items]);
+
+  const loadNew = useCallback(async () => {
+    try {
+      const r = await fetch("/api/feed?limit=20");
+      if (!r.ok) return;
+      const data = (await r.json()) as { items: FeedItemDTO[]; nextOffset: number | null };
+      setItems((prev) => {
+        const seen = new Set(prev.map((i) => i.post.id));
+        return [...data.items.filter((i) => !seen.has(i.post.id)), ...prev];
+      });
+      setNewCount(0);
+    } catch { /* silent */ }
+  }, [items]);
+
   if (items.length === 0) {
     return (
       <div className="px-6 py-14 text-center text-sm text-muted-foreground">
@@ -74,6 +106,15 @@ export function FeedStream({
 
   return (
     <div>
+      {newCount > 0 && (
+        <button
+          type="button"
+          onClick={() => void loadNew()}
+          className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 border-b border-border bg-[var(--primary)] py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <span className="num font-bold">{newCount}</span> 条新动态 · 点击查看
+        </button>
+      )}
       {items.map((item) =>
         item.post.type === "short" ? (
           <ShortCard key={item.post.id} post={item.post} author={item.author} />

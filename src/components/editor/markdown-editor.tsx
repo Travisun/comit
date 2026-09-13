@@ -399,7 +399,7 @@ export function MarkdownEditor({
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-none bg-[var(--muted)] focus-within:ring-2 focus-within:ring-[var(--ring)]",
+        "flex flex-col overflow-hidden rounded-none border border-border bg-card shadow-[var(--shadow-card)] focus-within:ring-2 focus-within:ring-[var(--ring)]",
         className,
       )}
     >
@@ -432,7 +432,7 @@ export function MarkdownEditor({
               onClick={() => setView("edit")}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                view === "edit" ? "bg-white text-foreground" : "text-muted-foreground hover:text-foreground",
+                view === "edit" ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <PenLine className="size-3.5" />
@@ -444,7 +444,7 @@ export function MarkdownEditor({
               onClick={() => setView("preview")}
               className={cn(
                 "inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                view === "preview" ? "bg-white text-foreground" : "text-muted-foreground hover:text-foreground",
+                view === "preview" ? "bg-card text-foreground shadow-sm border border-border" : "text-muted-foreground hover:text-foreground",
               )}
             >
               <Eye className="size-3.5" />

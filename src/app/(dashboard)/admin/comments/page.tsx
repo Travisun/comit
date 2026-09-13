@@ -124,7 +124,7 @@ function CommentList({
                     href={`/p/${c.postId}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="block truncate hover:underline"
+                    className="block truncate text-foreground hover:underline"
                   >
                     {c.postTitle ?? "（动态）"}
                   </a>
@@ -132,7 +132,7 @@ function CommentList({
                 <td>
                   <CommentStatusBadge status={c.status} />
                 </td>
-                <td className="whitespace-nowrap text-right text-xs text-muted-foreground">
+                <td className="whitespace-nowrap text-right text-xs text-muted-foreground tabular-nums">
                   {timeAgo(c.createdAt, locale)}
                 </td>
                 <td>

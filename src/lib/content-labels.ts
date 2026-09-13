@@ -113,23 +113,13 @@ export function getLabelDef(id: string | null | undefined): ContentLabelDef {
     : (CONTENT_LABELS.find((d) => d.id === DEFAULT_LABEL) as ContentLabelDef);
 }
 
-export interface LabelBadgeStyle {
-  backgroundColor: string;
-  color: string;
-  borderColor: string;
-}
-
 /**
- * Inline badge style derived from the label color: light tinted background,
- * deepened text and a soft border (mirrors the Badge warning variant which
- * uses color-mix on CSS custom properties).
+ * Inline style carrying the label's base color; the .label-chip class in
+ * globals.css derives tinted background / text / border per theme.
  */
-export function labelBadgeStyle(def: ContentLabelDef): LabelBadgeStyle {
-  return {
-    backgroundColor: `color-mix(in oklch, ${def.color} 14%, transparent)`,
-    color: `color-mix(in oklch, ${def.color} 72%, black)`,
-    borderColor: `color-mix(in oklch, ${def.color} 32%, transparent)`,
-  };
+export function labelBadgeStyle(def: ContentLabelDef): CSSProperties {
+  // tinting happens in CSS (.label-chip) so dark mode can remix per theme
+  return { "--label-c": def.color } as CSSProperties;
 }
 
 /** Full-width / http(s)-only check for repost source URLs. */

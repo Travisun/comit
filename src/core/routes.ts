@@ -30,6 +30,8 @@ export const routes = {
   profileTab: (username: string, tab: "posts" | "short" | "collections" | "about") =>
     `/u/${username}?tab=${tab}`,
   post: (username: string, slug: string) => `/u/${username}/posts/${slug}`,
+  /** Canonical article permalink — opaque short id, author-independent. */
+  article: (idOrSlug: string) => `/post/${idOrSlug}`,
   collection: (username: string, slug: string) => `/u/${username}/collections/${slug}`,
   shortPost: (id: string) => `/p/${id}`,
   userRss: (username: string) => `/u/${username}/feed.xml`,

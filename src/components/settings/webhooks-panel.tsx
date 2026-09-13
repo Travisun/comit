@@ -104,12 +104,16 @@ export function WebhooksPanel({
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div className="space-y-1.5">
-          <h3 className="text-lg font-semibold">{t("settings.tab.webhooks")}</h3>
-          <p className="text-sm text-muted-foreground">{t("settings.webhooks.desc")}</p>
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          {hooks.length > 0 ? (
+            <span className="rounded-full bg-[var(--selected)] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+              {hooks.length}
+            </span>
+          ) : null}
+          {t("settings.webhooks.desc")}
+        </p>
         <Button size="sm" onClick={() => setOpen(true)}>
           <Plus />
           {t("settings.webhooks.add")}
@@ -122,7 +126,7 @@ export function WebhooksPanel({
       ) : (
         <ul className="space-y-3">
           {hooks.map((h) => (
-            <li key={h.id} className="rounded-lg bg-white p-4">
+            <li key={h.id} className="flex flex-col gap-2 border-b border-border py-4 first:pt-0 last:border-0 last:pb-0">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-sm">{h.url}</p>

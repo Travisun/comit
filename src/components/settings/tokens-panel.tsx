@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Copy, KeyRound, Loader2, Plus, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SectionTabs } from "@/components/ui/settings";
 import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/primitives";
 import {
@@ -42,6 +43,7 @@ export function TokensPanel({
   const mcpEndpoint = `${appUrl}/api/mcp`;
   const [tokens, setTokens] = useState(initial);
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<"mcp" | "tokens">("mcp");
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<string[]>(["posts:read"]);
   const [created, setCreated] = useState<string | null>(null);
@@ -82,11 +84,16 @@ export function TokensPanel({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg bg-[var(--muted)] p-6">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold">{t("settings.tokens.mcpEndpoint")}</h3>
-          <p className="text-sm text-muted-foreground">{t("settings.tokens.desc")}</p>
-        </div>
+      <SectionTabs
+        value={tab}
+        onChange={(id) => setTab(id as "mcp" | "tokens")}
+        tabs={[
+          { id: "mcp", label: t("settings.tokens.mcpEndpoint") },
+          { id: "tokens", label: locale === "zh" ? "API 令牌" : "API tokens" },
+        ]}
+      />
+      {tab === "mcp" && <div className="space-y-4">
+        <p className="text-sm text-muted-foreground">{t("settings.tokens.desc")}</p>
         <div className="flex max-w-xl items-center gap-2">
             <Input readOnly value={mcpEndpoint} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
             <Button
@@ -108,14 +115,11 @@ export function TokensPanel({
               <SquareArrowOutUpRight />
             </Button>
           </div>
-      </div>
+      </div>}
 
-      <div className="rounded-lg bg-[var(--muted)] p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-          <div className="space-y-1.5">
-            <h3 className="text-lg font-semibold">{locale === "zh" ? "API 令牌" : "API tokens"}</h3>
-            <p className="text-sm text-muted-foreground">{locale === "zh" ? "用于 MCP 或 REST 访问" : "For MCP / REST access"}</p>
-          </div>
+      {tab === "tokens" && <div className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <p className="text-sm text-muted-foreground">{locale === "zh" ? "用于 MCP 或 REST 访问" : "For MCP / REST access"}</p>
           <Button size="sm" onClick={() => setOpen(true)}>
             <Plus />
             {t("settings.tokens.create")}
@@ -160,7 +164,7 @@ export function TokensPanel({
               ))}
             </ul>
           )}
-        </div>
+      </div>}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

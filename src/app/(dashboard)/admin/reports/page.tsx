@@ -31,7 +31,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, FilterChips, PageHeader, Pagination, TableSkeleton } from "@/components/admin/bits";
 import { ConfirmDialog } from "@/components/admin/post-actions";
 import {
@@ -112,7 +111,7 @@ function postStatusBadge(status?: string) {
 function TargetPreviewCard({ p }: { p: TargetPreview }) {
   if (p.missing) {
     return (
-      <div className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
+      <div className="rounded-md bg-[var(--muted)] p-3 text-sm text-muted-foreground">
         被举报对象已不存在（可能已被删除或注销）。
       </div>
     );
@@ -204,177 +203,175 @@ function ReportDetail({
   const [permOpen, setPermOpen] = useState(false);
 
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 pt-5">
-        {/* header */}
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Badge variant="outline">{typeLabel(report.targetType)}</Badge>
-          {report.status === "open" ? (
-            <Badge variant="warning">待处理</Badge>
-          ) : report.status === "resolved" ? (
-            <Badge variant="success">已处理</Badge>
-          ) : (
-            <Badge variant="secondary">已驳回</Badge>
-          )}
-          <span className="text-xs text-muted-foreground">
-            {timeAgo(report.createdAt, "zh")}
-          </span>
-        </div>
+    <div className="flex flex-col gap-4">
+      {/* header */}
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <Badge variant="outline">{typeLabel(report.targetType)}</Badge>
+        {report.status === "open" ? (
+          <Badge variant="warning">待处理</Badge>
+        ) : report.status === "resolved" ? (
+          <Badge variant="success">已处理</Badge>
+        ) : (
+          <Badge variant="secondary">已驳回</Badge>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {timeAgo(report.createdAt, "zh")}
+        </span>
+      </div>
 
-        {/* reporter */}
-        <div className="flex items-center gap-2 text-sm">
-          <span className="text-muted-foreground">举报人：</span>
-          <Link
-            href={`/u/${report.reporter.username}`}
-            target="_blank"
-            className="font-medium hover:underline"
-          >
-            {report.reporter.displayName} (@{report.reporter.username})
-          </Link>
-        </div>
+      {/* reporter */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">举报人：</span>
+        <Link
+          href={`/u/${report.reporter.username}`}
+          target="_blank"
+          className="font-medium hover:underline"
+        >
+          {report.reporter.displayName} (@{report.reporter.username})
+        </Link>
+      </div>
 
-        {/* reason */}
-        <div className="rounded-lg bg-muted/60 p-3 text-sm">
-          <span className="text-muted-foreground">举报理由：</span>
-          {report.reason}
-        </div>
+      {/* reason */}
+      <div className="rounded-md bg-muted/60 p-3 text-sm">
+        <span className="text-muted-foreground">举报理由：</span>
+        {report.reason}
+      </div>
 
-        {/* target inline preview */}
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            被举报对象
-          </p>
-          <TargetPreviewCard p={report.targetPreview} />
-        </div>
+      {/* target inline preview */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          被举报对象
+        </p>
+        <TargetPreviewCard p={report.targetPreview} />
+      </div>
 
-        {/* moderator note */}
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="report-note">处置备注（写入审计日志，可选）</Label>
-          <Textarea
-            id="report-note"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="记录处置依据，便于审计回溯"
-            rows={2}
-          />
-        </div>
+      {/* moderator note */}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="report-note">处置备注（写入审计日志，可选）</Label>
+        <Textarea
+          id="report-note"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="记录处置依据，便于审计回溯"
+          rows={2}
+        />
+      </div>
 
-        {/* actions */}
-        <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+      {/* actions */}
+      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={pending}
+          onClick={() => onAction("dismiss", note)}
+        >
+          <X />
+          忽略
+        </Button>
+        <Button size="sm" disabled={pending} onClick={() => onAction("resolve", note)}>
+          <Check />
+          处理完成
+        </Button>
+        {report.targetType !== "user" ? (
           <Button
             variant="outline"
             size="sm"
+            className="border-destructive/40 text-destructive hover:bg-destructive/10"
             disabled={pending}
-            onClick={() => onAction("dismiss", note)}
+            onClick={() => setConfirmDelete(true)}
           >
-            <X />
-            忽略
+            <Trash2 />
+            删除内容
           </Button>
-          <Button size="sm" disabled={pending} onClick={() => onAction("resolve", note)}>
-            <Check />
-            处理完成
-          </Button>
-          {report.targetType !== "user" ? (
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-destructive/40 text-destructive hover:bg-destructive/10"
-              disabled={pending}
-              onClick={() => setConfirmDelete(true)}
-            >
-              <Trash2 />
-              删除内容
+        ) : null}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" disabled={pending}>
+              <Gavel />
+              封禁作者…
             </Button>
-          ) : null}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" disabled={pending}>
-                <Gavel />
-                封禁作者…
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start">
-              <DropdownMenuItem onSelect={() => setTimedOpen(true)}>
-                <Timer />
-                限时封禁…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onSelect={() => setPermOpen(true)}
-              >
-                <ShieldAlert />
-                永久封禁…
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant="outline" size="sm" disabled={pending} onClick={() => setWarnOpen(true)}>
-            <MessageSquareWarning />
-            警告作者
-          </Button>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem onSelect={() => setTimedOpen(true)}>
+              <Timer />
+              限时封禁…
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive focus:text-destructive"
+              onSelect={() => setPermOpen(true)}
+            >
+              <ShieldAlert />
+              永久封禁…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Button variant="outline" size="sm" disabled={pending} onClick={() => setWarnOpen(true)}>
+          <MessageSquareWarning />
+          警告作者
+        </Button>
+      </div>
 
-        {/* nested confirm + moderation dialogs */}
-        <ConfirmDialog
-          open={confirmDelete}
-          onOpenChange={setConfirmDelete}
-          title="删除被举报内容？"
-          description={
-            report.targetType === "post"
-              ? "文章将被驳回（作者可见原因），举报自动标记为已处理。"
-              : "评论将被软删除（前台不再显示），举报自动标记为已处理。"
-          }
-          confirmText="确认删除"
-          destructive
-          pending={pending}
-          onConfirm={() => {
-            setConfirmDelete(false);
-            void onAction("delete_content", note);
-          }}
-        />
-        <WarnDialog
-          target={{
-            id: report.targetId,
-            username: report.targetPreview.username ?? "author",
-            displayName: report.targetPreview.displayName,
-          }}
-          open={warnOpen}
-          onOpenChange={setWarnOpen}
-          pending={pending}
-          onSubmit={(message) => {
-            setWarnOpen(false);
-            void onAction({ kind: "warn", message }, note);
-          }}
-        />
-        <TimedBanDialog
-          target={{
-            id: report.targetId,
-            username: report.targetPreview.username ?? "author",
-            displayName: report.targetPreview.displayName,
-          }}
-          open={timedOpen}
-          onOpenChange={setTimedOpen}
-          pending={pending}
-          onSubmit={(days, reason) => {
-            setTimedOpen(false);
-            void onAction({ kind: "ban_timed", days, reason }, note);
-          }}
-        />
-        <PermanentBanDialog
-          target={{
-            id: report.targetId,
-            username: report.targetPreview.username ?? "author",
-            displayName: report.targetPreview.displayName,
-          }}
-          open={permOpen}
-          onOpenChange={setPermOpen}
-          pending={pending}
-          onSubmit={(reason) => {
-            setPermOpen(false);
-            void onAction({ kind: "ban_permanent", reason }, note);
-          }}
-        />
-      </CardContent>
-    </Card>
+      {/* nested confirm + moderation dialogs */}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="删除被举报内容？"
+        description={
+          report.targetType === "post"
+            ? "文章将被驳回（作者可见原因），举报自动标记为已处理。"
+            : "评论将被软删除（前台不再显示），举报自动标记为已处理。"
+        }
+        confirmText="确认删除"
+        destructive
+        pending={pending}
+        onConfirm={() => {
+          setConfirmDelete(false);
+          void onAction("delete_content", note);
+        }}
+      />
+      <WarnDialog
+        target={{
+          id: report.targetId,
+          username: report.targetPreview.username ?? "author",
+          displayName: report.targetPreview.displayName,
+        }}
+        open={warnOpen}
+        onOpenChange={setWarnOpen}
+        pending={pending}
+        onSubmit={(message) => {
+          setWarnOpen(false);
+          void onAction({ kind: "warn", message }, note);
+        }}
+      />
+      <TimedBanDialog
+        target={{
+          id: report.targetId,
+          username: report.targetPreview.username ?? "author",
+          displayName: report.targetPreview.displayName,
+        }}
+        open={timedOpen}
+        onOpenChange={setTimedOpen}
+        pending={pending}
+        onSubmit={(days, reason) => {
+          setTimedOpen(false);
+          void onAction({ kind: "ban_timed", days, reason }, note);
+        }}
+      />
+      <PermanentBanDialog
+        target={{
+          id: report.targetId,
+          username: report.targetPreview.username ?? "author",
+          displayName: report.targetPreview.displayName,
+        }}
+        open={permOpen}
+        onOpenChange={setPermOpen}
+        pending={pending}
+        onSubmit={(reason) => {
+          setPermOpen(false);
+          void onAction({ kind: "ban_permanent", reason }, note);
+        }}
+      />
+    </div>
   );
 }
 
@@ -462,45 +459,47 @@ function ReportsWorkbench({
   return (
     <>
       <div className="grid gap-4 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        {/* queue */}
-        <div className="space-y-2.5">
-          {data.items.map((r) => {
-            const active = selected?.id === r.id;
-            return (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => {
-                  setSelected(r);
-                  if (typeof window !== "undefined" && window.innerWidth < 1024) {
-                    setMobileOpen(true);
-                  }
-                }}
-                className={`w-full rounded-lg border p-3 text-left transition-colors ${
-                  active
-                    ? "border-primary bg-primary/5"
-                    : "border-border bg-[var(--muted)] hover:bg-[var(--hover,#f7f8f8)]"
-                }`}
-              >
-                <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-                  <Badge variant="outline">{typeLabel(r.targetType)}</Badge>
-                  {r.status === "open" ? (
-                    <Badge variant="warning">待处理</Badge>
-                  ) : r.status === "resolved" ? (
-                    <Badge variant="success">已处理</Badge>
-                  ) : (
-                    <Badge variant="secondary">已驳回</Badge>
-                  )}
-                  <span>{timeAgo(r.createdAt, locale)}</span>
-                </div>
-                <p className="mt-1.5 line-clamp-2 text-sm">{r.reason}</p>
-                <p className="mt-1 truncate text-xs text-muted-foreground">
-                  @{r.reporter.username} 举报 ·{" "}
-                  {r.targetPreview.missing ? "对象已删除" : truncate(r.targetPreview.title, 30)}
-                </p>
-              </button>
-            );
-          })}
+        {/* queue — single keyline surface, hairline row separators */}
+        <div className="space-y-3">
+          <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="divide-y divide-border">
+              {data.items.map((r) => {
+                const active = selected?.id === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => {
+                      setSelected(r);
+                      if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                        setMobileOpen(true);
+                      }
+                    }}
+                    className={`w-full px-3 py-2.5 text-left transition-colors ${
+                      active ? "bg-primary/5" : "hover:bg-[var(--hover)]"
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                      <Badge variant="outline">{typeLabel(r.targetType)}</Badge>
+                      {r.status === "open" ? (
+                        <Badge variant="warning">待处理</Badge>
+                      ) : r.status === "resolved" ? (
+                        <Badge variant="success">已处理</Badge>
+                      ) : (
+                        <Badge variant="secondary">已驳回</Badge>
+                      )}
+                      <span>{timeAgo(r.createdAt, locale)}</span>
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-sm">{r.reason}</p>
+                    <p className="mt-1 truncate text-xs text-muted-foreground">
+                      @{r.reporter.username} 举报 ·{" "}
+                      {r.targetPreview.missing ? "对象已删除" : truncate(r.targetPreview.title, 30)}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <Pagination offset={offset} limit={PAGE_SIZE} total={data.total} onPage={onPage} />
         </div>
 

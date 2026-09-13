@@ -12,6 +12,7 @@ import { TimelineHeader } from "@/components/site-shell";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
+import { PostReactions } from "@/components/social/post-reactions";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
 
@@ -40,7 +41,7 @@ export default async function PostPermalinkPage({
 
   // articles live on their canonical slug page
   if (post.type === "article") {
-    redirect(routes.post(author.username, post.slug ?? post.id));
+    redirect(routes.article(post.slug ?? post.id));
   }
 
   const isAuthor = viewer?.id === post.authorId;
@@ -74,7 +75,7 @@ export default async function PostPermalinkPage({
   const published = post.publishedAt ?? post.createdAt;
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       {/* sticky back bar */}
       <TimelineHeader
         back
@@ -129,6 +130,7 @@ export default async function PostPermalinkPage({
             initialCount={post.repostCount}
             initialReposted={reposted}
           />
+          {viewer && <PostReactions postId={post.id} />}
           <span className="flex-1" />
           {viewer && viewer.id !== author.id && (
             <ReportDialog targetType="post" targetId={post.id} />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -11,6 +12,7 @@ import {
   Home,
   LogOut,
   Mail,
+  NotebookPen,
   Settings,
   ShieldCheck,
   User as UserIcon,
@@ -26,7 +28,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ThemeToggle, LocaleToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "@/components/brand/logo";
 import { routes } from "@/core/routes";
 
 /* ============================================================ types ====== */
@@ -44,22 +45,54 @@ export interface ShellUser {
 /* ======================================================== brand mark ===== */
 
 /**
- * Brand mark using the text-only "comit.sh" wordmark
+ * Brand mark — the official comit.sh.svg wordmark asset.
+ * Dark fill by default; inverted in dark mode for the gray canvas.
  */
 export function BrandMark({ className }: { className?: string }) {
-  return <BrandLogo size={26} withWordmark={false} className={className} />;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/icons/comit.sh.svg"
+      alt="comit.sh"
+      className={cn("h-[20px] w-auto select-none dark:invert", className)}
+    />
+  );
 }
 
 function BrandLink({ siteName }: { siteName: string }) {
   return (
     <Link
       href={routes.home}
-      className="inline-flex items-center gap-2 rounded-full p-2 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+      className="inline-flex items-center rounded-[10px] p-2"
       aria-label={siteName}
     >
-      <BrandLogo size={26} withWordmark={false} />
-      <span className="hidden text-[17px] font-bold tracking-tight xl:inline">{siteName}</span>
+      <BrandMark className="h-[22px]" />
     </Link>
+  );
+}
+
+/** 创作 trigger — on the home page it pings the pinned composer to expand
+ * and focus; anywhere else it routes home with ?compose=1. */
+function ComposerTrigger({ login }: { login?: string }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  if (login) {
+    return (
+      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 xl:w-full xl:px-3">
+        <Feather className="size-3.5" />
+        <span className="hidden text-[13px] xl:inline">创作</span>
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={() => {
+      if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
+      else router.push("/?compose=1");
+    }}
+      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 xl:w-full xl:px-3">
+      <Feather className="size-3.5" />
+      <span className="hidden text-[13px] xl:inline">创作</span>
+    </button>
   );
 }
 
@@ -95,7 +128,7 @@ function UserMenu({
           aria-label="账号菜单"
           className={cn(
             "flex w-full items-center gap-2.5 rounded-full transition-colors outline-none hover:bg-[var(--hover,#f7f8f8)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-            mobile ? "p-0.5" : "p-2",
+            mobile ? "p-0.5" : "p-1.5",
           )}
         >
           <Avatar className="size-8 border border-border">
@@ -186,14 +219,14 @@ function LeftNav({
   const login = routes.login;
 
   const items = [
-    { href: routes.home, label: "首页", icon: <Home className="size-[26px]" />, exact: true },
-    { href: routes.explore, label: "发现", icon: <Compass className="size-[26px]" /> },
+    { href: routes.home, label: "首页", icon: <Home className="size-[18px]" />, exact: true },
+    { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     {
       href: user ? routes.notifications : login,
       label: "通知",
       icon: (
         <NavIcon badge={user?.unreadNotifications}>
-          <Bell className="size-[26px]" />
+          <Bell className="size-[18px]" />
         </NavIcon>
       ),
     },
@@ -202,21 +235,31 @@ function LeftNav({
       label: "私信",
       icon: (
         <NavIcon badge={user?.unreadMessages}>
-          <Mail className="size-[26px]" />
+          <Mail className="size-[18px]" />
         </NavIcon>
       ),
     },
     {
       href: user ? routes.profile(user.username) : login,
       label: "个人主页",
-      icon: <UserIcon className="size-[26px]" />,
+      icon: <UserIcon className="size-[18px]" />,
+    },
+    {
+      href: "/write/posts",
+      label: "我的文章",
+      icon: <NotebookPen className="size-[18px]" />,
+    },
+    {
+      href: "/settings",
+      label: "设置",
+      icon: <Settings className="size-[18px]" />,
     },
   ];
 
   return (
     <nav
       aria-label="主导航"
-      className="sticky top-0 hidden h-dvh w-20 shrink-0 flex-col px-2 py-3 md:flex xl:w-[240px] xl:px-3"
+      className="hidden h-full w-16 shrink-0 flex-col px-2 py-3 md:flex xl:w-[208px] xl:px-3"
     >
       <div className="mb-2 ml-1">
         <BrandLink siteName={siteName} />
@@ -231,26 +274,18 @@ function LeftNav({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-4 rounded-full p-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
-                active ? "font-bold text-foreground bg-[var(--muted)]" : "text-foreground/90",
+                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+                active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
               {item.icon}
-              <span className="hidden text-[17px] xl:inline">{item.label}</span>
+              <span className="hidden text-sm xl:inline">{item.label}</span>
             </Link>
           );
         })}
 
         {/* 创作 — primary action, cool black pill */}
-        <Link
-          href={user ? routes.editorNew("article") : login}
-          className="mt-2 flex items-center justify-center gap-2 rounded-full bg-primary p-3 font-bold text-primary-foreground shadow-none transition-opacity hover:opacity-90 xl:px-4"
-        >
-          <Feather className="size-[22px] xl:hidden" />
-          <span className="hidden items-center gap-2 text-[15px] xl:inline-flex">
-            <Feather className="size-5" /> 创作
-          </span>
-        </Link>
+        <ComposerTrigger login={user ? undefined : login} />
       </div>
 
       <div className="flex-1" />
@@ -284,7 +319,7 @@ function MobileTopBar({
   locale: "zh" | "en";
 }) {
   return (
-    <header className="sticky top-0 z-40 flex h-12 items-center justify-between bg-white px-3 md:hidden">
+    <header className="sticky top-0 z-40 flex h-12 items-center justify-between bg-card px-3 md:hidden">
       <Link
         href={routes.home}
         className="inline-flex items-center gap-2 rounded-full p-1.5 font-bold tracking-tight"
@@ -312,17 +347,18 @@ function MobileTopBar({
 function MobileTabBar({ user }: { user: ShellUser | null }) {
   const pathname = usePathname();
   const login = routes.login;
+  const router = useRouter();
 
   const tabs = [
-    { href: routes.home, label: "首页", icon: <Home className="size-[26px]" />, exact: true },
-    { href: routes.explore, label: "发现", icon: <Compass className="size-[26px]" /> },
-    { href: user ? routes.editorNew("article") : login, label: "创作", fab: true },
+    { href: routes.home, label: "首页", icon: <Home className="size-[18px]" />, exact: true },
+    { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
+    { href: user ? "#compose" : login, label: "创作", fab: true },
     {
       href: user ? routes.notifications : login,
       label: "通知",
       icon: (
         <NavIcon badge={user?.unreadNotifications}>
-          <Bell className="size-[26px]" />
+          <Bell className="size-[18px]" />
         </NavIcon>
       ),
     },
@@ -330,14 +366,14 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
       href: user ? routes.profile(user.username) : login,
       label: "我",
       icon: user ? (
-        <Avatar className="size-[26px]">
+        <Avatar className="size-[18px]">
           {user.avatarPath && (
             <AvatarImage src={routes.media(user.avatarPath)} alt={user.displayName} />
           )}
           <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
         </Avatar>
       ) : (
-        <UserIcon className="size-[26px]" />
+        <UserIcon className="size-[18px]" />
       ),
     },
   ];
@@ -345,12 +381,31 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
   return (
     <nav
       aria-label="底部导航"
-      className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch bg-white pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {tabs.map((tab) => {
         const active = tab.exact
           ? pathname === tab.href
           : !tab.fab && pathname.startsWith(tab.href);
+        if (tab.fab && user) {
+          // FAB: on the home page ping the pinned composer, elsewhere route home
+          return (
+            <button
+              key={tab.label}
+              type="button"
+              aria-label={tab.label}
+              onClick={() => {
+                if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
+                else router.push("/?compose=1");
+              }}
+              className="flex flex-1 items-center justify-center"
+            >
+              <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-none transition-opacity active:opacity-80">
+                <Feather className="size-[18px]" />
+              </span>
+            </button>
+          );
+        }
         return (
           <Link
             key={tab.label}
@@ -361,7 +416,7 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
           >
             {tab.fab ? (
               <span className="grid size-9 place-items-center rounded-full bg-primary text-primary-foreground shadow-none">
-                <Feather className="size-5" />
+                <Feather className="size-[18px]" />
               </span>
             ) : (
               <span
@@ -384,9 +439,6 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
 
 /** Route prefixes that render without the social chrome (centered card pages). */
 const BARE_PREFIXES = ["/auth", "/legal", "/about"];
-/** Routes that manage their own right column / full-width layout. */
-const NO_RAIL_PREFIXES = ["/u/", "/p/", "/messages"];
-
 export function SiteShell({
   user,
   locale,
@@ -407,30 +459,55 @@ export function SiteShell({
   const pathname = usePathname();
   const isAdmin = user?.role === "admin";
 
+  // paper theme (E-Ink light) is scoped to the front-facing site: the class
+  // lives on <body> so portaled surfaces inherit the tokens too, and is
+  // removed on unmount so the admin console keeps the base Stripe palette
+  useEffect(() => {
+    document.body.classList.add("theme-paper");
+    return () => {
+      document.body.classList.remove("theme-paper");
+    };
+  }, []);
+
   const bare = BARE_PREFIXES.some((p) => pathname.startsWith(p));
   if (bare) return <>{children}</>;
 
-  const noRail = NO_RAIL_PREFIXES.some((p) => pathname.startsWith(p));
+  // app-surface pages (messenger) take the full panel width without the rail
+  const isFullWidth = pathname.startsWith("/messages");
 
-  return (
-    <div className="min-h-dvh bg-[var(--background)]">
+    return (
+    <div className="flex min-h-dvh flex-col bg-[var(--background)] md:h-dvh md:overflow-hidden">
       <MobileTopBar user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
-      <div className="mx-auto flex w-full max-w-[1320px] justify-center">
-        <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
-        <main className="min-w-0 flex-1 pb-16 md:pb-0">
-          <div className="flex justify-center">
-            {children}
-            {!noRail && rail != null && (
-              <aside className="hidden w-[300px] shrink-0 xl:block">
-                <div className="sticky top-0 max-h-dvh space-y-4 overflow-y-auto px-5 py-3">
-                  {rail}
-                </div>
-              </aside>
-            )}
+
+      {/* nav + panel + rail all live inside the 1200px center container */}
+      <div className="mx-auto flex h-full w-full max-w-[1200px]">
+      <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
+
+      {/* main content — white rounded panel, full height, inner scroll (no scrollbar) */}
+      <main className={cn("min-w-0 flex-1 pb-16 md:flex md:h-full md:pb-0", !isFullWidth && "md:justify-center")}>
+        <div
+          className={cn(
+            "flex w-full min-w-0 flex-col bg-card md:scrollbar-none",
+            isFullWidth
+              ? "md:h-full md:overflow-hidden md:rounded-2xl md:border md:border-[var(--center-border)]"
+              : "md:my-[10px] md:h-[calc(100%-20px)] md:overflow-y-auto md:rounded-2xl md:border md:border-[var(--center-border)]",
+          )}
+        >
+          <div className="flex flex-1 flex-col" data-composer-anchor>
+            <div className="flex flex-1 justify-center">{children}</div>
+            {footer}
           </div>
-          {footer}
-        </main>
+        </div>
+
+        {/* right rail on the gray canvas — hidden on app-surface pages */}
+        {!isFullWidth && rail != null && (
+          <aside className="hidden w-[320px] shrink-0 md:h-full md:overflow-y-auto md:scrollbar-none xl:block">
+            <div className="space-y-3 px-5 py-3">{rail}</div>
+          </aside>
+        )}
+      </main>
       </div>
+
       <MobileTabBar user={user} />
     </div>
   );
@@ -466,7 +543,7 @@ export function TimelineHeader({
     return (
       <div
         className={cn(
-          "sticky top-12 z-30 bg-white/80 backdrop-blur-md md:top-0",
+          "sticky top-12 z-30 bg-card/80 backdrop-blur-md md:top-0",
           className,
         )}
       >
@@ -478,11 +555,11 @@ export function TimelineHeader({
   return (
     <div
       className={cn(
-        "sticky top-12 z-30 bg-white/80 backdrop-blur-md md:top-0",
+        "sticky top-12 z-30 bg-card/80 backdrop-blur-md md:top-0",
         className,
       )}
     >
-      <div className="flex min-h-13 items-center gap-3 px-4 py-2">
+      <div className="flex min-h-12 items-center gap-3 px-4 py-1.5">
         {back && (
           <button
             type="button"
@@ -494,7 +571,7 @@ export function TimelineHeader({
             }
             className="grid size-9 shrink-0 place-items-center rounded-full transition-colors hover:bg-[var(--hover,#f7f8f8)]"
           >
-            <ArrowLeft className="size-5" />
+            <ArrowLeft className="size-[18px]" />
           </button>
         )}
         <div className="min-w-0 flex-1">
@@ -520,14 +597,14 @@ export function UnderlineTabs({
   className?: string;
 }) {
   return (
-    <nav className={cn("grid auto-cols-fr grid-flow-col", className)} aria-label="页签">
+    <nav className={cn("grid auto-cols-fr grid-flow-col border-b border-border", className)} aria-label="页签">
       {tabs.map((tab) => {
         const inner = (
           <>
             <span className={cn("relative py-3.5 text-[15px]", tab.active && "font-bold")}>
               {tab.label}
               {tab.active && (
-                <span className="absolute inset-x-3 bottom-0 h-1 rounded-full bg-primary" />
+                <span className="absolute inset-x-0 bottom-0 h-[3px] rounded-t-[3px] bg-primary" />
               )}
             </span>
           </>

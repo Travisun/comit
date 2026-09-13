@@ -97,7 +97,7 @@ async function ArchivesLazy({ userId, username }: { userId: string; username: st
                         p.slug ? (
                           <li key={i}>
                             <Link
-                              href={routes.post(username, p.slug)}
+                              href={routes.article(p.slug)}
                               className="block truncate rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-primary"
                               title={p.title ?? undefined}
                             >
@@ -157,7 +157,7 @@ async function HotPostsWidget({ user }: { user: User }) {
             </span>
             {it.post.slug ? (
               <Link
-                href={routes.post(user.username, it.post.slug)}
+                href={routes.article(it.post.slug ?? it.post.id)}
                 className="line-clamp-2 text-sm leading-snug hover:text-primary"
               >
                 {it.post.title ?? "Untitled"}

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Globe, Loader2, Lock, Info } from "lucide-react";
+import { ArrowLeft, ChevronDown, Globe, Loader2, Lock, Info, Send } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { routes } from "@/core/routes";
 import { cn } from "@/lib/utils";
@@ -18,21 +19,24 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/primitives";
-import { AnnotationBadge } from "@/components/posts/annotation-badge";
-import { MarkdownEditor } from "./markdown-editor";
+import { VditorEditor } from "./vditor-editor";
 import { ImageUploader } from "./image-uploader";
 import { TopicInput } from "./topic-input";
 import { CollectionSelect } from "./collection-select";
 import { BlockedDialog } from "./blocked-dialog";
+import { ARTICLE_DRAFT_KEY } from "@/components/social/api";
 
 /**
- * Full article editor: title + markdown editor on the left, publish-settings
- * panel (featured image / collection / topics / visibility / content label /
- * summary / slug) as a sticky card on desktop and a bottom-sheet dialog on
- * mobile. ⌘S saves the draft; 发布 runs action:'submit' (keyword gate → review).
+ * Full-page article editor:
+ *   ┌ top strip (back · status · slug ┆ 保存草稿 / 发布) ┐
+ *   ┌ centered writing column: title + live-render markdown ┐
+ * Publish settings (cover / topics / visibility / label / summary / slug)
+ * open in a dialog only when 发布 is clicked. ⌘S saves the draft; 发布 runs
+ * action:'submit' (keyword gate → review).
  */
 
 export interface EditorPost {
@@ -59,7 +63,6 @@ interface SettingsState {
   topicNames: string[];
   visibility: "public" | "followers";
   summary: string;
-  slug: string;
   label: ContentLabelId;
   sourceUrl: string;
   sourceName: string;
@@ -68,7 +71,7 @@ interface SettingsState {
 type SaveAction = "draft" | "submit" | "update";
 
 export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const router = useRouter();
 
   const [id, setId] = useState<string | null>(initial?.id ?? null);
@@ -80,7 +83,6 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
     topicNames: initial?.topicNames ?? [],
     visibility: initial?.visibility ?? "public",
     summary: initial?.summary ?? "",
-    slug: initial?.slug ?? "",
     label: getLabelDef(initial?.label).id,
     sourceUrl: initial?.sourceUrl ?? "",
     sourceName: initial?.sourceName ?? "",
@@ -88,23 +90,97 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
   const [status, setStatus] = useState(initial?.status ?? "draft");
   const [saving, setSaving] = useState<SaveAction | null>(null);
   const [blocked, setBlocked] = useState<string[] | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
 
   const patch = (p: Partial<SettingsState>) => setSettings((s) => ({ ...s, ...p }));
 
-  const save = async (action: SaveAction) => {
+  // create mode: pick up a manuscript started in the composer drawer (it
+  // autosaves to the shared local draft) once, after hydration
+  const handoffDone = useRef(false);
+  useEffect(() => {
+    if (initial || handoffDone.current) return;
+    handoffDone.current = true;
+    queueMicrotask(() => {
+      try {
+        const raw = localStorage.getItem(ARTICLE_DRAFT_KEY);
+        if (!raw) return;
+        const d = JSON.parse(raw) as {
+          title?: string;
+          article?: string;
+          topics?: string[];
+          collectionId?: string | null;
+          label?: string;
+          sourceUrl?: string;
+          sourceName?: string;
+          visibility?: string;
+        };
+        if (d.title) setTitle(d.title);
+        if (d.article) setContent(d.article);
+        const p: Partial<SettingsState> = {};
+        if (Array.isArray(d.topics) && d.topics.length) p.topicNames = d.topics;
+        if (d.collectionId) p.collectionId = d.collectionId;
+        if (d.label) p.label = getLabelDef(d.label).id;
+        if (d.sourceUrl) p.sourceUrl = d.sourceUrl;
+        if (d.sourceName) p.sourceName = d.sourceName;
+        if (d.visibility === "followers") p.visibility = "followers";
+        if (Object.keys(p).length) patch(p);
+        localStorage.removeItem(ARTICLE_DRAFT_KEY);
+        if (d.title || d.article) {
+          toast.message(locale === "zh" ? "已带入手稿草稿" : "Carried over your draft");
+        }
+      } catch {
+        // corrupted draft — start clean
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once on mount
+  }, []);
+
+  // local autosave (create mode only) — protects against tab closes before
+  // the first ⌘S; cleared once the post persists server-side
+  useEffect(() => {
+    if (initial) return;
+    const timer = window.setTimeout(() => {
+      try {
+        if (title.trim() || content.trim()) {
+          localStorage.setItem(
+            ARTICLE_DRAFT_KEY,
+            JSON.stringify({
+              title,
+              article: content,
+              topics: settings.topicNames,
+              collectionId: settings.collectionId,
+              label: settings.label,
+              sourceUrl: settings.sourceUrl,
+              sourceName: settings.sourceName,
+              visibility: settings.visibility,
+            }),
+          );
+        }
+      } catch {
+        // private mode / quota — best-effort
+      }
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [title, content, settings, initial]);
+
+  const validate = (): boolean => {
     if (!title.trim()) {
       toast.error("请输入标题 / Title required");
-      return;
+      return false;
     }
     if (!content.trim()) {
       toast.error("正文不能为空 / Content required");
-      return;
+      return false;
     }
     if (settings.label === "repost" && !isHttpUrl(settings.sourceUrl)) {
       toast.error("转载内容需填写原文地址（http(s)://…） / Reposts require a valid source URL");
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const save = async (action: SaveAction) => {
+    if (!validate()) return;
     setSaving(action);
     try {
       const repost =
@@ -127,7 +203,6 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
         topicNames: settings.topicNames,
         label: settings.label,
         ...repost,
-        ...(settings.slug.trim() ? { slug: settings.slug.trim() } : {}),
         ...(action === "update" ? {} : { action }),
       };
       const res = id
@@ -159,8 +234,13 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
       }
 
       setId(data.id);
-      if (data.slug) patch({ slug: data.slug });
       if (data.status) setStatus(data.status);
+      // persisted server-side — the local handoff/autosave copy is no longer needed
+      try {
+        localStorage.removeItem(ARTICLE_DRAFT_KEY);
+      } catch {
+        // ignore
+      }
 
       if (action === "draft") {
         toast.success(t("editor.saved"));
@@ -172,6 +252,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
         return;
       }
       // submit → published directly (reviewMode=off) or queued for review
+      setPublishOpen(false);
       toast.success(data.status === "published" ? t("editor.publish") : t("post.pendingReview"));
       router.push(routes.home);
     } catch {
@@ -197,100 +278,111 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const fields = <SettingsFields settings={settings} patch={patch} disabled={saving !== null} />;
   const isPublished = status === "published";
-  const primaryLabel = isPublished ? t("common.save") : t("editor.publish");
-  const primaryAction: SaveAction = isPublished ? "update" : "submit";
+  const slugPath = (initial?.slug || id) && status !== "draft" ? `/post/${initial?.slug ?? id}` : null;
 
-  const buttons = (onAfter?: () => void) => (
-    <div className="flex gap-2">
-      {!isPublished && (
-        <Button
-          variant="secondary"
-          className="flex-1"
-          disabled={saving !== null}
-          onClick={() => {
-            void save("draft");
-            onAfter?.();
-          }}
-        >
-          {saving === "draft" ? <Loader2 className="animate-spin" /> : null}
-          {t("editor.saveDraft")}
-        </Button>
-      )}
-      <Button
-        className="flex-1"
-        disabled={saving !== null}
-        onClick={() => {
-          void save(primaryAction);
-          if (primaryAction === "submit") onAfter?.();
-        }}
-      >
-        {saving === primaryAction ? <Loader2 className="animate-spin" /> : null}
-        {primaryLabel}
-      </Button>
-    </div>
-  );
+  /** 发布 click → open the settings dialog (validated already) */
+  function requestPublish() {
+    if (!title.trim() || !content.trim()) {
+      validate();
+      return;
+    }
+    setPublishOpen(true);
+  }
 
   return (
-    /* Focus layout: middle column fills all remaining height/width, publish
-       settings docked hard-right as a full-height rail with its own scroll.
-       Height subtracts the console top bar (h-14) rendered by the shell. */
-    <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col lg:h-[calc(100dvh-3.5rem)] lg:min-h-0 lg:flex-row lg:overflow-hidden">
-      {/* middle — editor column */}
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 pb-20 pt-4 md:px-6 lg:overflow-hidden lg:pb-0 lg:pt-5">
-        {status === "rejected" && initial?.rejectReason && (
-          <div className="shrink-0 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-            {t("post.rejected")}：{initial.rejectReason}
+    <div className="flex h-[calc(100dvh-3rem)] overflow-hidden md:h-dvh md:pb-0">
+      {/* right-hand column: top strip + fullscreen editor */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border px-3 md:px-4">
+          <div className="flex min-w-0 items-center gap-2">
+            <button
+              type="button"
+              aria-label={locale === "zh" ? "返回" : "Back"}
+              title={locale === "zh" ? "返回首页" : "Back to home"}
+              onClick={() => router.push(routes.home)}
+              className="-ml-1 inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
+            >
+              <ArrowLeft className="size-4" />
+            </button>
+            {status !== "draft" && (
+              <Badge variant={isPublished ? "success" : "warning"}>
+                {isPublished ? t("editor.publish") : t("post.pendingReview")}
+              </Badge>
+            )}
+            {status === "rejected" && initial?.rejectReason && (
+              <span className="truncate text-xs text-destructive">
+                {t("post.rejected")}：{initial.rejectReason}
+              </span>
+            )}
+            {slugPath && (
+              <Link
+                href={slugPath}
+                target="_blank"
+                className="hidden font-mono text-xs text-muted-foreground hover:text-foreground lg:inline"
+              >
+                {slugPath}
+              </Link>
+            )}
           </div>
-        )}
-        {(status === "pending_review" || isPublished) && (
-          <div className="shrink-0">
-            <Badge variant={isPublished ? "success" : "warning"}>
-              {isPublished ? t("editor.publish") : t("post.pendingReview")}
-            </Badge>
+          <div className="flex shrink-0 items-center gap-2">
+            {!isPublished && (
+              <Button variant="outline" size="sm" disabled={saving !== null} onClick={() => void save("draft")}>
+                {saving === "draft" ? <Loader2 className="animate-spin" /> : null}
+                {t("editor.saveDraft")}
+              </Button>
+            )}
+            {isPublished ? (
+              <Button size="sm" disabled={saving !== null} onClick={() => void save("update")}>
+                {saving === "update" ? <Loader2 className="animate-spin" /> : null}
+                {t("common.save")}
+              </Button>
+            ) : (
+              <Button size="sm" disabled={saving !== null} onClick={requestPublish}>
+                <Send className="size-3.5" />
+                {t("editor.publish")}
+              </Button>
+            )}
           </div>
-        )}
+        </div>
 
-        <input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t("editor.titlePlaceholder")}
-          maxLength={200}
-          className="w-full shrink-0 bg-transparent text-2xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
-        />
-        <MarkdownEditor
-          value={content}
-          onChange={setContent}
-          onSave={() => saveDraftRef.current()}
-          placeholder={t("editor.bodyPlaceholder")}
-          className="min-h-[55vh] flex-1 lg:min-h-0"
-        />
+        {/* fullscreen editor surface: centered writing column */}
+        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-4xl px-6 pt-6 md:px-10">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("editor.titlePlaceholder")}
+              maxLength={200}
+              className="w-full bg-transparent text-3xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
+            />
+          </div>
+          <div className="mx-auto w-full max-w-4xl md:px-4">
+            <VditorEditor
+              value={content}
+              onChange={setContent}
+              onSave={() => saveDraftRef.current()}
+              placeholder={t("editor.bodyPlaceholder")}
+              className="min-h-[calc(100dvh-12rem)]"
+            />
+          </div>
+        </div>
       </div>
 
-      {/* right — docked publish rail, always flush right, own scroll */}
-      <aside className="hidden w-[340px] shrink-0 flex-col gap-5 overflow-y-auto bg-[var(--muted)] px-5 py-5 lg:flex">
-        <h2 className="text-sm font-semibold">{t("editor.settings")}</h2>
-        {fields}
-        <div className="mt-auto pt-2">{buttons()}</div>
-      </aside>
-
-      {/* mobile: bottom bar + settings sheet */}
-      <div className="fixed inset-x-0 bottom-0 z-40 flex items-center gap-2 bg-white p-3 lg:hidden">
-        <Button
-          variant="outline"
-          className="flex-1"
-          onClick={() => setSheetOpen(true)}
-        >
-          {t("editor.settings")}
-        </Button>
-        {buttons()}
-      </div>
-      <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+      {/* publish dialog — settings only appear here, on demand */}
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}>
+        <DialogContent className="max-w-2xl">
           <DialogTitle>{t("editor.settings")}</DialogTitle>
-          {fields}
-          {buttons(() => setSheetOpen(false))}
+          <SettingsFields settings={settings} patch={patch} disabled={saving !== null} />
+          <DialogFooter className="mt-2">
+            <Button variant="outline" onClick={() => setPublishOpen(false)}>
+              {t("common.cancelAction")}
+            </Button>
+            <Button disabled={saving !== null} onClick={() => void save("submit")}>
+              {saving === "submit" ? <Loader2 className="animate-spin" /> : <Send className="size-4" />}
+              {t("editor.publish")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -312,8 +404,8 @@ function SettingsFields({
 }) {
   const { t } = useI18n();
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-1.5">
+    <div className="grid gap-4 sm:grid-cols-2">
+      <div className="flex flex-col gap-1.5 sm:col-span-2">
         <Label>{t("editor.cover")}</Label>
         <ImageUploader
           kind="featured"
@@ -357,7 +449,7 @@ function SettingsFields({
                 "flex items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-sm transition-colors",
                 settings.visibility === val
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border bg-[var(--muted)] hover:bg-[var(--hover,#f7f8f8)]",
+                  : "border-border bg-[var(--muted)] hover:bg-[var(--hover)]",
               )}
             >
               {icon}
@@ -375,24 +467,14 @@ function SettingsFields({
         onChange={(p) => patch(p)}
       />
 
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 sm:col-span-2">
         <Label>{t("editor.summary")}</Label>
         <Textarea
-          rows={3}
+          rows={2}
           disabled={disabled}
           value={settings.summary}
           onChange={(e) => patch({ summary: e.target.value })}
           placeholder={t("editor.summaryPlaceholder")}
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label>{t("editor.slug")}</Label>
-        <Input
-          disabled={disabled}
-          value={settings.slug}
-          onChange={(e) => patch({ slug: e.target.value })}
-          placeholder={t("editor.slug")}
         />
       </div>
     </div>
@@ -407,14 +489,7 @@ function LockIcon() {
   return <Lock className="size-4" />;
 }
 
-/* --------------------------- content label picker ------------------------- */
 
-/**
- * Douyin-style content annotation picker: one radio row per label with a
- * colored badge preview (hover for the explanation), the selected label's
- * description shown right below the list. `repost` expands required source
- * URL + optional source name inputs; AI labels show a disclosure reminder.
- */
 function ContentLabelPicker({
   label,
   sourceUrl,
@@ -434,40 +509,27 @@ function ContentLabelPicker({
   return (
     <div className="flex flex-col gap-1.5">
       <Label>{locale === "zh" ? "内容标注" : "Content label"}</Label>
-      <div role="radiogroup" aria-label={locale === "zh" ? "内容标注" : "Content label"} className="flex flex-col gap-0.5">
-        {CONTENT_LABELS.map((d) => {
-          const checked = d.id === label;
-          return (
-            <button
-              key={d.id}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              disabled={disabled}
-              onClick={() => onChange({ label: d.id })}
-              className={cn(
-                "flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors",
-                checked ? "bg-[var(--selected,#eef4fb)]" : "hover:bg-[var(--hover,#f7f8f8)]",
-              )}
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "size-4 shrink-0 rounded-full border-2 transition-colors",
-                  checked ? "border-primary bg-primary shadow-[inset_0_0_0_3px_var(--background)]" : "border-input bg-card",
-                )}
-              />
-              <AnnotationBadge label={d.id} size="sm" />
-            </button>
-          );
-        })}
+      <div className="relative">
+        <select
+          value={label}
+          disabled={disabled}
+          onChange={(e) => onChange({ label: e.target.value as ContentLabelId })}
+          aria-label={locale === "zh" ? "内容标注" : "Content label"}
+          className="h-[30px] w-full appearance-none rounded-md border-0 bg-card pl-2 pr-8 text-sm text-[color:var(--text-body)] shadow-[0_0_0_1px_var(--field-line),0_1px_1px_rgba(0,0,0,0.08)] outline-none focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)] disabled:opacity-50"
+        >
+          {CONTENT_LABELS.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name[locale]}
+            </option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
       </div>
 
-      {/* selected label's explanation — updates immediately on change */}
-      <p className="px-2 text-xs leading-relaxed text-muted-foreground">{def.desc[locale]}</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{def.desc[locale]}</p>
 
       {def.needsSource && (
-        <div className="flex flex-col gap-2 rounded-lg bg-[var(--muted)] p-3">
+        <div className="flex flex-col gap-2 rounded-md border border-border bg-card p-3">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">
               {locale === "zh" ? "原文地址（必填）" : "Source URL (required)"}
@@ -497,7 +559,7 @@ function ContentLabelPicker({
       )}
 
       {(label === "ai_assisted" || label === "ai_generated") && (
-        <p className="flex items-start gap-1.5 rounded-lg bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-muted-foreground">
+        <p className="flex items-start gap-1.5 rounded-md bg-[var(--muted)] p-2.5 text-xs leading-relaxed text-muted-foreground">
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           {locale === "zh"
             ? "感谢你主动标注 AI 内容——平台鼓励如实披露创作方式；未如实标注可能影响内容在社区的推荐与信任。"

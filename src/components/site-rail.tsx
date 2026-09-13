@@ -1,31 +1,39 @@
 import Link from "next/link";
-import { Hash, Rss } from "lucide-react";
+import { Hash, LogIn, Rss } from "lucide-react";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import type { AuthorCardData, TopicRef } from "@/components/user-space/types";
 import type { CommunityStats } from "@/components/user-space/queries";
 
 /**
- * Global right rail for the X-style shell (≥1280px only, rendered by the
- * site layout): search → about comit.sh → trending topics → active authors
- * → footer links. Flat bordered cards, no shadows.
+ * Global right rail for the X-style shell (rendered by the site layout):
+ * search → [logged-in: profile card | logged-out: sign-in CTA] → about
+ * comit.sh → trending topics → active authors → footer links.
+ * Flat bordered cards, no shadows.
  */
 export function SiteRail({
   siteName,
   topics,
   authors,
   stats,
+  user,
 }: {
   siteName: string;
   topics: TopicRef[];
   authors: AuthorCardData[];
   stats: CommunityStats | null;
+  /** logged-in viewer — shows the profile card instead of the sign-in CTA */
+  user?: {
+    displayName: string;
+    username: string;
+    avatarPath: string | null;
+  } | null;
 }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* search — GET /explore?q= */}
-      <form action={routes.explore} role="search" className="sticky top-3 z-10 bg-card pb-1">
-        <label className="flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-2.5 transition-colors focus-within:border-primary/50 focus-within:bg-card">
+      <form action={routes.explore} role="search" className="sticky top-0 z-10 bg-[var(--background)] pb-1.5">
+        <label className="flex items-center gap-2 rounded-full border border-border bg-muted px-3.5 py-2 transition-colors focus-within:border-primary/50 focus-within:bg-card">
           <Hash className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
             type="search"
@@ -37,20 +45,68 @@ export function SiteRail({
         </label>
       </form>
 
+      {/* profile card (logged-in) / sign-in CTA (logged-out) */}
+      {user ? (
+        <section className="rounded-lg border border-border p-3">
+          <div className="flex items-center gap-3">
+            <Avatar className="size-10">
+              {user.avatarPath && (
+                <AvatarImage src={`/api/media/file/${user.avatarPath}`} alt={user.displayName} />
+              )}
+              <AvatarFallback className="text-base">
+                {user.displayName.slice(0, 1).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-bold">{user.displayName}</p>
+              <p className="truncate text-sm text-muted-foreground">@{user.username}</p>
+            </div>
+          </div>
+          <Link
+            href={routes.profile(user.username)}
+            className="mt-2.5 block rounded-full border border-border py-1 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
+          >
+            查看主页
+          </Link>
+        </section>
+      ) : (
+        <section className="rounded-lg border border-border p-3">
+          <h2 className="text-sm font-bold">新到 {siteName}</h2>
+          <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+            创建账号，记录你的科研日志与技术文章，并关注你感兴趣的作者。
+          </p>
+          <div className="mt-3 flex flex-col gap-2">
+            <Link
+              href="/auth/register"
+              className="rounded-full bg-primary py-1.5 text-center text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              创建账号
+            </Link>
+            <Link
+              href="/auth/login"
+              className="flex items-center justify-center gap-1.5 rounded-full border border-border py-1.5 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
+            >
+              <LogIn className="size-3.5" />
+              登录
+            </Link>
+          </div>
+        </section>
+      )}
+
       {/* what is comit.sh */}
-      <section className="rounded-lg border border-border p-4">
-        <h2 className="text-[15px] font-bold">{siteName} 是什么</h2>
-        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+      <section className="rounded-lg border border-border p-3">
+        <h2 className="text-sm font-bold">{siteName} 是什么</h2>
+        <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
           极客 · 设计师 · 科学家 · CS 学子的个人品牌社区 —— 记录科研日志、技术学习、研究发布与项目动态。
         </p>
         {stats && (
-          <p className="num mt-2 text-xs text-muted-foreground">
+          <p className="num mt-1.5 text-xs text-muted-foreground">
             {stats.members} 位成员 · {stats.posts} 篇公开内容 · 今日 {stats.today} 条动态
           </p>
         )}
         <Link
           href="/about"
-          className="mt-2.5 inline-block text-sm font-medium text-primary hover:underline"
+          className="mt-2 inline-block text-[13px] font-medium text-primary hover:underline"
         >
           了解更多 →
         </Link>

@@ -8,6 +8,7 @@ import { blogPostingJsonLd, personJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
+import { PostReactions } from "@/components/social/post-reactions";
 import { Comments } from "@/components/social/comments";
 import { FollowButton } from "@/components/social/follow-button";
 import { ReportDialog } from "@/components/social/report-dialog";
@@ -54,7 +55,7 @@ export function PostView({
   const canComment = Boolean(author.commentsEnabled && viewer);
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -62,7 +63,7 @@ export function PostView({
             blogPostingJsonLd({
               post,
               author: { displayName: author.displayName, username: author.username },
-              url: `${config.app.url}${routes.post(author.username, post.slug ?? "")}`,
+              url: `${config.app.url}${routes.article(post.slug ?? post.id)}`,
               topics: topics.map((t) => t.name),
             }),
           ),
@@ -217,6 +218,7 @@ export function PostView({
             initialCount={post.likeCount}
             initialLiked={interactions.liked}
           />
+          {viewer && <PostReactions postId={post.id} />}
           <span className="ml-auto inline-flex items-center gap-1.5 text-sm">
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>
@@ -245,7 +247,7 @@ export function PostView({
 
         {viaSubdomain && (
           <p className="mt-10 text-center text-xs text-muted-foreground">
-            由 {config.app.name} 驱动 · {routes.post(author.username, post.slug ?? "")}
+            由 {config.app.name} 驱动 · {routes.article(post.slug ?? post.id)}
           </p>
         )}
       </article>

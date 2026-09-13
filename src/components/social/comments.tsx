@@ -9,7 +9,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Loader2, MessageCircle, Trash2 } from "lucide-react";
+import { Loader2, MessageCircle, Send, Smile, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,8 @@ import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/p
 import { cn, timeAgo } from "@/lib/utils";
 import { isAuthError, mediaUrl, postJson, requestJson } from "./api";
 import { LikeButton } from "./like-button";
+import { PinnedBar } from "./pinned-bar";
+import { EmojiPopover, insertAtCursor } from "./composer-panels";
 
 export interface CommentItem {
   id: string;
@@ -60,6 +62,38 @@ export function Comments({
   const [viewerId, setViewerId] = useState<string | null | undefined>(undefined);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // auto-grow the reply bar's textarea (capped, then it scrolls)
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [body]);
+
+  // comment intent: focus the reply bar once it mounts (retry through the
+  // portal mount + viewer resolution)
+  useEffect(() => {
+    if (disabled) return;
+    let tries = 0;
+    let raf = 0;
+    const tick = () => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        return;
+      }
+      if (++tries < 60) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [disabled]);
+
+  function startReply(c: CommentItem) {
+    setReplyTo(c);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
 
   const load = useCallback(
     async (cursor?: string | null) => {
@@ -140,6 +174,7 @@ export function Comments({
       setBody("");
       setReplyTo(null);
       setViewerId((v) => v ?? "signed-in");
+      inputRef.current?.focus();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.error"));
       if (isAuthError(err)) router.push("/auth/login");
@@ -149,10 +184,17 @@ export function Comments({
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault();
-      void submit();
+    if (e.key !== "Enter") return;
+    if (e.shiftKey) return; // newline
+    // IME composition (Chinese input) — never submit mid-composition
+    if (e.nativeEvent.isComposing) return;
+    e.preventDefault();
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/⌘+Enter → explicit newline
+      insertAtCursor(inputRef.current, "\n", body, setBody);
+      return;
     }
+    void submit();
   }
 
   async function remove(id: string) {
@@ -174,13 +216,11 @@ export function Comments({
         {count > 0 && <span className="text-muted-foreground tabular-nums">({count})</span>}
       </h2>
 
-      {/* composer */}
+      {/* composer states — the input itself is the sticky bar at the bottom */}
       {disabled ? (
         <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
           {t("comments.disabled")}
         </p>
-      ) : viewerId === undefined ? (
-        <Skeleton className="h-24 w-full rounded-lg" />
       ) : viewerId === null ? (
         <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
           <Link href="/auth/login" className="font-medium text-primary hover:underline">
@@ -189,46 +229,7 @@ export function Comments({
           {" — "}
           {t("comments.placeholder")}
         </p>
-      ) : (
-        <div className="rounded-lg border border-border bg-card p-3">
-          {replyTo && (
-            <div className="mb-2 flex items-center justify-between rounded-lg bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
-              <span>
-                {t("comments.replyTo")} @{replyTo.user.username}
-              </span>
-              <button
-                type="button"
-                onClick={() => setReplyTo(null)}
-                className="rounded p-0.5 hover:text-foreground"
-                aria-label={t("common.cancelAction")}
-              >
-                ×
-              </button>
-            </div>
-          )}
-          <Textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={t("comments.placeholder")}
-            maxLength={2000}
-            rows={3}
-            className="border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-          />
-          <div className="flex items-center justify-end">
-            <Button
-              type="button"
-              size="sm"
-              className="min-h-9"
-              disabled={!body.trim() || submitting}
-              onClick={() => void submit()}
-            >
-              {submitting && <Loader2 className="size-4 animate-spin" />}
-              {t("comments.submit")}
-            </Button>
-          </div>
-        </div>
-      )}
+      ) : null}
 
       {/* list */}
       <div className="mt-4 space-y-1">
@@ -289,7 +290,7 @@ export function Comments({
                   {!disabled && viewerId && (
                     <button
                       type="button"
-                      onClick={() => setReplyTo(c)}
+                      onClick={() => startReply(c)}
                       className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       {t("comments.reply")}
@@ -318,6 +319,60 @@ export function Comments({
         <div className="flex justify-center py-3">
           <Loader2 className={cn("size-4 animate-spin text-muted-foreground")} />
         </div>
+      )}
+
+      {/* sticky reply bar (Douyin-style) — pinned panel-wide via PinnedBar,
+          so it stays within reach even while scrolling long article bodies */}
+      {!disabled && viewerId && (
+        <PinnedBar>
+          <div className="rounded-2xl border border-border bg-card/95 p-2 shadow-[0_4px_16px_rgba(42,47,69,0.12)] backdrop-blur">
+            {replyTo && (
+              <div className="mb-1.5 flex items-center justify-between rounded-lg bg-[var(--muted)] px-2.5 py-1 text-xs text-muted-foreground">
+                <span>
+                  {t("comments.replyTo")} @{replyTo.user.username}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setReplyTo(null)}
+                  className="rounded p-0.5 hover:text-foreground"
+                  aria-label={t("common.cancelAction")}
+                >
+                  <X className="size-3" aria-hidden />
+                </button>
+              </div>
+            )}
+            <div className="flex items-end gap-1.5">
+              <EmojiPopover label={locale === "zh" ? "表情" : "Emoji"} onPick={(emoji) => insertAtCursor(inputRef.current, emoji, body, setBody)}>
+                <Smile className="size-[18px]" aria-hidden />
+              </EmojiPopover>
+              <Textarea
+                ref={inputRef}
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={onKeyDown}
+                placeholder={
+                  replyTo
+                    ? `${t("comments.replyTo")} @${replyTo.user.username}`
+                    : t("comments.placeholder")
+                }
+                maxLength={2000}
+                rows={1}
+                className="max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:shadow-none"
+              />
+              <Button
+                type="button"
+                size="icon-sm"
+                aria-label={t("comments.submit")}
+                title="Enter 发送 · Shift/Ctrl+Enter 换行"
+                className="mb-0.5 shrink-0 rounded-full"
+                disabled={!body.trim() || submitting}
+                onClick={() => void submit()}
+              >
+                {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+              </Button>
+            </div>
+          </div>
+        </PinnedBar>
       )}
     </section>
   );

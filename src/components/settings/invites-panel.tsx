@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Copy, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SettingsSectionHeader } from "@/components/ui/settings";
 import { Badge } from "@/components/ui/primitives";
 import { useI18n } from "@/lib/i18n/client";
 import { formatDate } from "@/lib/utils";
@@ -38,26 +39,27 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-        <div className="space-y-1.5">
-          <h3 className="text-lg font-semibold">{t("settings.tab.invites")}</h3>
-          <p className="text-sm text-muted-foreground">{t("settings.invites.desc")}</p>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <Button size="sm" onClick={generate} disabled={busy || remaining <= 0}>
-            {busy ? <Loader2 className="animate-spin" /> : <Plus />}
-            {t("settings.invites.generate")}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {remaining > 0
-              ? locale === "zh"
-                ? `还可生成 ${remaining} 个`
-                : `${remaining} left`
-              : t("settings.invites.limit")}
-          </span>
-        </div>
-      </div>
+    <div className="space-y-4">
+      <SettingsSectionHeader
+        title={t("settings.tab.invites")}
+        count={codes.length}
+        description={t("settings.invites.desc")}
+        action={
+          <div className="flex shrink-0 flex-col items-end gap-1">
+            <Button size="sm" onClick={generate} disabled={busy || remaining <= 0}>
+              {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+              {t("settings.invites.generate")}
+            </Button>
+            <span className="text-xs text-muted-foreground">
+              {remaining > 0
+                ? locale === "zh"
+                  ? `还可生成 ${remaining} 个`
+                  : `${remaining} left`
+                : t("settings.invites.limit")}
+            </span>
+          </div>
+        }
+      />
       {codes.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           {locale === "zh" ? "还没有邀请码" : "No invite codes yet"}

@@ -25,7 +25,7 @@ import {
 } from "@/components/dashboard/console-sidebar";
 
 /**
- * Admin console shell — same treatment as the creator console (console-topbar
+ * Admin console shell — same treatment as the creator console (Stripe-style) (console-topbar
  * + console-sidebar): top bar with 管理后台 breadcrumb, sticky left rail with
  * grouped/labelled sections and rounded active items, plus a mobile drawer.
  * Keeps ADMIN_NAV_ITEMS / AdminNav({ role }) compatible.
@@ -107,22 +107,23 @@ export function AdminNav({
   }, [groups, pathname]);
 
   return (
-    <div className="flex min-h-dvh w-full flex-col bg-[var(--background)]">
-      <ConsoleTopbar
-        section={t("admin.title")}
-        displayName={displayName}
-        username={username}
-        avatarPath={avatarPath}
-        onMenuClick={() => setMenuOpen(true)}
+    <div>
+      <ConsoleSidebar
+        groups={groups}
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        sectionLabel={t("admin.title")}
       />
-      <div className="flex w-full flex-1">
-        <ConsoleSidebar
-          groups={groups}
-          open={menuOpen}
-          onClose={() => setMenuOpen(false)}
-          sectionLabel={t("admin.title")}
+      {/* right-hand area: sticky borderless header + scrollable content */}
+      <div className="flex min-h-dvh w-full flex-col lg:pl-60">
+        <ConsoleTopbar
+          section={t("admin.title")}
+          displayName={displayName}
+          username={username}
+          avatarPath={avatarPath}
+          onMenuClick={() => setMenuOpen(true)}
         />
-        <main className="min-w-0 flex-1 bg-[var(--muted)]">
+        <main className="min-w-0 flex-1 bg-[var(--background)] text-[color:var(--text-body)]">
           <div className="mx-auto w-full max-w-7xl p-4 md:p-6 lg:p-8">{children}</div>
         </main>
       </div>

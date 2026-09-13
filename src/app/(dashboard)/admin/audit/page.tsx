@@ -235,7 +235,7 @@ export default function AdminAuditPage() {
               setAction(e.target.value);
               setOffset(0);
             }}
-            className="h-9 w-full appearance-none rounded-lg border border-input bg-[var(--muted)] pl-8 pr-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            className="h-[30px] w-full appearance-none rounded-md border border-border bg-card pl-8 pr-2.5 text-sm text-[color:var(--text-body)] outline-none transition-colors focus-visible:border-primary"
             aria-label="按动作筛选"
           >
             {options.map((o) => (

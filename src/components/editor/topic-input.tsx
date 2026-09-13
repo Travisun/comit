@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/primitives";
+import { cn } from "@/lib/utils";
 
 /**
  * Topic chips input (≤ max). Enter / comma commits a chip; suggestions come
@@ -13,10 +14,13 @@ export function TopicInput({
   value,
   onChange,
   max = 5,
+  dropUp = false,
 }: {
   value: string[];
   onChange: (topics: string[]) => void;
   max?: number;
+  /** open the suggestion panel above the field (for toolbars at a sheet bottom) */
+  dropUp?: boolean;
 }) {
   const { t } = useI18n();
   const [input, setInput] = useState("");
@@ -101,6 +105,9 @@ export function TopicInput({
             } else if (e.key === "Backspace" && !input && value.length) {
               onChange(value.slice(0, -1));
             } else if (e.key === "Escape") {
+              // claim the key so the host sheet/dialog doesn't also close
+              e.preventDefault();
+              e.stopPropagation();
               setOpen(false);
             }
           }}
@@ -109,7 +116,12 @@ export function TopicInput({
       </div>
 
       {open && !full && suggestions.length > 0 && (
-        <div className="absolute z-30 mt-1 w-full overflow-hidden rounded-lg border border-border bg-popover">
+        <div
+          className={cn(
+            "absolute z-30 w-full overflow-hidden rounded-lg border border-border bg-popover shadow-lg",
+            dropUp ? "bottom-full mb-1" : "mt-1",
+          )}
+        >
           {suggestions.slice(0, 8).map((s) => (
             <button
               key={s.name}

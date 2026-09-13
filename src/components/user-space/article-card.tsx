@@ -14,7 +14,7 @@ import type { FeedItemDTO } from "./types";
  */
 
 export function postHref(post: FeedItemDTO["post"], author: FeedItemDTO["author"]): string {
-  return post.slug ? routes.post(author.username, post.slug) : routes.shortPost(post.id);
+  return post.slug ? routes.article(post.slug) : routes.shortPost(post.id);
 }
 
 /** The shared timeline row shell: 40px avatar + content column. */
@@ -30,7 +30,7 @@ export function TimelineRow({
   return (
     <article
       className={cn(
-        "flex gap-3 border-b border-border p-4 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+        "flex gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
         className,
       )}
     >

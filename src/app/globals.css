@@ -1,109 +1,201 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
+/* next-themes 用 .dark 类切主题 —— Tailwind v4 必须显式声明类模式 dark 变体，
+   否则 dark: 默认跟随系统 prefers-color-scheme，与主题类脱节 */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
-   comit.sh design system — Cloudflare-style flat design.
-   Engineering feel: solid fills, visible 1px borders, sharp
-   6/8px radii, NO shadows on surfaces (only floating overlays
-   get a single ultra-light elevation shadow).
-   All colors route through CSS variables so light/dark are
-   pure token swaps (shadcn/ui-compatible naming).
+   comit.sh design system — Stripe Dashboard design language.
+   Values extracted from the live dashboard stylesheet (Sail):
+   white content canvas, gray-50 chrome (sidebar + topbar),
+   blue-500 #5469d4 primary with layered keyline shadows,
+   gray-100 #e3e8ee hairlines, cyan focus rings, 4px controls /
+   8px panels. Tokens are shadcn/ui-compatible CSS variables.
    ============================================================ */
 :root {
-  /* panels 8px; controls use rounded-md (6px) via the scale below */
+  /* panels 8px; controls use rounded-md (4px) via the scale below */
   --radius: 8px;
 
-  /* flat canvas — solid color, no gradients */
-  --background: #f2f3f5;
-  --foreground: #22252a;
+  /* gray canvas (#f5f5f5) behind the white rounded center panel */
+  --background: #f5f5f5;
+  --center-border: #dedede;
+  --foreground: #1a1f36;
+
+  /* chrome surfaces: sidebar + header (new chrome is all-white) */
+  --chrome: #ffffff;
 
   --card: #ffffff;
-  --card-foreground: #22252a;
+  --card-foreground: #1a1f36;
 
   --popover: #ffffff;
-  --popover-foreground: #22252a;
+  --popover-foreground: #1a1f36;
 
-  /* Cool black primary */
-  --primary: #101014;
-  --primary-hover: #1a1a1f;
+  /* GitHub black primary */
+  --primary: #24292f;
+  --primary-hover: #1f2328;
   --primary-foreground: #ffffff;
 
-  --secondary: #f0f1f3;
-  --secondary-foreground: #22252a;
+  --secondary: #f0f3f5;
+  --secondary-foreground: #1a1f36;
 
-  /* Stripe-style muted/input surface */
-  --muted: #f4f7fa;
-  --muted-foreground: #6b6f76;
+  /* sail gray ramp */
+  --muted: #f6f8fa;
+  --muted-foreground: #697386;
 
-  --accent: #f4f7fa;
-  --accent-foreground: #22252a;
+  --accent: #f6f8fa;
+  --accent-foreground: #1a1f36;
 
-  /* semantic status */
-  --success: #2e7d46;
-  --warning: #b7791f;
-  --destructive: #c52228;
+  /* semantic status — sail green / yellow / red */
+  --success: #09825d;
+  --warning: #983705;
+  --destructive: #cd3d64;
   --destructive-foreground: #ffffff;
 
-  /* visible 1px flat separation — borders, not shadows */
-  --border: #dedee3;
-  --input: #f4f7fa;
-  --ring: rgba(16, 16, 20, 0.35);
+  /* hairline borders (sail gray-100) and field borders (#c4c8cc) */
+  --border: #e3e8ee;
+  --input: #c4c8cc;
+  --ring: rgba(58, 151, 212, 0.28);
+
+  /* body copy color (sail gray-600) + translucent field keyline rings */
+  --text-body: #4f566b;
+  --field-line: rgba(42, 47, 69, 0.16);
+  --field-focus-a: rgba(6, 122, 184, 0.2);
+  --field-focus-b: rgba(6, 122, 184, 0.25);
 
   /* interaction surfaces */
-  --hover: #f7f8f8; /* row/control hover */
-  --selected: #eef4fb; /* selected light blue-gray */
+  --hover: #eef1f5; /* row/control hover on chrome or white */
+  --selected: #eceef4; /* selected gray-blue pill */
 
-  /* editorial / body link blue */
-  --link: #1c64d9;
+  /* editorial / body link — sail blue-500 */
+  --link: #0969da;
 
-  /* the ONLY allowed elevation: floating layers (dropdown/dialog/popover) */
-  --shadow-overlay: 0 4px 16px rgba(34, 37, 42, 0.08);
+  /* new-chrome panels: flat white + hairline border (keyline), no drop shadow */
+  --shadow-card: none;
+  --shadow-overlay: 0 15px 35px 0 rgba(60, 66, 87, 0.08), 0 5px 15px 0 rgba(0, 0, 0, 0.12);
 
-  --header-h: 3.75rem;
+  --header-h: 2.75rem;
+}
+
+/* ==========================================================================
+   前台纸感主题（E-Ink / Paper）— scoped to the site shell only.
+   SiteShell adds `.theme-paper` to <body> on mount; the (dashboard) admin
+   console and bare pages (auth/legal) never mount it, so they keep the
+   base Stripe tokens. Light mode only — dark mode keeps its own palette.
+   ========================================================================== */
+:root:not(.dark) .theme-paper {
+  /* deeper paper behind the panel, brighter paper for the panel */
+  --background: #f1ece1;
+  --center-border: #e2dbc9;
+  --foreground: #1c1b18;
+
+  --chrome: #fdfbf7;
+  --card: #fdfbf7;
+  --card-foreground: #1c1b18;
+
+  --popover: #fffdf9;
+  --popover-foreground: #1c1b18;
+
+  /* ink primary — editorial black CTA */
+  --primary: #1c1b18;
+  --primary-hover: #000000;
+  --primary-foreground: #fffdf9;
+
+  --secondary: #f1ebdd;
+  --secondary-foreground: #1c1b18;
+
+  --muted: #f3eee2;
+  --muted-foreground: #6e6759;
+
+  --accent: #f1ebdd;
+  --accent-foreground: #1c1b18;
+
+  /* warm hairlines + ink focus */
+  --border: #e6dfd0;
+  --input: #cfc7b4;
+  --ring: rgba(28, 27, 24, 0.2);
+
+  --text-body: #45413a;
+  --field-line: rgba(28, 27, 24, 0.18);
+  --field-focus-a: rgba(28, 27, 24, 0.16);
+  --field-focus-b: rgba(28, 27, 24, 0.24);
+
+  --hover: #f0ead9;
+  --selected: #eae3d2;
+
+  --link: #1c1b18;
+}
+
+/* E-Ink reading: serif body for long-form article prose (UI stays sans).
+   System serif stack — no webfont download; swap to a subsetted Noto Serif
+   SC when shipping to production for consistent low-DPI rendering. */
+:root:not(.dark) .theme-paper .article-prose {
+  font-family: Georgia, "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN",
+    "Songti SC", "STSong", SimSun, serif;
+  font-size: 1.0625rem;
+  line-height: 1.95;
+}
+
+:root:not(.dark) .theme-paper .article-prose blockquote {
+  background: #f3eee2;
+  border-left: 3px solid #d8cfba;
+  border-radius: 0 8px 8px 0;
 }
 
 .dark {
-  --background: #16181c;
-  --foreground: #e8eaed;
+  /* GitHub dark palette */
+  --background: #0d1117;
+  --foreground: #e6edf3;
 
-  --card: #1e2126;
-  --card-foreground: #e8eaed;
+  --center-border: #30363d;
 
-  --popover: #23262b;
-  --popover-foreground: #e8eaed;
+  --chrome: #010409;
 
-  --primary: #101014;
-  --primary-hover: #1a1a1f;
+  --card: #161b22;
+  --card-foreground: #e6edf3;
+
+  --popover: #1c2128;
+  --popover-foreground: #e6edf3;
+
+  --primary: #6e7681;
+  --primary-hover: #7d8590;
   --primary-foreground: #ffffff;
 
-  --secondary: #26292e;
-  --secondary-foreground: #c6c9cd;
+  --secondary: #21262d;
+  --secondary-foreground: #c9d1d9;
 
-  --muted: #1f242a;
-  --muted-foreground: #9aa0a6;
+  --muted: #161b22;
+  --muted-foreground: #9198a1;
 
-  --accent: #1f242a;
-  --accent-foreground: #e8eaed;
+  --accent: #161b22;
+  --accent-foreground: #e6edf3;
 
-  --success: #4ea768;
-  --warning: #d9a53f;
-  --destructive: #e05252;
+  --success: #3fb950;
+  --warning: #d29922;
+  --destructive: #f85149;
   --destructive-foreground: #ffffff;
 
-  --border: #33373d;
-  --input: #1f242a;
-  --ring: rgba(16, 16, 20, 0.45);
+  --border: #30363d;
+  --input: #3d444d;
+  --ring: rgba(68, 147, 248, 0.35);
 
-  --hover: #24272c;
-  --selected: #232d3f;
+  --text-body: #c9d1d9;
+  --field-line: rgba(240, 246, 252, 0.18);
+  --field-focus-a: rgba(68, 147, 248, 0.3);
+  --field-focus-b: rgba(68, 147, 248, 0.35);
 
-  --link: #6ba4f5;
+  --hover: #1f2630;
+  --selected: #282d33;
 
-  --shadow-overlay: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --link: #4493f8;
+
+  --shadow-card: none;
+  --shadow-overlay: 0 7px 14px rgba(0, 0, 0, 0.5), 0 3px 6px rgba(0, 0, 0, 0.35);
 }
 
 @theme inline {
   --color-background: var(--background);
+  --color-center-border: var(--center-border);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -129,8 +221,8 @@
   --color-selected: var(--selected);
   --color-link: var(--link);
 
-  --radius-sm: calc(var(--radius) - 4px); /* 4px — kbd, tiny chips */
-  --radius-md: calc(var(--radius) - 2px); /* 6px — controls: buttons/inputs */
+  --radius-sm: calc(var(--radius) - 6px); /* 2px — kbd, tiny chips */
+  --radius-md: calc(var(--radius) - 4px); /* 4px — controls: buttons/inputs (sail radius) */
   --radius-lg: var(--radius); /* 8px — panels: cards/dialogs/popovers */
   --radius-xl: calc(var(--radius) + 4px); /* 12px — large hero surfaces */
 
@@ -159,8 +251,14 @@
 }
 
 /* ============================ base ============================ */
-* {
-  border-color: var(--border);
+/* Wrapped in @layer base so Tailwind utilities (utilities layer) can
+   override the default border color (e.g. border-primary / border-transparent). */
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--border);
+  }
 }
 html {
   scroll-behavior: smooth;
@@ -174,7 +272,7 @@ body {
   font-feature-settings: "tnum" on, "lnum" on;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  line-height: 1.75;
+  line-height: 1.55;
 }
 ::selection {
   background: color-mix(in srgb, var(--primary) 25%, transparent);
@@ -319,12 +417,26 @@ body {
 /* ============================================================
    Utilities
    ============================================================ */
-/* flat card surface: 1px border, 8px radius, no shadow */
+/* Stripe-style card surface: white card, 1px hairline, 8px radius,
+   whisper-soft elevation */
 .card-surface {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
 }
+/* content-annotation chip — tinted from the inline --label-c color */
+.label-chip {
+  background-color: color-mix(in oklch, var(--label-c) 13%, transparent);
+  color: color-mix(in oklch, var(--label-c) 74%, black);
+  border-color: color-mix(in oklch, var(--label-c) 30%, transparent);
+}
+.dark .label-chip {
+  background-color: color-mix(in oklch, var(--label-c) 24%, transparent);
+  color: color-mix(in oklch, var(--label-c) 32%, white);
+  border-color: color-mix(in oklch, var(--label-c) 48%, transparent);
+}
+
 .link-muted { color: var(--muted-foreground); }
 .link-muted:hover { color: var(--foreground); }
 .line-clamp-2-fix { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -345,4 +457,48 @@ body {
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--muted-foreground);
+}
+
+/* fullscreen editor — strip Vditor chrome (borderless, full-bleed).
+   .vditor-host IS the .vditor root (vditor upgrades the host element). */
+.vditor-host.vditor,
+.vditor-host .vditor {
+  min-height: 100%;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0;
+}
+.vditor-host .vditor-toolbar {
+  padding: 4px 16px;
+}
+.vditor-host .vditor-ir .vditor-reset {
+  padding: 8px 32px 64px;
+}
+
+/* narrow surfaces (composer sheet on phones) — one scrollable toolbar row */
+@media (max-width: 640px) {
+  .vditor-host .vditor-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 4px 8px;
+  }
+  .vditor-host .vditor-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .vditor-host .vditor-toolbar > * {
+    flex-shrink: 0;
+  }
+  .vditor-host .vditor-ir .vditor-reset {
+    padding: 8px 16px 64px;
+  }
+}
+
+/* hide scrollbars while keeping scrollability (editor panes) */
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

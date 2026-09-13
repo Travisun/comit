@@ -2,14 +2,14 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /*
- * comit.sh card — Stripe style: muted surface (#f4f7fa), NO border,
- * 8px radius, NO shadow. Clean flat panels.
+ * comit.sh card — Stripe style: white panel, 1px #e3e8ee hairline,
+ * 8px radius, whisper-soft elevation. Panels sit on the #f6f9fc canvas.
  */
 function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       className={cn(
-        "rounded-lg bg-[var(--muted)] text-foreground",
+        "rounded-lg border border-border bg-card text-card-foreground shadow-[var(--shadow-card)]",
         className,
       )}
       {...props}

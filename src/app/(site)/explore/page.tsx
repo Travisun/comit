@@ -40,7 +40,7 @@ export default async function ExplorePage({ searchParams }: Props) {
   const maxTopic = Math.max(1, ...topics.map((tp) => tp.postCount));
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       <TimelineHeader title="发现" right={<TrendingUp className="size-5 text-muted-foreground" aria-hidden />} />
 
       {/* search — mirrors the rail search for < xl viewports */}
@@ -119,7 +119,7 @@ export default async function ExplorePage({ searchParams }: Props) {
             {hot.map((it, i) => (
               <li key={it.post.id}>
                 <Link
-                  href={it.post.slug ? routes.post(it.author.username, it.post.slug) : routes.shortPost(it.post.id)}
+                  href={it.post.slug ? routes.article(it.post.slug) : routes.shortPost(it.post.id)}
                   className="flex items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>

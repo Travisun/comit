@@ -52,13 +52,13 @@ export function ConversationList({ selectedUserId }: { selectedUserId?: string }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="px-4 py-3">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
+        <h2 className="flex items-center gap-2 text-[15px] font-bold">
           <MessageCircle className="size-4" />
           {t("messages.title")}
         </h2>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none">
         {items === null ? (
           <div className="space-y-2 p-3">
             {[0, 1, 2].map((i) => (
@@ -68,14 +68,14 @@ export function ConversationList({ selectedUserId }: { selectedUserId?: string }
         ) : items.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">{t("messages.mutualRequired")}</p>
         ) : (
-          <ul className="p-2">
+          <ul>
             {items.map((c) => (
-              <li key={c.userId}>
+              <li key={c.userId} className="border-b border-border last:border-b-0">
                 <Link
                   href={`/messages/${c.userId}`}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-muted",
-                    selectedUserId === c.userId && "bg-muted",
+                    "flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover)]",
+                    selectedUserId === c.userId && "bg-[var(--selected)]",
                   )}
                 >
                   <Avatar className="size-10">
@@ -130,10 +130,10 @@ export function MessagesShell({
   children?: ReactNode;
 }) {
   return (
-    <div className="mx-auto flex h-[calc(100dvh-7rem)] max-w-[972px] md:h-dvh">
+    <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full md:h-full">
       <aside
         className={cn(
-          "w-full shrink-0 flex-col md:flex md:w-80",
+          "w-full shrink-0 flex-col md:flex md:w-72 md:border-r md:border-border",
           selectedUserId ? "hidden" : "flex",
         )}
       >

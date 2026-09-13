@@ -1,3 +1,4 @@
+import { nanoid } from "nanoid";
 import { z } from "zod";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
@@ -169,8 +170,10 @@ export async function assertCollectionOwned(collectionId: string, userId: string
 }
 
 /**
- * Resolve the slug for a new/updated article. Provided slugs must be free
- * within the author's own posts; otherwise a suffix is appended.
+ * Resolve the public id for a new/updated article: an opaque 10-char
+ * url-safe short id (nanoid). The post UUID already guarantees
+ * uniqueness/unguessability — the short id only exists for a shorter
+ * /post/{id} URL. Client-provided slugs are ignored by design.
  */
 export async function resolveArticleSlug(
   userId: string,
@@ -178,21 +181,20 @@ export async function resolveArticleSlug(
   provided?: string,
   excludePostId?: string,
 ): Promise<string> {
-  if (provided?.trim()) {
-    const base = slugifyTitle(provided.trim());
+  void userId;
+  void title;
+  void provided;
+  void excludePostId;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = nanoid(10);
     const [clash] = await db
       .select({ id: posts.id })
       .from(posts)
-      .where(
-        excludePostId
-          ? and(eq(posts.authorId, userId), eq(posts.slug, base), ne(posts.id, excludePostId))
-          : and(eq(posts.authorId, userId), eq(posts.slug, base)),
-      )
+      .where(eq(posts.slug, candidate))
       .limit(1);
-    if (clash) throw conflict("该 slug 已被你的其他文章使用 / Slug already used by another post");
-    return base;
+    if (!clash) return candidate;
   }
-  return uniqueSlug(userId, title);
+  return nanoid(16);
 }
 
 export interface SubmitCheckResult {

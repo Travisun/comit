@@ -25,9 +25,38 @@ export function siteMetadata(): Metadata {
     robots: { index: true, follow: true },
     alternates: {
       canonical: "/",
-      types: { "application/rss+xml": `${config.app.url}/feed.xml` },
+      types: {
+        "application/rss+xml": `${config.app.url}/feed.xml`,
+      },
     },
     formatDetection: { telephone: false, email: false },
+
+    /** PWA */
+    manifest: "/manifest.webmanifest",
+    applicationName: config.app.name,
+    appleWebApp: { capable: true, title: config.app.name, statusBarStyle: "default" },
+
+    /** icons — self-hosted set from /icons (16 → 512 + SVG + maskable) */
+    icons: {
+      // favicon 一律用 favicon*.png；comit.sh.svg 是品牌 Logo 资产（衍生 OG/PWA 图），不作为 favicon
+      icon: [
+        { url: "/icons/favicon@32w.png", sizes: "32x32", type: "image/png" },
+        { url: "/icons/favicon@16w.png", sizes: "16x16", type: "image/png" },
+        { url: "/icons/favicon@128w.png", sizes: "128x128", type: "image/png" },
+        { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
+        { url: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+      ],
+      shortcut: [{ url: "/icons/favicon.png", sizes: "64x64" }],
+      apple: [{ url: "/icons/icon-180.png", sizes: "180x180", type: "image/png" }],
+    },
+
+    /** social cards */
+    twitter: {
+      card: "summary",
+      title: "comit.sh — Commit your ideas.",
+      description:
+        "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态。",
+    },
   };
 }
 

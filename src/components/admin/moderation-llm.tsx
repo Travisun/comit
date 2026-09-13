@@ -114,7 +114,7 @@ export function ModerationLlmTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg bg-[var(--muted)] p-4 space-y-4">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-4">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">发布审核策略</h3>
           <p className="text-xs text-muted-foreground">决定新内容提交后的流转方式</p>
@@ -157,7 +157,7 @@ export function ModerationLlmTab() {
           <select
             value={failMode}
             onChange={(e) => setFailMode(e.target.value as "open" | "closed")}
-            className="h-9 rounded-lg border border-input bg-[var(--muted)] px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+            className="h-[30px] rounded-md border-0 bg-card px-2 text-sm text-[color:var(--text-body)] outline-none shadow-[0_0_0_1px_var(--field-line),0_1px_1px_rgba(0,0,0,0.08)] focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)] px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
             aria-label="LLM 失败策略"
           >
             <option value="open">fail-open：服务不可用时放行</option>
@@ -166,7 +166,7 @@ export function ModerationLlmTab() {
         </div>
       </div>
 
-      <div className="rounded-lg bg-[var(--muted)] p-4 space-y-4">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-4">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">LLM 接口</h3>
           <p className="text-xs text-muted-foreground">
@@ -225,7 +225,7 @@ export function ModerationLlmTab() {
         </div>
       </div>
 
-      <div className="rounded-lg bg-[var(--muted)] p-4 space-y-3">
+      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-3">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">测试审核</h3>
           <p className="text-xs text-muted-foreground">用一段文本实际调用一次 LLM 审核，查看返回结果</p>

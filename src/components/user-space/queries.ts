@@ -501,13 +501,18 @@ export async function getPostForView(opts: {
     : opts.subdomain
       ? eq(users.subdomain, opts.subdomain)
       : null;
-  if (!authorCond) return null;
 
   const [row] = await db
     .select({ post: posts, author: users })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(authorCond, eq(posts.slug, opts.slug), eq(posts.status, "published")))
+    .where(
+      and(
+        ...(authorCond ? [authorCond] : []),
+        eq(posts.slug, opts.slug),
+        eq(posts.status, "published"),
+      ),
+    )
     .limit(1);
   if (!row) return null;
 

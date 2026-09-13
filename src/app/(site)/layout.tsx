@@ -79,7 +79,15 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       user={user}
       locale={locale}
       siteName={siteName}
-      rail={<SiteRail siteName={siteName} topics={topics} authors={authors} stats={stats} />}
+      rail={
+        <SiteRail
+          siteName={siteName}
+          topics={topics}
+          authors={authors}
+          stats={stats}
+          user={user ? { displayName: user.displayName, username: user.username, avatarPath: user.avatarPath } : null}
+        />
+      }
       footer={<SiteFooter locale={locale} />}
     >
       {children}

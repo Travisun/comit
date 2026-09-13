@@ -5,8 +5,13 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/primitives";
+import {
+  SettingsFooter,
+  SettingsSection,
+  SettingsSectionHeader,
+  SettingRow,
+} from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
-import { cn } from "@/lib/utils";
 import { apiRequest } from "./client";
 import { NOTIFICATION_EVENTS, type ChannelOption } from "./types";
 
@@ -26,6 +31,11 @@ export function NotificationsPanel({
     return base;
   });
   const [saving, setSaving] = useState(false);
+  const dirty = NOTIFICATION_EVENTS.some((e) => {
+    const cur = [...(prefs[e.key] ?? [])].sort().join(",");
+    const init = [...(initialPrefs[e.key] ?? ["database"])].sort().join(",");
+    return cur !== init;
+  });
 
   function toggle(key: string, channel: string) {
     setPrefs((prev) => {
@@ -50,33 +60,25 @@ export function NotificationsPanel({
   }
 
   return (
-    <div className="rounded-lg bg-[var(--muted)] p-6 space-y-5">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold">{t("settings.tab.notifications")}</h3>
-        <p className="text-sm text-muted-foreground">{t("settings.notifications.byType")}</p>
-      </div>
-        <div className="space-y-3">
-          {NOTIFICATION_EVENTS.map((event) => (
-            <div
-              key={event.key}
-              className="flex flex-col gap-3 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="text-sm font-medium">{locale === "zh" ? event.label.zh : event.label.en}</p>
-                <p className="font-mono text-xs text-muted-foreground">{event.key}</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
+    <SettingsSection>
+      <SettingsSectionHeader
+        title={t("settings.tab.notifications")}
+        description={t("settings.notifications.byType")}
+      />
+      <div className="divide-y divide-border">
+        {NOTIFICATION_EVENTS.map((event) => (
+          <SettingRow
+            key={event.key}
+            label={locale === "zh" ? event.label.zh : event.label.en}
+            description={event.key}
+            control={
+              <div className="flex flex-wrap gap-x-5 gap-y-2">
                 {channels.map((ch) => {
                   const checked = (prefs[event.key] ?? []).includes(ch.id);
                   return (
                     <label
                       key={ch.id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors",
-                        checked
-                          ? "border-primary bg-primary/5 text-foreground"
-                          : "border-border text-muted-foreground hover:text-foreground",
-                      )}
+                      className="flex cursor-pointer items-center gap-2 text-sm text-[color:var(--text-body)] select-none"
                     >
                       <Checkbox checked={checked} onCheckedChange={() => toggle(event.key, ch.id)} />
                       {locale === "zh" ? ch.label.zh : ch.label.en}
@@ -84,15 +86,22 @@ export function NotificationsPanel({
                   );
                 })}
               </div>
-            </div>
-          ))}
-        </div>
-        <div className="flex justify-end border-t border-border pt-4">
-          <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="animate-spin" />}
-            {t("common.save")}
-          </Button>
-        </div>
-    </div>
+            }
+          />
+        ))}
+      </div>
+      <SettingsFooter
+        hint={
+          dirty
+            ? locale === "zh" ? "更改即时生效于新事件。" : "Changes apply to new events."
+            : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"
+        }
+      >
+        <Button onClick={save} disabled={saving || !dirty}>
+          {saving && <Loader2 className="animate-spin" />}
+          {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+        </Button>
+      </SettingsFooter>
+    </SettingsSection>
   );
 }

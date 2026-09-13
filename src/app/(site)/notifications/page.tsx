@@ -11,7 +11,7 @@ export default async function NotificationsPage() {
   if (!user) redirect(routes.login);
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       <TimelineHeader title="通知" />
       <NotificationList />
     </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
   Activity,
   Database,
@@ -14,9 +15,17 @@ import {
   ShieldAlert,
   Users,
 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/primitives";
+import { Badge, Skeleton } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
+import {
+  DataTable,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableTh,
+  DataTableTd,
+  DataTableNum,
+} from "@/components/ui/table";
 import { EmptyState, PageHeader, StatCard } from "@/components/admin/bits";
 import { api } from "@/components/admin/client";
 import { formatBytes } from "@/lib/utils";
@@ -25,6 +34,9 @@ import { formatBytes } from "@/lib/utils";
  * Ops panel — pulls /api/admin/ops (read-only snapshot). Refresh is manual
  * only (no polling) to keep the cluster quiet; see docs/concurrency.md for
  * the topology this page describes.
+ *
+ * Stripe Dashboard layout: bare section headers on the white page, keyline
+ * stat tiles, hairline data tables — no card-in-card panels, no shadows.
  */
 
 interface OpsData {
@@ -100,10 +112,11 @@ function aggregateQueues(rows: OpsData["queue"]["byState"]): QueueRow[] {
   return [...map.values()].sort((a, b) => a.queue.localeCompare(b.queue));
 }
 
-function queueTone(pending: number): string | undefined {
-  if (pending > 50) return "text-destructive";
-  if (pending > 10) return "text-warning";
-  return undefined;
+/** Queue health — semantic Badge tone (正常=success / 降级=warning / 异常=destructive). */
+function queueHealth(pending: number): { variant: "success" | "warning" | "destructive"; label: string } {
+  if (pending > 50) return { variant: "destructive", label: "异常" };
+  if (pending > 10) return { variant: "warning", label: "降级" };
+  return { variant: "success", label: "正常" };
 }
 
 function uptime(sec: number): string {
@@ -112,6 +125,43 @@ function uptime(sec: number): string {
   const m = Math.floor((sec % 3600) / 60);
   return d > 0 ? `${d}天${h}时` : h > 0 ? `${h}时${m}分` : `${m}分${sec % 60}秒`;
 }
+
+/* ------------------------------ primitives ------------------------------ */
+
+/** Bare section header on the white page (no card box). */
+function SectionHeader({
+  icon,
+  title,
+  description,
+  extra,
+}: {
+  icon: ReactNode;
+  title: string;
+  description?: string;
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <h3 className="flex flex-wrap items-center gap-2 text-sm font-semibold text-foreground">
+        <span className="text-muted-foreground [&_svg]:size-4">{icon}</span>
+        {title}
+        {extra}
+      </h3>
+      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+    </div>
+  );
+}
+
+/** Keyline white stat tile — the only boxed surface allowed (Stripe Home stat). */
+function StatTile({ children }: { children: ReactNode }) {
+  return <div className="rounded-lg border border-border bg-card p-4">{children}</div>;
+}
+
+function Code({ children }: { children: ReactNode }) {
+  return <code className="rounded bg-[var(--muted)] px-1.5 py-0.5 text-xs">{children}</code>;
+}
+
+/* ------------------------------ dashboard ------------------------------- */
 
 export function OpsDashboard() {
   const [data, setData] = useState<OpsData | null>(null);
@@ -140,6 +190,8 @@ export function OpsDashboard() {
 
   const queues = data ? aggregateQueues(data.queue.byState) : [];
   const totalPending = queues.reduce((s, q) => s + q.pending, 0);
+  const totalTone =
+    totalPending > 50 ? "destructive" : totalPending > 10 ? "warning" : "success";
 
   return (
     <div>
@@ -164,235 +216,271 @@ export function OpsDashboard() {
       ) : !data ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Card key={i}>
-              <CardContent className="h-24 animate-pulse bg-muted/40" />
-            </Card>
+            <Skeleton key={i} className="h-[88px] rounded-lg" />
           ))}
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* -------- cluster topology note -------- */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">集群拓扑</CardTitle>
-              <CardDescription>
-                本面板展示的是「处理这次请求的 worker」的进程视角；多 worker 部署时各卡数值仅代表单进程。
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
+        <div className="space-y-8">
+          {/* -------- cluster topology note (bare text, no panel) -------- */}
+          <section className="space-y-2">
+            <SectionHeader
+              icon={<Server />}
+              title="集群拓扑"
+              description="本面板展示的是「处理这次请求的 worker」的进程视角；多 worker 部署时各卡数值仅代表单进程。"
+            />
+            <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                拓扑：<code className="rounded bg-muted px-1.5 py-0.5">WEB_CONCURRENCY</code> 个 worker
-                进程，每个 worker = 1 × Next.js SSR 服务 + 1 × pg-boss 消费者（同一队列竞争消费）；
-                master 进程只负责 fork/重生，不入流量路径。
+                拓扑：<Code>WEB_CONCURRENCY</Code> 个 worker 进程，每个 worker = 1 × Next.js SSR
+                服务 + 1 × pg-boss 消费者（同一队列竞争消费）；master 进程只负责 fork/重生，不入流量路径。
               </p>
               <p>
-                队列在 PostgreSQL <code className="rounded bg-muted px-1.5 py-0.5">pgboss.job</code>{" "}
+                队列在 PostgreSQL <Code>pgboss.job</Code>{" "}
                 表中持久化，worker 崩溃后任务由其他 worker 接管；扩容参数与压测方法见{" "}
-                <code className="rounded bg-muted px-1.5 py-0.5">docs/concurrency.md</code>
-                ，部署与告警阈值见 <code className="rounded bg-muted px-1.5 py-0.5">docs/operations.md</code>。
+                <Code>docs/concurrency.md</Code>
+                ，部署与告警阈值见 <Code>docs/operations.md</Code>。
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {/* -------- database -------- */}
           <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <Database className="size-4" /> 数据库 · 核心表行数
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="users" value={data.db.users} sub="注册用户" icon={<Users />} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="posts" value={data.db.posts} sub="全部内容（含草稿）" icon={<FileText />} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="comments"
-                    value={data.db.comments}
-                    sub="展示中的评论"
-                    icon={<MessageSquare />}
-                  />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="media" value={data.db.media} sub="媒体记录" icon={<HardDrive />} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="notifications" value={data.db.notifications} sub="站内通知" icon={<Inbox />} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="webhook_deliveries"
-                    value={data.db.webhookDeliveries}
-                    sub="Webhook 投递记录"
-                    icon={<Server />}
-                  />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="reports" value={data.db.reports} sub="举报记录" icon={<Flag />} />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard label="export_jobs" value={data.db.exportJobs} sub="数据导出任务" icon={<Activity />} />
-                </CardContent>
-              </Card>
+            <SectionHeader
+              icon={<Database />}
+              title="数据库 · 核心表行数"
+              description="只读统计，单位为行数"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatTile>
+                <StatCard label="users" value={data.db.users} sub="注册用户" icon={<Users />} />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="posts"
+                  value={data.db.posts}
+                  sub="全部内容（含草稿）"
+                  icon={<FileText />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="comments"
+                  value={data.db.comments}
+                  sub="展示中的评论"
+                  icon={<MessageSquare />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard label="media" value={data.db.media} sub="媒体记录" icon={<HardDrive />} />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="notifications"
+                  value={data.db.notifications}
+                  sub="站内通知"
+                  icon={<Inbox />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="webhook_deliveries"
+                  value={data.db.webhookDeliveries}
+                  sub="Webhook 投递记录"
+                  icon={<Server />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard label="reports" value={data.db.reports} sub="举报记录" icon={<Flag />} />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="export_jobs"
+                  value={data.db.exportJobs}
+                  sub="数据导出任务"
+                  icon={<Activity />}
+                />
+              </StatTile>
             </div>
           </section>
 
           {/* -------- queue -------- */}
           <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <Server className="size-4" /> 队列 · pgboss.job 深度
-              <Badge variant={totalPending > 50 ? "destructive" : totalPending > 10 ? "warning" : "secondary"}>
-                待处理合计 {totalPending}
-              </Badge>
-              <span className="text-xs font-normal">
-                近 24h 入队 {data.queue.createdLast24h} · 阈值 &gt;10 黄 / &gt;50 红
-              </span>
-            </h3>
+            <SectionHeader
+              icon={<Server />}
+              title="队列 · pgboss.job 深度"
+              description={`近 24h 入队 ${data.queue.createdLast24h} · 阈值 >10 降级 / >50 异常`}
+              extra={
+                <Badge variant={totalTone} className="tabular-nums">
+                  待处理合计 {totalPending}
+                </Badge>
+              }
+            />
             {queues.length === 0 ? (
-              <Card>
-                <CardContent className="pt-5 text-sm text-muted-foreground">
-                  pgboss.job 当前为空（队列消费正常或尚未产生任务）。
-                </CardContent>
-              </Card>
+              <EmptyState
+                title="pgboss.job 当前为空"
+                hint="队列消费正常或尚未产生任务"
+              />
             ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {queues.map((q) => (
-                  <Card key={q.queue}>
-                    <CardContent className="pt-5">
-                      <StatCard
-                        label={q.queue}
-                        value={<span className={queueTone(q.pending)}>{q.pending}</span>}
-                        sub={`执行中 ${q.active} · 失败 ${q.failed} · 已完成 ${q.completed}`}
-                        icon={<Server />}
-                      />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <DataTable>
+                <DataTableHead>
+                  <tr>
+                    <DataTableTh>队列</DataTableTh>
+                    <DataTableTh>状态</DataTableTh>
+                    <DataTableTh className="text-right">待处理</DataTableTh>
+                    <DataTableTh className="text-right">执行中</DataTableTh>
+                    <DataTableTh className="text-right">失败</DataTableTh>
+                    <DataTableTh className="text-right">已完成</DataTableTh>
+                  </tr>
+                </DataTableHead>
+                <DataTableBody>
+                  {queues.map((q) => {
+                    const health = queueHealth(q.pending);
+                    return (
+                      <DataTableRow key={q.queue}>
+                        <DataTableTd className="font-medium text-foreground">{q.queue}</DataTableTd>
+                        <DataTableTd>
+                          <Badge variant={health.variant}>{health.label}</Badge>
+                        </DataTableTd>
+                        <DataTableNum
+                          className={
+                            q.pending > 50
+                              ? "text-destructive"
+                              : q.pending > 10
+                                ? "text-warning"
+                                : undefined
+                          }
+                        >
+                          {q.pending}
+                        </DataTableNum>
+                        <DataTableNum>{q.active}</DataTableNum>
+                        <DataTableNum className={q.failed > 0 ? "text-destructive" : undefined}>
+                          {q.failed}
+                        </DataTableNum>
+                        <DataTableNum>{q.completed}</DataTableNum>
+                      </DataTableRow>
+                    );
+                  })}
+                </DataTableBody>
+              </DataTable>
             )}
           </section>
 
           {/* -------- content health -------- */}
           <section className="space-y-3">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <ShieldAlert className="size-4" /> 内容健康
-            </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="待人工审核"
-                    value={
-                      <span className={data.content.pendingReview > 20 ? "text-warning" : undefined}>
-                        {data.content.pendingReview}
-                      </span>
-                    }
-                    sub="pending_review 文章"
-                    icon={<FileText />}
-                  />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="待处理举报"
-                    value={
-                      <span className={data.content.openReports > 20 ? "text-warning" : undefined}>
-                        {data.content.openReports}
-                      </span>
-                    }
-                    sub="open 状态举报"
-                    icon={<Flag />}
-                  />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="近 24h 新用户"
-                    value={data.content.newUsers24h}
-                    sub="注册时间在最近一天"
-                    icon={<Users />}
-                  />
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="pt-5">
-                  <StatCard
-                    label="近 24h 新内容"
-                    value={data.content.newPosts24h}
-                    sub="新建文章/动态"
-                    icon={<FileText />}
-                  />
-                </CardContent>
-              </Card>
+            <SectionHeader
+              icon={<ShieldAlert />}
+              title="内容健康"
+              description="待人工处理的审核与举报积压"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <StatTile>
+                <StatCard
+                  label="待人工审核"
+                  value={
+                    <span
+                      className={
+                        data.content.pendingReview > 20 ? "text-warning" : undefined
+                      }
+                    >
+                      {data.content.pendingReview}
+                    </span>
+                  }
+                  sub="pending_review 文章"
+                  icon={<FileText />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="待处理举报"
+                  value={
+                    <span className={data.content.openReports > 20 ? "text-warning" : undefined}>
+                      {data.content.openReports}
+                    </span>
+                  }
+                  sub="open 状态举报"
+                  icon={<Flag />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="近 24h 新用户"
+                  value={data.content.newUsers24h}
+                  sub="注册时间在最近一天"
+                  icon={<Users />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="近 24h 新内容"
+                  value={data.content.newPosts24h}
+                  sub="新建文章/动态"
+                  icon={<FileText />}
+                />
+              </StatTile>
             </div>
           </section>
 
-          {/* -------- process & storage -------- */}
-          <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">进程（worker {data.process.worker}）</CardTitle>
-                <CardDescription>当前响应本次请求的 Next.js worker 进程</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <StatCard
-                    label="RSS 常驻内存"
-                    value={formatBytes(data.process.rss)}
-                    sub={`heapUsed ${formatBytes(data.process.heapUsed)} / heapTotal ${formatBytes(data.process.heapTotal)}`}
-                    icon={<Server />}
-                  />
-                  <StatCard
-                    label="运行时长"
-                    value={uptime(data.process.uptimeSec)}
-                    sub={`pid ${data.process.pid} · Node ${data.process.nodeVersion}`}
-                    icon={<Activity />}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">存储</CardTitle>
-                <CardDescription>
-                  遍历预算 {data.storage.budgetMs / 1000}s，超时结果标记为不完整
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <StatCard
-                    label="storage/media"
-                    value={formatBytes(data.storage.media.bytes)}
-                    sub={`${data.storage.media.files} 个文件${data.storage.media.complete ? "" : " · 统计不完整"}`}
-                    icon={<HardDrive />}
-                  />
-                  <StatCard
-                    label="storage/exports"
-                    value={formatBytes(data.storage.exports.bytes)}
-                    sub={`${data.storage.exports.files} 个归档${data.storage.exports.complete ? "" : " · 统计不完整"}`}
-                    icon={<HardDrive />}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+          {/* -------- process -------- */}
+          <section className="space-y-3">
+            <SectionHeader
+              icon={<Activity />}
+              title={`进程（worker ${data.process.worker}）`}
+              description="当前响应本次请求的 Next.js worker 进程"
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <StatTile>
+                <StatCard
+                  label="RSS 常驻内存"
+                  value={formatBytes(data.process.rss)}
+                  sub={`heapUsed ${formatBytes(data.process.heapUsed)} / heapTotal ${formatBytes(data.process.heapTotal)}`}
+                  icon={<Server />}
+                />
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="运行时长"
+                  value={uptime(data.process.uptimeSec)}
+                  sub={`pid ${data.process.pid} · Node ${data.process.nodeVersion}`}
+                  icon={<Activity />}
+                />
+              </StatTile>
+            </div>
+          </section>
+
+          {/* -------- storage -------- */}
+          <section className="space-y-3">
+            <SectionHeader
+              icon={<HardDrive />}
+              title="存储"
+              description={`遍历预算 ${data.storage.budgetMs / 1000}s，超时结果标记为不完整`}
+            />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <StatTile>
+                <StatCard
+                  label="storage/media"
+                  value={formatBytes(data.storage.media.bytes)}
+                  sub={`${data.storage.media.files} 个文件`}
+                  icon={<HardDrive />}
+                />
+                {data.storage.media.complete ? null : (
+                  <p className="mt-2">
+                    <Badge variant="warning">统计不完整</Badge>
+                  </p>
+                )}
+              </StatTile>
+              <StatTile>
+                <StatCard
+                  label="storage/exports"
+                  value={formatBytes(data.storage.exports.bytes)}
+                  sub={`${data.storage.exports.files} 个归档`}
+                  icon={<HardDrive />}
+                />
+                {data.storage.exports.complete ? null : (
+                  <p className="mt-2">
+                    <Badge variant="warning">统计不完整</Badge>
+                  </p>
+                )}
+              </StatTile>
+            </div>
           </section>
 
           <p className="pb-2 text-xs text-muted-foreground">

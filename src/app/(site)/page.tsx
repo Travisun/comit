@@ -13,8 +13,8 @@ import {
 } from "@/components/user-space/queries";
 import { resolveSingleUser, SingleUserHome } from "@/components/user-space/profile-view";
 import { FeedStream } from "@/components/user-space/feed-stream";
-import { Composer } from "@/components/social/composer";
 import { TimelineHeader, UnderlineTabs } from "@/components/site-shell";
+import { PinnedComposer } from "@/components/social/pinned-composer";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -28,8 +28,17 @@ export const metadata: Metadata = {
  * 品牌横幅并入右栏「comit.sh 是什么」卡（site-rail）。单用户模式下首页仍是
  * 该用户的个人博客。
  */
-export default async function HomePage() {
-  const [{ t }, viewer, mode] = await Promise.all([getT(), getCurrentUser(), getSetting("site.mode")]);
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ compose?: string }>;
+}) {
+  const [{ t }, viewer, mode, { compose }] = await Promise.all([
+    getT(),
+    getCurrentUser(),
+    getSetting("site.mode"),
+    searchParams,
+  ]);
 
   if (mode === "single") {
     const username = await getSetting("site.singleUser");
@@ -47,7 +56,7 @@ export default async function HomePage() {
   ]);
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] border-border bg-card md:border-x">
+    <div className="min-h-dvh w-full max-w-[600px]">
       <TimelineHeader title="社区">
         <UnderlineTabs
           tabs={[
@@ -58,7 +67,14 @@ export default async function HomePage() {
       </TimelineHeader>
 
       {viewer ? (
-        <Composer />
+        <PinnedComposer
+          initialExpanded={compose === "1"}
+          user={{
+            displayName: viewer.displayName,
+            username: viewer.username,
+            avatarPath: viewer.avatarPath,
+          }}
+        />
       ) : (
         <div className="border-b border-border px-4 py-4">
           <p className="text-[15px] leading-snug">

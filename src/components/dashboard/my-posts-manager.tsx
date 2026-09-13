@@ -1,6 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import {
+  DataTable,
+  DataTableRow,
+  DataTableTd,
+  DataTableTh,
+} from "@/components/ui/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, Heart, MessageCircle, PenLine, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -196,21 +202,20 @@ export function MyPostsManager() {
       ) : (
         <>
           {/* desktop: flat table */}
-          <div className="hidden overflow-x-auto rounded-lg bg-[var(--muted)] md:block">
-            <table className="w-full text-left text-sm [&>tbody>tr]:border-b [&>tbody>tr]:border-[var(--border)] [&>tbody>tr]:transition-colors [&>tbody>tr:last-child]:border-0 [&>tbody>tr:hover]:bg-[var(--hover,#f7f8f8)] [&>thead>tr]:border-b [&>thead>tr]:border-[var(--border)] [&>thead>tr]:bg-[var(--muted)] [&>thead>tr]:text-xs [&>thead>tr]:uppercase [&>thead>tr]:tracking-wide [&>thead>tr]:text-muted-foreground [&>th]:px-3 [&>th]:py-2.5 [&>th]:font-medium [&>td]:px-3 [&>td]:py-2.5 [&>td]:align-middle">
+          <DataTable>
               <thead>
                 <tr>
-                  <th>标题</th>
-                  <th>状态</th>
-                  <th>数据</th>
-                  <th className="text-right">时间</th>
-                  <th className="w-44" />
+                  <DataTableTh>标题</DataTableTh>
+                  <DataTableTh>状态</DataTableTh>
+                  <DataTableTh>数据</DataTableTh>
+                  <DataTableTh className="text-right">时间</DataTableTh>
+                  <DataTableTh className="w-44" />
                 </tr>
               </thead>
               <tbody>
                 {items.map((post) => (
-                  <tr key={post.id}>
-                    <td className="max-w-80">
+                  <DataTableRow key={post.id}>
+                    <DataTableTd className="max-w-80">
                       <span className="block truncate font-medium">
                         {post.title || (post.type === "short" ? "(短动态)" : "(无标题)")}
                       </span>
@@ -219,27 +224,26 @@ export function MyPostsManager() {
                           驳回原因:{post.rejectReason}
                         </span>
                       ) : null}
-                    </td>
-                    <td>{postMeta(post)}</td>
-                    <td>
+                    </DataTableTd>
+                    <DataTableTd>{postMeta(post)}</DataTableTd>
+                    <DataTableTd>
                       <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                         <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
                         <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
                         <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
                       </span>
-                    </td>
-                    <td className="whitespace-nowrap text-right text-xs text-muted-foreground">{postTime(post)}</td>
-                    <td className="text-right">{rowActions(post)}</td>
-                  </tr>
+                    </DataTableTd>
+                    <DataTableTd className="whitespace-nowrap text-right text-xs text-muted-foreground">{postTime(post)}</DataTableTd>
+                    <DataTableTd className="text-right">{rowActions(post)}</DataTableTd>
+                  </DataTableRow>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </DataTable>
 
           {/* mobile: compact cards */}
           <ul className="space-y-2 md:hidden">
             {items.map((post) => (
-              <li key={post.id} className="rounded-lg bg-[var(--muted)] p-4">
+              <li key={post.id} className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)]">
                 <div className="flex flex-col gap-3">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
@@ -289,7 +293,7 @@ export function MyPostsManager() {
 
 function Stat({ label, value, icon }: { label: string; value: number; icon?: React.ReactNode }) {
   return (
-    <div className="rounded-lg bg-[var(--muted)] px-4 py-3">
+    <div className="rounded-lg border border-border bg-card px-4 py-3 shadow-[var(--shadow-card)]">
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         {icon}
         {label}

@@ -53,7 +53,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       ...postRows
         .filter((p): p is typeof p & { slug: string } => Boolean(p.slug))
         .map((p) => ({
-          url: `${base}${routes.post(p.username, p.slug)}`,
+          url: `${base}${routes.article(p.slug)}`,
           lastModified: p.updatedAt,
           changeFrequency: "weekly" as const,
           priority: 0.8,
