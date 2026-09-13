@@ -42,6 +42,23 @@ export interface ShellUser {
   unreadMessages: number;
 }
 
+/** Front-site theme experiment — flips the whole 前台 between trials without
+ * touching the admin console. Visit /?theme=<name> once to switch; the
+ * choice persists in localStorage across in-app navigations. Available:
+ * swiss · paper · aurora · neubrutalism · oled · glass · terminal.
+ * Every theme is a token/CSS block in globals.css. */
+const SITE_THEMES = new Set([
+  "swiss",
+  "paper",
+  "aurora",
+  "neubrutalism",
+  "oled",
+  "glass",
+  "terminal",
+]);
+const SITE_THEME_DEFAULT = "swiss";
+const SITE_THEME_STORAGE = "site-theme";
+
 /* ======================================================== brand mark ===== */
 
 /**
@@ -459,13 +476,25 @@ export function SiteShell({
   const pathname = usePathname();
   const isAdmin = user?.role === "admin";
 
-  // paper theme (E-Ink light) is scoped to the front-facing site: the class
-  // lives on <body> so portaled surfaces inherit the tokens too, and is
-  // removed on unmount so the admin console keeps the base Stripe palette
+  // front-site theme (E-Ink light / Swiss) is scoped via <body>: portaled
+  // surfaces inherit the tokens too, and it is removed on unmount so the
+  // admin console keeps the base Stripe palette
   useEffect(() => {
-    document.body.classList.add("theme-paper");
+    const apply = (name: string) => {
+      for (const t of SITE_THEMES) document.body.classList.remove(`theme-${t}`);
+      document.body.classList.add(`theme-${name}`);
+    };
+    // explicit ?theme= wins and is remembered; otherwise keep the stored one
+    const param = new URLSearchParams(window.location.search).get("theme");
+    if (param && SITE_THEMES.has(param)) {
+      localStorage.setItem(SITE_THEME_STORAGE, param);
+      apply(param);
+    } else {
+      const stored = localStorage.getItem(SITE_THEME_STORAGE);
+      apply(stored && SITE_THEMES.has(stored) ? stored : SITE_THEME_DEFAULT);
+    }
     return () => {
-      document.body.classList.remove("theme-paper");
+      for (const t of SITE_THEMES) document.body.classList.remove(`theme-${t}`);
     };
   }, []);
 
