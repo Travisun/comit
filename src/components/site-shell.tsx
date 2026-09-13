@@ -56,7 +56,7 @@ const SITE_THEMES = new Set([
   "glass",
   "terminal",
 ]);
-const SITE_THEME_DEFAULT = "swiss";
+const SITE_THEME_DEFAULT = "paper";
 const SITE_THEME_STORAGE = "site-theme";
 
 /* ======================================================== brand mark ===== */

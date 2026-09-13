@@ -144,7 +144,7 @@ export function PostView({
           </div>
 
           {/* title */}
-          <h1 className="mt-3 text-xl font-extrabold leading-snug tracking-tight md:text-2xl">
+          <h1 className="reading-serif mt-3 text-xl font-extrabold leading-snug tracking-tight md:text-2xl">
             {post.title ?? "Untitled"}
           </h1>
 

@@ -124,14 +124,22 @@
   --selected: #eae3d2;
 
   --link: #1c1b18;
+
+  /* E-Ink reading font — system serif stack (zero download); swap to a
+     subsetted Noto Serif SC for production consistency on low-DPI screens */
+  --font-reading: Georgia, "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN",
+    "Songti SC", "STSong", SimSun, serif;
 }
 
-/* E-Ink reading: serif body for long-form article prose (UI stays sans).
-   System serif stack — no webfont download; swap to a subsetted Noto Serif
-   SC when shipping to production for consistent low-DPI rendering. */
+/* all reading content (titles / article prose / post text / comments / the
+   composer textarea) sets in serif; UI chrome stays sans */
+:root:not(.dark) .theme-paper .reading-serif,
+:root:not(.dark) .theme-paper .article-prose,
+:root:not(.dark) .theme-paper textarea {
+  font-family: var(--font-reading);
+}
+
 :root:not(.dark) .theme-paper .article-prose {
-  font-family: Georgia, "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN",
-    "Songti SC", "STSong", SimSun, serif;
   font-size: 1.0625rem;
   line-height: 1.95;
 }

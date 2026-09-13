@@ -29,9 +29,9 @@ function ShortBody({ content }: { content: string }) {
     .map((line) => line.trim())
     .filter(Boolean);
   return (
-    <div className="space-y-2">
+    <div className="reading-serif space-y-2 text-[15px] leading-relaxed">
       {paragraphs.map((p, i) => (
-        <p key={i} className="whitespace-pre-wrap break-words text-[15px] leading-relaxed">
+        <p key={i} className="whitespace-pre-wrap break-words">
           {p}
         </p>
       ))}

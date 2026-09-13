@@ -277,7 +277,7 @@ export function Comments({
                     {timeAgo(c.createdAt, locale)}
                   </span>
                 </div>
-                <p className="mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+                <p className="reading-serif mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
                   {c.body}
                 </p>
                 <div className="mt-1 flex items-center gap-1">

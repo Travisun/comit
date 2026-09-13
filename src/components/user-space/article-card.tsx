@@ -164,13 +164,13 @@ export function ArticleCard({
               <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="sm" />
             </div>
           )}
-          <h3 className="mt-0.5 text-[15px] font-bold leading-snug">
+          <h3 className="reading-serif mt-0.5 text-[15px] font-bold leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline">
               {post.title ?? "Untitled"}
             </Link>
           </h3>
           {post.summary && (
-            <p className="mt-0.5 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
+            <p className="reading-serif mt-0.5 line-clamp-2 text-[15px] leading-relaxed text-muted-foreground">
               {post.summary}
             </p>
           )}
