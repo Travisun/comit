@@ -508,32 +508,40 @@ export function SiteShell({
     <div className="flex min-h-dvh flex-col bg-[var(--background)] md:h-dvh md:overflow-hidden">
       <MobileTopBar user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
 
-      {/* nav + panel + rail all live inside the 1200px center container */}
+      {/* two columns: icon/text nav | main zone. The main zone's panel spans
+          to the container's right edge and splits into content | rail. */}
       <div className="mx-auto flex h-full w-full max-w-[1200px]">
       <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
 
-      {/* main content — white rounded panel, full height, inner scroll (no scrollbar) */}
-      <main className={cn("min-w-0 flex-1 pb-16 md:flex md:h-full md:pb-0", !isFullWidth && "md:justify-center")}>
+      <main className="min-w-0 flex-1 pb-16 md:flex md:h-full md:pb-0">
+        {/* the panel — two inner columns on xl: content | rail */}
         <div
           className={cn(
-            "flex w-full min-w-0 flex-col bg-card md:scrollbar-none",
-            isFullWidth
-              ? "md:h-full md:overflow-hidden md:rounded-2xl md:border md:border-[var(--center-border)]"
-              : "md:my-[10px] md:h-[calc(100%-20px)] md:overflow-y-auto md:rounded-2xl md:border md:border-[var(--center-border)]",
+            "flex w-full min-w-0 flex-col bg-card md:h-full md:flex-row md:overflow-hidden md:rounded-2xl md:border md:border-[var(--center-border)] md:scrollbar-none",
+            !isFullWidth && "md:my-[10px] md:h-[calc(100%-20px)]",
           )}
         >
-          <div className="flex flex-1 flex-col" data-composer-anchor>
+          {/* content column — owns the scroll on md+ */}
+          <div
+            data-composer-anchor
+            className={cn(
+              "flex min-w-0 flex-1 flex-col",
+              !isFullWidth && "md:overflow-y-auto md:scrollbar-none",
+            )}
+          >
             <div className="flex flex-1 justify-center">{children}</div>
             {footer}
           </div>
-        </div>
 
-        {/* right rail on the gray canvas — hidden on app-surface pages */}
-        {!isFullWidth && rail != null && (
-          <aside className="hidden w-[320px] shrink-0 md:h-full md:overflow-y-auto md:scrollbar-none xl:block">
-            <div className="space-y-3 px-5 py-3">{rail}</div>
-          </aside>
-        )}
+          {/* right rail — merged into the panel as its own scroll column (xl only) */}
+          {!isFullWidth && rail != null && (
+            <aside className="hidden w-[320px] shrink-0 border-l border-border xl:flex xl:flex-col">
+              <div className="h-full space-y-3 overflow-y-auto px-5 py-4 scrollbar-none">
+                {rail}
+              </div>
+            </aside>
+          )}
+        </div>
       </main>
       </div>
 
