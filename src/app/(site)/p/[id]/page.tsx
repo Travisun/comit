@@ -15,6 +15,7 @@ import { RepostButton } from "@/components/social/repost-button";
 import { PostReactions } from "@/components/social/post-reactions";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
+import { PreviewBanner } from "@/components/social/preview-banner";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -103,10 +104,15 @@ export default async function PostPermalinkPage({
             </Link>
             <p className="truncate text-sm text-muted-foreground">
               @{author.username} · {timeAgo(published, locale)}
-              {post.status !== "published" && ` · ${t("post.draft")}`}
+              {post.status !== "published" && ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}`}
             </p>
           </div>
         </header>
+
+        {/* author preview banner — recycle bin / drafts are viewable by the author */}
+        {viewer && viewer.id === post.authorId && post.status !== "published" && (
+          <PreviewBanner postId={post.id} status={post.status} rejectReason={post.rejectReason} />
+        )}
 
         {/* short-post content (paragraphs / line breaks / images) */}
         <div className="mt-3">
