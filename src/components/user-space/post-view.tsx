@@ -265,7 +265,7 @@ function LockedBody({ author, showLoginHint }: { author: User; showLoginHint: bo
       <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
         <Lock className="size-6" />
       </span>
-      <p className="mt-4 font-medium">关注后即可阅读全文</p>
+      <p className="mt-4 font-normal">关注后即可阅读全文</p>
       <p className="mt-1 text-sm text-muted-foreground">
         本文仅对 {author.displayName} 的关注者可见
       </p>
