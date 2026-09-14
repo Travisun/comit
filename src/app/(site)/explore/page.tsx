@@ -40,7 +40,7 @@ export default async function ExplorePage({ searchParams }: Props) {
   const maxTopic = Math.max(1, ...topics.map((tp) => tp.postCount));
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px] py-[10px]">
+    <div className="min-h-dvh w-full py-[10px]">
       <TimelineHeader title="发现" right={<TrendingUp className="size-5 text-muted-foreground" aria-hidden />} />
 
       {/* search — mirrors the rail search for < xl viewports */}
