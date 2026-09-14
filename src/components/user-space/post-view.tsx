@@ -89,6 +89,32 @@ export function PostView({
         }
       />
 
+      {/* author preview banner — lifecycle states only the author can see */}
+      {isSelf && post.status !== "published" && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-border bg-[var(--muted)] px-4 py-2 text-xs text-muted-foreground">
+          <Badge variant="warning">
+            {post.status === "draft"
+              ? "草稿"
+              : post.status === "pending_review"
+                ? "审核中"
+                : post.status === "deleted"
+                  ? "回收站"
+                  : "被驳回"}
+          </Badge>
+          <span>
+            {post.status === "deleted"
+              ? "此内容在回收站中，仅自己可见"
+              : "此内容尚未发布，仅自己可见"}
+          </span>
+          <Link
+            href={`/write/${post.id}`}
+            className="ml-auto font-medium text-primary hover:underline"
+          >
+            继续编辑 →
+          </Link>
+        </div>
+      )}
+
       <article className="px-4 pb-10">
         {/* author row */}
         <header className="pt-4">

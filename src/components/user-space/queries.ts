@@ -510,7 +510,11 @@ export async function getPostForView(opts: {
       and(
         ...(authorCond ? [authorCond] : []),
         eq(posts.slug, opts.slug),
-        eq(posts.status, "published"),
+        // the author can preview their own post in any lifecycle state
+        // (draft / pending review / recycle bin); everyone else sees published
+        opts.viewer
+          ? or(eq(posts.status, "published"), eq(posts.authorId, opts.viewer.id))
+          : eq(posts.status, "published"),
       ),
     )
     .limit(1);
