@@ -141,8 +141,24 @@
 }
 
 :root:not(.dark) .theme-paper .article-prose {
-  font-size: 1.0625rem;
-  line-height: 1.95;
+  font-size: 16px;
+  line-height: 2;
+}
+
+/* 中文标题字重 600：半粗即可，700 笔画过密显黑 */
+:root:not(.dark) .theme-paper .article-prose h2 {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+:root:not(.dark) .theme-paper .article-prose h3 {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+:root:not(.dark) .theme-paper .article-prose strong {
+  font-weight: 600;
 }
 
 /* 长文编辑器（/write）：Vditor 内容区用阅读衬线，编辑即所见 */

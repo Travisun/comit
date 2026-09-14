@@ -67,7 +67,7 @@ export function TimelineAuthorLine({
     <div className="flex min-w-0 items-center gap-1 text-[15px] leading-tight">
       <Link
         href={routes.profile(author.username)}
-        className="truncate font-bold hover:underline"
+        className="truncate font-semibold hover:underline"
       >
         {author.displayName}
       </Link>
@@ -221,7 +221,7 @@ export function ArticleCard({
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
           {showAuthor && <TimelineAuthorLine post={post} author={author} href={href} />}
-          <h3 className="reading-serif mt-0.5 text-[15px] font-bold leading-snug">
+          <h3 className="reading-serif mt-0.5 text-base font-semibold leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline">
               {post.title ?? "Untitled"}
             </Link>

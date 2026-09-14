@@ -606,7 +606,7 @@ export function TimelineHeader({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          {title && <h1 className="truncate text-[19px] font-bold leading-tight">{title}</h1>}
+          {title && <h1 className="truncate text-[19px] font-semibold leading-tight">{title}</h1>}
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         </div>
       </div>
