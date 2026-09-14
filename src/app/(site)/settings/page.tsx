@@ -52,7 +52,7 @@ export default async function SettingsHomePage() {
   const zh = locale === "zh";
 
   return (
-    <div className="w-full">
+    <div className="w-full pt-[10px]">
       <TimelineHeader title={zh ? "设置" : "Settings"} />
       <div className="mx-auto w-full max-w-[600px] pb-10">
         {GROUPS.map((group) => (

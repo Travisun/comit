@@ -38,7 +38,7 @@ export default async function SettingsTabPage({
   const label = { profile: "资料", security: "安全", notifications: "通知", site: "站点", verification: "认证", developers: "开发设置", data: "数据与导出", appearance: "外观", subdomain: "子域名", invites: "邀请码", webhooks: "Webhook", tokens: "API · MCP" }[tab] ?? tab;
 
   return (
-    <div className="w-full">
+    <div className="w-full pt-[10px]">
       <TimelineHeader back title={zh ? label : tab} />
       <div className="mx-auto w-full max-w-[600px] pb-10">
         <SettingsPanel
