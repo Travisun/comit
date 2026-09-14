@@ -106,7 +106,7 @@ export function PostView({
             <span className="min-w-0 leading-tight">
               <Link
                 href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-semibold text-foreground hover:underline"
+                className="block truncate text-[15px] font-medium text-foreground hover:underline"
               >
                 {author.displayName}
               </Link>
@@ -240,7 +240,7 @@ export function PostView({
 
         {/* comments */}
         <section className="mt-8" id="comments">
-          <h2 className="mb-2 text-[15px] font-semibold">评论</h2>
+          <h2 className="mb-2 text-[15px] font-medium">评论</h2>
           <Comments
             postId={post.id}
             disabled={!canComment}
@@ -265,7 +265,7 @@ function LockedBody({ author, showLoginHint }: { author: User; showLoginHint: bo
       <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
         <Lock className="size-6" />
       </span>
-      <p className="mt-4 font-semibold">关注后即可阅读全文</p>
+      <p className="mt-4 font-medium">关注后即可阅读全文</p>
       <p className="mt-1 text-sm text-muted-foreground">
         本文仅对 {author.displayName} 的关注者可见
       </p>

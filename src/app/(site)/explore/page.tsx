@@ -83,7 +83,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* topic ranking */}
       <section className="border-b border-border">
-        <h2 className="px-5 pb-1 pt-3 text-[15px] font-semibold">{t("user.topicCloud")}</h2>
+        <h2 className="px-5 pb-1 pt-3 text-[15px] font-medium">{t("user.topicCloud")}</h2>
         {topics.length === 0 ? (
           <Empty text="还没有话题，发布文章时添加话题后会出现在这里。" />
         ) : (
@@ -111,7 +111,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* hot posts */}
       <section className="border-b border-border">
-        <h2 className="px-5 pb-1 pt-3 text-[15px] font-semibold">{t("home.trending")}</h2>
+        <h2 className="px-5 pb-1 pt-3 text-[15px] font-medium">{t("home.trending")}</h2>
         {hot.length === 0 ? (
           <Empty text="暂无热门内容。" />
         ) : (
@@ -140,7 +140,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* active authors */}
       <section>
-        <h2 className="px-5 pb-1 pt-3 text-[15px] font-semibold">{t("home.featuredAuthors")}</h2>
+        <h2 className="px-5 pb-1 pt-3 text-[15px] font-medium">{t("home.featuredAuthors")}</h2>
         {authors.length === 0 ? (
           <Empty text="还没有活跃作者。" />
         ) : (
@@ -158,7 +158,7 @@ export default async function ExplorePage({ searchParams }: Props) {
                     <AvatarFallback>{a.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-semibold">{a.displayName}</span>
+                    <span className="block truncate text-[15px] font-medium">{a.displayName}</span>
                     <span className="block truncate text-sm text-muted-foreground">@{a.username}</span>
                   </span>
                   <span className="num shrink-0 text-xs text-muted-foreground">
