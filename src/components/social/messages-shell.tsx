@@ -2,11 +2,13 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { MessageCircle } from "lucide-react";
+import { Bell, MessageCircle } from "lucide-react";
+import { routes } from "@/core/routes";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
 import { mediaUrl, requestJson } from "./api";
+import { NotificationList } from "./notification-list";
 
 interface ConversationItem {
   userId: string;
@@ -52,12 +54,6 @@ export function ConversationList({ selectedUserId }: { selectedUserId?: string }
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-4">
-        <h2 className="flex items-center gap-2 text-[15px] font-bold">
-          <MessageCircle className="size-4" />
-          {t("messages.title")}
-        </h2>
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none">
         {items === null ? (
           <div className="space-y-2 p-3">
@@ -124,11 +120,26 @@ export function ConversationList({ selectedUserId }: { selectedUserId?: string }
  */
 export function MessagesShell({
   selectedUserId,
+  tab = "dms",
+  unreadDms = 0,
+  unreadNotifications = 0,
   children,
 }: {
   selectedUserId?: string;
+  /** which left-pane list is active: direct messages or notifications */
+  tab?: "dms" | "notifications";
+  unreadDms?: number;
+  unreadNotifications?: number;
   children?: ReactNode;
 }) {
+  const { locale } = useI18n();
+  const zh = locale === "zh";
+  const tabCls = (active: boolean) =>
+    cn(
+      "relative flex items-center justify-center gap-1.5 pb-2.5 pt-3 text-sm transition-colors",
+      active ? "font-semibold text-foreground" : "text-muted-foreground hover:text-foreground",
+    );
+
   return (
     <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full md:h-full">
       <aside
@@ -137,7 +148,34 @@ export function MessagesShell({
           selectedUserId ? "hidden" : "flex",
         )}
       >
-        <ConversationList selectedUserId={selectedUserId} />
+        {/* unified inbox tabs — DMs and notifications are both messages */}
+        <div className="grid h-11 shrink-0 grid-cols-2 border-b border-border">
+          <Link href={routes.messages} className={tabCls(tab === "dms")} aria-current={tab === "dms" ? "page" : undefined}>
+            <MessageCircle className="size-4" aria-hidden />
+            {zh ? "私信" : "DMs"}
+            {unreadDms > 0 && (
+              <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4.5 text-primary-foreground tabular-nums">
+                {unreadDms > 99 ? "99+" : unreadDms}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/messages?tab=notifications"
+            className={tabCls(tab === "notifications")}
+            aria-current={tab === "notifications" ? "page" : undefined}
+          >
+            <Bell className="size-4" aria-hidden />
+            {zh ? "通知" : "Alerts"}
+            {unreadNotifications > 0 && (
+              <span className="grid min-w-4.5 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4.5 text-primary-foreground tabular-nums">
+                {unreadNotifications > 99 ? "99+" : unreadNotifications}
+              </span>
+            )}
+          </Link>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-none">
+          {tab === "notifications" ? <NotificationList /> : <ConversationList selectedUserId={selectedUserId} />}
+        </div>
       </aside>
       <section
         className={cn(

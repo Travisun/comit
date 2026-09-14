@@ -244,19 +244,11 @@ function LeftNav({
     { href: routes.home, label: "首页", icon: <Home className="size-[18px]" />, exact: true },
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     {
-      href: user ? routes.notifications : login,
-      label: "通知",
-      icon: (
-        <NavIcon badge={user?.unreadNotifications}>
-          <Bell className="size-[18px]" />
-        </NavIcon>
-      ),
-    },
-    {
+      // unified inbox: DMs + notifications live together under /messages
       href: user ? routes.messages : login,
-      label: "私信",
+      label: "消息",
       icon: (
-        <NavIcon badge={user?.unreadMessages}>
+        <NavIcon badge={(user?.unreadNotifications ?? 0) + (user?.unreadMessages ?? 0)}>
           <Mail className="size-[18px]" />
         </NavIcon>
       ),
@@ -371,10 +363,10 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     { href: user ? "#compose" : login, label: "创作", fab: true },
     {
-      href: user ? routes.notifications : login,
-      label: "通知",
+      href: user ? routes.messages : login,
+      label: "消息",
       icon: (
-        <NavIcon badge={user?.unreadNotifications}>
+        <NavIcon badge={(user?.unreadNotifications ?? 0) + (user?.unreadMessages ?? 0)}>
           <Bell className="size-[18px]" />
         </NavIcon>
       ),

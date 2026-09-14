@@ -134,7 +134,7 @@ export function PostView({
         }
       />
 
-      <article className="px-4 pb-10">
+      <article className="px-4 pb-12 md:px-5">
         {/* badges */}
         <div className="flex flex-wrap items-center gap-2 pt-4">
             <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="md" />

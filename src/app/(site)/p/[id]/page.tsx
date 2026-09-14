@@ -104,7 +104,7 @@ export default async function PostPermalinkPage({
         subtitle={`${timeAgo(published, locale)}${post.status !== "published" ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}` : ""}`}
       />
 
-      <article className="px-4 pb-10">
+      <article className="px-4 pb-12 md:px-5">
         {/* author preview banner — recycle bin / drafts are viewable by the author */}
         {viewer && viewer.id === post.authorId && post.status !== "published" && (
           <PreviewBanner postId={post.id} status={post.status} rejectReason={post.rejectReason} />

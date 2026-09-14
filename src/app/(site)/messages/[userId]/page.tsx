@@ -56,7 +56,7 @@ export default async function ConversationPage({
     && blockedRow.length === 0;
 
   return (
-    <MessagesShell selectedUserId={other.id}>
+    <MessagesShell selectedUserId={other.id} tab="dms">
       {allowed ? (
         <ChatClient
           other={{
