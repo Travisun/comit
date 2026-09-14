@@ -92,7 +92,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={tp.slug}>
                 <Link
                   href={routes.topic(tp.slug)}
-                  className="rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -120,7 +120,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={it.post.id}>
                 <Link
                   href={it.post.slug ? routes.article(it.post.slug) : routes.shortPost(it.post.id)}
-                  className="rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -149,7 +149,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={a.username} className="border-t border-border first:border-t-0">
                 <Link
                   href={routes.profile(a.username)}
-                  className="rounded-lg items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <Avatar className="size-10">
                     {a.avatarPath && (
