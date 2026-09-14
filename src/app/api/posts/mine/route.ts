@@ -1,7 +1,8 @@
-import { and, count, desc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
 import { withUser, ok } from "@/lib/http";
+import { markdownToPlain } from "@/lib/utils";
 
 /**
  * GET /api/posts/mine?status=&type=&q=&limit=&offset=
@@ -33,7 +34,7 @@ export async function GET(req: Request) {
 
     const where = and(...conds);
     const trash = status === "deleted";
-    const [items, [{ total }]] = await Promise.all([
+    const [rawItems, [{ total }]] = await Promise.all([
       db
         .select({
           id: posts.id,
@@ -53,6 +54,8 @@ export async function GET(req: Request) {
           updatedAt: posts.updatedAt,
           deletedAt: posts.deletedAt,
           preDeleteStatus: posts.preDeleteStatus,
+          // plain-text excerpt for the rich management list
+          excerpt: sql<string>`left(${posts.content}, 400)`,
         })
         .from(posts)
         .where(where)
@@ -61,6 +64,10 @@ export async function GET(req: Request) {
         .offset(offset),
       db.select({ total: count() }).from(posts).where(where),
     ]);
+    const items = rawItems.map((r) => ({
+      ...r,
+      excerpt: markdownToPlain(r.excerpt ?? "").slice(0, 140),
+    }));
     return ok({ items, total, nextOffset: offset + items.length < total ? offset + limit : null });
   });
 }

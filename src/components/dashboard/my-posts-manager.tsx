@@ -1,12 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import {
-  DataTable,
-  DataTableRow,
-  DataTableTd,
-  DataTableTh,
-} from "@/components/ui/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Eye, Heart, MessageCircle, PenLine, RotateCcw, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -25,11 +19,10 @@ import { FilterChips } from "@/components/admin/bits";
 import { timeAgo } from "@/lib/utils";
 
 /**
- * Dashboard "我的文章" — full lifecycle management for the signed-in author:
- * drafts / pending review / published / rejected, with stats and edit / view /
- * delete actions. Cloudflare-dashboard flat style: chip filters, stat cards,
- * a bordered table on desktop (rows separated by 1px, hover wash, right-aligned
- * actions) and compact cards on mobile.
+ * "我的文章" — rich-list management for the signed-in author: every item shows
+ * content first (shorts render their text excerpt, articles render title +
+ * excerpt) with status / stats / actions attached. Flat bordered rows,
+ * Cloudflare-dashboard style.
  */
 
 interface MyPost {
@@ -38,6 +31,7 @@ interface MyPost {
   title: string | null;
   slug: string | null;
   summary: string;
+  excerpt: string;
   label: string;
   status: "draft" | "pending_review" | "published" | "rejected" | "deleted";
   visibility: "public" | "followers";
@@ -208,6 +202,14 @@ export function MyPostsManager() {
       : `更新于 ${timeAgo(post.updatedAt, "zh")}`;
   };
 
+  /** rich-list excerpt: shorts show their text; articles prefer the summary */
+  const postExcerpt = (post: MyPost) => {
+    const text = post.type === "short" ? post.excerpt : post.summary || post.excerpt;
+    const trimmed = text.trim();
+    if (trimmed) return trimmed;
+    return post.type === "short" ? "（图片动态）" : "（无文字内容）";
+  };
+
   return (
     <div className="space-y-4">
       {/* filter row */}
@@ -257,74 +259,56 @@ export function MyPostsManager() {
           </div>
         )
       ) : (
-        <>
-          {/* desktop: flat table */}
-          <DataTable>
-              <thead>
-                <tr>
-                  <DataTableTh>标题</DataTableTh>
-                  <DataTableTh>状态</DataTableTh>
-                  <DataTableTh>数据</DataTableTh>
-                  <DataTableTh className="text-right">时间</DataTableTh>
-                  <DataTableTh className="w-44" />
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((post) => (
-                  <DataTableRow key={post.id}>
-                    <DataTableTd className="max-w-80">
-                      <span className="block truncate font-medium">
-                        {post.title || (post.type === "short" ? "(短动态)" : "(无标题)")}
-                      </span>
-                      {post.rejectReason ? (
-                        <span className="block truncate text-xs text-destructive" title={post.rejectReason}>
-                          驳回原因:{post.rejectReason}
-                        </span>
-                      ) : null}
-                    </DataTableTd>
-                    <DataTableTd>{postMeta(post)}</DataTableTd>
-                    <DataTableTd>
-                      <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
-                        <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
-                        <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
-                        <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
-                      </span>
-                    </DataTableTd>
-                    <DataTableTd className="whitespace-nowrap text-right text-xs text-muted-foreground">{postTime(post)}</DataTableTd>
-                    <DataTableTd className="text-right">{rowActions(post)}</DataTableTd>
-                  </DataTableRow>
-                ))}
-              </tbody>
-            </DataTable>
-
-          {/* mobile: compact cards */}
-          <ul className="space-y-2 md:hidden">
-            {items.map((post) => (
-              <li key={post.id} className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)]">
-                <div className="flex flex-col gap-3">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      {postMeta(post)}
-                      <span className="text-xs text-muted-foreground">{postTime(post)}</span>
-                    </div>
-                    <div className="mt-1.5 truncate text-sm font-semibold">
-                      {post.title || (post.type === "short" ? "(短动态)" : "(无标题)")}
-                    </div>
-                    {post.rejectReason && (
-                      <p className="mt-1 line-clamp-2 text-xs text-destructive">驳回原因:{post.rejectReason}</p>
-                    )}
-                    <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
-                      <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
-                      <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
-                    </div>
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
+          {items.map((post) => (
+            <li key={post.id} className="p-4 transition-colors hover:bg-[var(--hover)]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {postMeta(post)}
+                    <span className="text-xs text-muted-foreground">{postTime(post)}</span>
                   </div>
-                  {rowActions(post)}
+
+                  {/* rich info: articles lead with their title; shorts go
+                      straight to the content excerpt */}
+                  {post.type === "article" && (
+                    <p className="mt-1.5 truncate text-[15px] font-semibold">
+                      {post.title || "(无标题)"}
+                    </p>
+                  )}
+                  {post.rejectReason ? (
+                    <p className="mt-1 line-clamp-1 text-xs text-destructive">
+                      驳回原因:{post.rejectReason}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
+                    {postExcerpt(post)}
+                  </p>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </>
+
+                {/* preview thumbnail link (published) */}
+                {post.status === "published" && post.slug && (
+                  <Link
+                    href={`/p/${post.id}`}
+                    target="_blank"
+                    className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
+                  >
+                    查看
+                  </Link>
+                )}
+              </div>
+
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+                  <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
+                  <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
+                  <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
+                </span>
+                {rowActions(post)}
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
       {/* delete confirm */}
