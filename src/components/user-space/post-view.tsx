@@ -106,7 +106,7 @@ export function PostView({
             <span className="min-w-0 leading-tight">
               <Link
                 href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-medium text-foreground hover:underline"
+                className="block truncate text-[15px] font-normal text-foreground hover:underline"
               >
                 {author.displayName}
               </Link>
@@ -150,7 +150,7 @@ export function PostView({
           </div>
 
           {/* title */}
-          <h1 className="reading-serif mt-3 text-[26px] font-semibold leading-snug tracking-tight md:text-[30px]">
+          <h1 className="reading-serif mt-3 text-[26px] font-normal leading-snug tracking-tight md:text-[30px]">
             {post.title ?? "Untitled"}
           </h1>
 
@@ -240,7 +240,7 @@ export function PostView({
 
         {/* comments */}
         <section className="mt-8" id="comments">
-          <h2 className="mb-2 text-[15px] font-medium">评论</h2>
+          <h2 className="mb-2 text-[15px] font-normal">评论</h2>
           <Comments
             postId={post.id}
             disabled={!canComment}
