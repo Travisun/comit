@@ -77,38 +77,34 @@ export default async function PostPermalinkPage({
 
   return (
     <div className="min-h-dvh w-full max-w-[600px]">
-      {/* sticky back bar */}
+      {/* sticky author bar — identity + date live here, no duplicate row below */}
       <TimelineHeader
         back
-        title={author.displayName}
-        subtitle={`@${author.username}`}
-      />
-
-      <article className="px-4 pb-10">
-        {/* author card */}
-        <header className="flex items-center gap-3 pt-4">
-          <Link href={routes.profile(author.username)} aria-label={author.displayName}>
-            <Avatar className="size-10 border border-border">
+        title={
+          <span className="flex items-center gap-2.5 whitespace-normal">
+            <Avatar className="size-9 shrink-0 border border-border">
               {author.avatarPath && (
                 <AvatarImage src={routes.media(author.avatarPath)} alt={author.displayName} />
               )}
               <AvatarFallback>{author.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>
-          </Link>
-          <div className="min-w-0 flex-1">
-            <Link
-              href={routes.profile(author.username)}
-              className="block truncate text-[15px] font-bold text-foreground hover:underline"
-            >
-              {author.displayName}
-            </Link>
-            <p className="truncate text-sm text-muted-foreground">
-              @{author.username} · {timeAgo(published, locale)}
-              {post.status !== "published" && ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}`}
-            </p>
-          </div>
-        </header>
+            <span className="min-w-0 leading-tight">
+              <Link
+                href={routes.profile(author.username)}
+                className="block truncate text-[15px] font-bold text-foreground hover:underline"
+              >
+                {author.displayName}
+              </Link>
+              <span className="block truncate text-xs text-muted-foreground">
+                @{author.username}
+              </span>
+            </span>
+          </span>
+        }
+        subtitle={`${timeAgo(published, locale)}${post.status !== "published" ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}` : ""}`}
+      />
 
+      <article className="px-4 pb-10">
         {/* author preview banner — recycle bin / drafts are viewable by the author */}
         {viewer && viewer.id === post.authorId && post.status !== "published" && (
           <PreviewBanner postId={post.id} status={post.status} rejectReason={post.rejectReason} />

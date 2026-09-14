@@ -75,21 +75,6 @@ export function PostView({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd(author)) }}
       />
 
-      {/* sticky back bar */}
-      <TimelineHeader
-        back
-        title={author.displayName}
-        subtitle={`@${author.username}`}
-        right={
-          <Link
-            href={routes.profile(author.username)}
-            className="shrink-0 rounded-full border border-border px-3.5 py-1 text-xs font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-          >
-            主页
-          </Link>
-        }
-      />
-
       {/* author preview banner — lifecycle states only the author can see */}
       {isSelf && post.status !== "published" && (
         <PreviewBanner
@@ -99,48 +84,59 @@ export function PostView({
         />
       )}
 
-      <article className="px-4 pb-10">
-        {/* author row */}
-        <header className="pt-4">
-          <div className="flex items-center gap-3">
-            <Link href={routes.profile(author.username)} aria-label={author.displayName}>
-              <span className="inline-block size-10 overflow-hidden rounded-full border border-border bg-muted">
-                {author.avatarPath ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={routes.media(author.avatarPath)}
-                    alt={author.displayName}
-                    className="size-full object-cover"
-                  />
-                ) : (
-                  <span className="grid size-full place-items-center text-sm font-semibold">
-                    {author.displayName.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-              </span>
-            </Link>
-            <div className="min-w-0 flex-1">
+      {/* sticky author bar — identity + follow live here, no duplicate row below */}
+      <TimelineHeader
+        back
+        title={
+          <span className="flex items-center gap-2.5 whitespace-normal">
+            <span className="inline-block size-9 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+              {author.avatarPath ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={routes.media(author.avatarPath)}
+                  alt={author.displayName}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span className="grid size-full place-items-center text-xs font-semibold">
+                  {author.displayName.slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </span>
+            <span className="min-w-0 leading-tight">
               <Link
                 href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-bold leading-tight hover:underline"
+                className="block truncate text-[15px] font-bold text-foreground hover:underline"
               >
                 {author.displayName}
               </Link>
-              <span className="block truncate text-sm text-muted-foreground">
+              <span className="block truncate text-xs text-muted-foreground">
                 @{author.username}
               </span>
-            </div>
-            {!isSelf && viewer && (
-              <FollowButton
-                username={author.username}
-                initialFollowing={viewerState.following}
-                className="h-8 rounded-full px-3.5 text-xs"
-              />
-            )}
-          </div>
+            </span>
+          </span>
+        }
+        right={
+          viewer && !isSelf ? (
+            <FollowButton
+              username={author.username}
+              initialFollowing={viewerState.following}
+              className="h-8 shrink-0 rounded-full px-3.5 text-xs"
+            />
+          ) : (
+            <Link
+              href={routes.profile(author.username)}
+              className="shrink-0 rounded-full border border-border px-3.5 py-1 text-xs font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+            >
+              主页
+            </Link>
+          )
+        }
+      />
 
-          {/* badges */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+      <article className="px-4 pb-10">
+        {/* badges */}
+        <div className="flex flex-wrap items-center gap-2 pt-4">
             <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="md" />
             {post.visibility === "followers" && <Badge variant="secondary">关注者可见</Badge>}
             {collection && (
@@ -160,15 +156,12 @@ export function PostView({
 
           {/* meta line */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-            <span>@{author.username}</span>
-            <span>·</span>
             <span className="inline-flex items-center gap-1">
               <Calendar className="size-3.5" /> {formatDate(date, "zh")}
             </span>
             <span>·</span>
             <span>{minutes} 分钟阅读</span>
           </div>
-        </header>
 
         {/* featured image */}
         {post.coverPath && (
