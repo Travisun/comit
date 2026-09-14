@@ -48,8 +48,6 @@ export default async function HomePage({
     tab === "following" && viewer
       ? await getPublishedPosts({ limit: 10, followingOf: viewer.id })
       : await getPublishedPosts({ limit: 10 });
-  const { nextOffset } = feed;
-
   return (
     <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
       <TimelineHeader

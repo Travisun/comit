@@ -279,13 +279,13 @@ export function MyPostsManager() {
 
               {/* main: two tight lines */}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground group-hover:underline">
+                <p className="reading-serif truncate text-sm font-medium text-foreground group-hover:underline">
                   {post.type === "article"
                     ? post.title || "(无标题)"
                     : postExcerpt(post)}
                 </p>
                 {post.type === "article" && (
-                  <p className="truncate text-xs text-muted-foreground">{postExcerpt(post)}</p>
+                  <p className="reading-serif truncate text-xs text-muted-foreground">{postExcerpt(post)}</p>
                 )}
                 <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                   <span className="inline-flex shrink-0 items-center gap-1.5">
