@@ -117,7 +117,7 @@ function SettingRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 py-3.5 first:pt-0 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 rounded-lg px-3 -mx-2 py-3.5 transition-colors first:pt-0 hover:bg-[var(--hover,#f7f8f8)] sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
@@ -238,7 +238,7 @@ function SettingsFooter({
 /**
  * Single-select option row (Stripe radio cards): title + optional badge
  * ("Recommended") + description below. Group a list inside
- * `role="radiogroup"` with `divide-y divide-border`.
+ * `role="radiogroup"` — options get rounded hover washes.
  */
 function RadioOption({
   title,
@@ -262,7 +262,7 @@ function RadioOption({
   return (
     <label
       className={cn(
-        "flex cursor-pointer items-start gap-3 py-3.5 first:pt-0",
+        "flex cursor-pointer items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] first:pt-0",
         className,
       )}
     >
@@ -311,7 +311,7 @@ function CheckOption({
   return (
     <label
       className={cn(
-        "flex items-start gap-3 py-3.5 first:pt-0",
+        "flex items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors first:pt-0 hover:bg-[var(--hover,#f7f8f8)]",
         disabled ? "cursor-default" : "cursor-pointer",
         className,
       )}

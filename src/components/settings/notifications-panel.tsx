@@ -65,7 +65,7 @@ export function NotificationsPanel({
         title={t("settings.tab.notifications")}
         description={t("settings.notifications.byType")}
       />
-      <div className="divide-y divide-border">
+      <div className="flex flex-col gap-y-1">
         {NOTIFICATION_EVENTS.map((event) => (
           <SettingRow
             key={event.key}

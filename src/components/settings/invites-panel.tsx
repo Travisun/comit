@@ -65,9 +65,9 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
           {locale === "zh" ? "还没有邀请码" : "No invite codes yet"}
         </p>
       ) : (
-        <ul className="divide-y divide-border">
+        <ul className="flex flex-col gap-y-1">
           {codes.map((c) => (
-            <li key={c.code} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+            <li key={c.code} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
               <div>
                 <p className="font-mono text-sm font-medium">{c.code}</p>
                 <p className="text-xs text-muted-foreground">

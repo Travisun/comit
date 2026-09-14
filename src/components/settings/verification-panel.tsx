@@ -499,12 +499,12 @@ function HistoryCard({ requests }: { requests: VerificationRequestView[] }) {
   return (
     <div className="space-y-4">
       <h3 className="text-base font-semibold mb-4">{zh ? "申请记录" : "Application history"}</h3>
-      <ul className="divide-y divide-border">
+      <ul className="flex flex-col gap-y-1">
         {requests.map((r) => {
           const info = VERIFICATION_TYPE_MAP[r.type];
           const typeName = info ? (zh ? info.name.zh : info.name.en) : r.type;
           return (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
               <div className="min-w-0">
                 <p className="text-sm font-medium">
                   {typeName} · {r.label}

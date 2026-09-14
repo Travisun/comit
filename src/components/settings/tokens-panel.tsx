@@ -130,9 +130,9 @@ export function TokensPanel({
               {locale === "zh" ? "还没有令牌" : "No tokens yet"}
             </p>
           ) : (
-            <ul className="divide-y divide-border">
+            <ul className="flex flex-col gap-y-1">
               {tokens.map((tk) => (
-                <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+                <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
                   <div className="min-w-0">
                     <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                       <KeyRound className="size-4 text-muted-foreground" />

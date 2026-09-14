@@ -85,9 +85,9 @@ function ExportCard({ initial }: { initial: ExportJobView[] }) {
             {locale === "zh" ? "还没有导出记录" : "No exports yet"}
           </p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="flex flex-col gap-y-1">
             {jobs.map((j) => (
-              <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+              <li key={j.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
                 <div>
                   <p className="flex items-center gap-2 text-sm font-medium">
                     {statusBadge(j.status, locale)}

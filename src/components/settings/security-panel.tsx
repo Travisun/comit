@@ -234,7 +234,7 @@ function SessionsCard({ sessions }: { sessions: SessionView[] }) {
       </div>
       <div className="divide-y divide-border">
         {list.map((s) => (
-          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 py-3 first:pt-0 last:pb-0">
+          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-sm font-medium text-foreground">
                 {deviceLabel(s.userAgent)}
