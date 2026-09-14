@@ -525,7 +525,7 @@ export function SiteShell({
           </div>
 
           {/* right rail — merged into the panel as its own scroll column (xl only) */}
-          {!isFullWidth && rail != null && (
+          {rail != null && (
             <aside className="hidden w-[320px] shrink-0 border-l border-border xl:flex xl:flex-col">
               <div className="h-full space-y-3 overflow-y-auto px-5 py-4 scrollbar-none">
                 {rail}
