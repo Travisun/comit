@@ -80,11 +80,6 @@ export function ShortCard({
   return (
     <TimelineRow author={author} className={className}>
       <TimelineAuthorLine post={post} author={author} href={href} />
-      {post.label && (
-        <div className="mt-1">
-          <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="sm" />
-        </div>
-      )}
       <div className="mt-0.5">
         <ShortBody content={post.content || post.summary || " "} />
       </div>

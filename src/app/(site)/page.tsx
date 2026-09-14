@@ -51,20 +51,23 @@ export default async function HomePage({
 
   return (
     <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
-      <TimelineHeader title="社区">
-        <UnderlineTabs
-          tabs={[
-            { key: "latest", label: "最新", href: "/", active: tab !== "following" },
-            {
-              key: "following",
-              label: "关注",
-              href: "/?tab=following",
-              active: tab === "following",
-              disabled: !viewer,
-            },
-          ]}
-        />
-      </TimelineHeader>
+      <TimelineHeader
+        title="社区"
+        tabs={
+          <UnderlineTabs
+            tabs={[
+              { key: "latest", label: "最新", href: "/", active: tab !== "following" },
+              {
+                key: "following",
+                label: "关注",
+                href: "/?tab=following",
+                active: tab === "following",
+                disabled: !viewer,
+              },
+            ]}
+          />
+        }
+      />
 
       {viewer ? (
         <PinnedComposer

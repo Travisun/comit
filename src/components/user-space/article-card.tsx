@@ -85,6 +85,15 @@ export function TimelineAuthorLine({
           关注者可见
         </Badge>
       )}
+      {post?.label && (
+        <AnnotationBadge
+          label={post.label}
+          sourceUrl={post.sourceUrl}
+          sourceName={post.sourceName}
+          size="sm"
+          className="ml-0.5 shrink-0"
+        />
+      )}
     </div>
   );
 }
@@ -212,11 +221,6 @@ export function ArticleCard({
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
           {showAuthor && <TimelineAuthorLine post={post} author={author} href={href} />}
-          {post.label && (
-            <div className="mt-1">
-              <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="sm" />
-            </div>
-          )}
           <h3 className="reading-serif mt-0.5 text-[15px] font-bold leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline">
               {post.title ?? "Untitled"}

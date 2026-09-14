@@ -553,6 +553,7 @@ export function TimelineHeader({
   subtitle,
   back = false,
   right,
+  tabs,
   children,
   className,
 }: {
@@ -561,7 +562,8 @@ export function TimelineHeader({
   /** show a ← back button (router.back with home fallback) */
   back?: boolean;
   right?: ReactNode;
-  /** tab strip / custom row rendered below the title bar */
+  /** tab strip rendered inside the same sticky header block */
+  tabs?: ReactNode;
   children?: ReactNode;
   className?: string;
 }) {
@@ -607,8 +609,8 @@ export function TimelineHeader({
           {title && <h1 className="truncate text-[19px] font-bold leading-tight">{title}</h1>}
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         </div>
-        {right}
       </div>
+      {tabs}
       {children}
     </div>
   );
