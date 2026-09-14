@@ -127,8 +127,9 @@
 
   /* E-Ink reading font — system serif stack (zero download); swap to a
      subsetted Noto Serif SC for production consistency on low-DPI screens */
-  --font-reading: Georgia, "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN",
-    "Songti SC", "STSong", SimSun, serif;
+  /* 全站衬线：基础字体整体切换为思源宋体（自托管 webfont，任何机器渲染一致） */
+  --font-sans: "Noto Serif SC", Georgia, "Songti SC", "STSong", SimSun, serif;
+  --font-reading: "Noto Serif SC", Georgia, "Songti SC", "STSong", SimSun, serif;
 }
 
 /* all reading content (titles / article prose / post text / comments / the
