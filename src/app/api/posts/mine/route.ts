@@ -1,6 +1,7 @@
 import { and, count, desc, eq, ilike, ne, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
+import { routes } from "@/core/routes";
 import { withUser, ok } from "@/lib/http";
 import { markdownToPlain } from "@/lib/utils";
 
@@ -52,6 +53,7 @@ export async function GET(req: Request) {
           rejectReason: posts.rejectReason,
           publishedAt: posts.publishedAt,
           updatedAt: posts.updatedAt,
+          coverPath: posts.coverPath,
           deletedAt: posts.deletedAt,
           preDeleteStatus: posts.preDeleteStatus,
           // plain-text excerpt for the rich management list
@@ -64,10 +66,15 @@ export async function GET(req: Request) {
         .offset(offset),
       db.select({ total: count() }).from(posts).where(where),
     ]);
-    const items = rawItems.map((r) => ({
-      ...r,
-      excerpt: markdownToPlain(r.excerpt ?? "").slice(0, 140),
-    }));
+    const items = rawItems.map((r) => {
+      const firstImage = r.excerpt?.match(/!\[[^\]]*\]\(([^)\s]+)[^)]*\)/)?.[1] ?? null;
+      return {
+        ...r,
+        excerpt: markdownToPlain(r.excerpt ?? "").slice(0, 140),
+        /** list thumbnail: cover image, else the post's first inline image */
+        thumb: r.coverPath ? routes.media(r.coverPath) : firstImage,
+      };
+    });
     return ok({ items, total, nextOffset: offset + items.length < total ? offset + limit : null });
   });
 }

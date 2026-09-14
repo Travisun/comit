@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Heart, MessageCircle, PenLine, RotateCcw, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
+import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ interface MyPost {
   slug: string | null;
   summary: string;
   excerpt: string;
+  thumb: string | null;
   label: string;
   status: "draft" | "pending_review" | "published" | "rejected" | "deleted";
   visibility: "public" | "followers";
@@ -44,6 +45,14 @@ interface MyPost {
   deletedAt: string | null;
   preDeleteStatus: string | null;
 }
+
+const STATUS_DOT: Record<MyPost["status"], string> = {
+  published: "var(--success)",
+  pending_review: "var(--warning)",
+  draft: "var(--muted-foreground)",
+  rejected: "var(--destructive)",
+  deleted: "var(--muted-foreground)",
+};
 
 const STATUS_META: Record<MyPost["status"], { label: string; badge: "secondary" | "warning" | "success" | "destructive" }> = {
   draft: { label: "草稿", badge: "secondary" },
@@ -138,7 +147,7 @@ export function MyPostsManager() {
   }, [items]);
 
   const rowActions = (post: MyPost) => (
-    <div className="flex shrink-0 items-center justify-end gap-1.5">
+    <div className="flex shrink-0 items-center gap-1">
       {post.status === "deleted" ? (
         <>
           <Button
@@ -153,6 +162,7 @@ export function MyPostsManager() {
             variant="ghost"
             size="icon-sm"
             title="彻底删除"
+            aria-label="彻底删除"
             className="text-destructive hover:text-destructive"
             onClick={() => setDeleting(post)}
           >
@@ -163,20 +173,21 @@ export function MyPostsManager() {
         <>
           {post.status === "published" && post.slug && (
             <Button asChild variant="ghost" size="icon-sm" title="查看">
-              <Link href={`/p/${post.id}`} target="_blank">
+              <a href={`/p/${post.id}`} target="_blank" rel="noreferrer">
                 <ExternalLink className="size-3.5" />
-              </Link>
+              </a>
             </Button>
           )}
-          <Button asChild variant="outline" size="sm" title="编辑">
+          <Button asChild variant="ghost" size="icon-sm" title="编辑">
             <Link href={`/write/${post.id}`}>
-              <PenLine className="size-3.5" /> 编辑
+              <PenLine className="size-3.5" />
             </Link>
           </Button>
           <Button
             variant="ghost"
             size="icon-sm"
-            title="删除"
+            title="移入回收站"
+            aria-label="移入回收站"
             className="text-destructive hover:text-destructive"
             onClick={() => setDeleting(post)}
           >
@@ -261,49 +272,72 @@ export function MyPostsManager() {
       ) : (
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border bg-card">
           {items.map((post) => (
-            <li key={post.id} className="p-4 transition-colors hover:bg-[var(--hover)]">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {postMeta(post)}
-                    <span className="text-xs text-muted-foreground">{postTime(post)}</span>
-                  </div>
-
-                  {/* rich info: articles lead with their title; shorts go
-                      straight to the content excerpt */}
-                  {post.type === "article" && (
-                    <p className="mt-1.5 truncate text-[15px] font-semibold">
-                      {post.title || "(无标题)"}
-                    </p>
-                  )}
-                  {post.rejectReason ? (
-                    <p className="mt-1 line-clamp-1 text-xs text-destructive">
-                      驳回原因:{post.rejectReason}
-                    </p>
-                  ) : null}
-                  <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                    {postExcerpt(post)}
-                  </p>
-                </div>
-
-                {/* preview thumbnail link (published) */}
-                {post.status === "published" && post.slug && (
-                  <Link
-                    href={`/p/${post.id}`}
-                    target="_blank"
-                    className="shrink-0 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
-                  >
-                    查看
-                  </Link>
+            <li
+              key={post.id}
+              className="group flex items-start gap-3 p-4 transition-colors hover:bg-[var(--hover)]"
+            >
+              {/* thumbnail: cover / first image / doc placeholder */}
+              <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-[var(--muted)] text-muted-foreground">
+                {post.thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={post.thumb} alt="" className="size-full object-cover" loading="lazy" />
+                ) : (
+                  <FileText className="size-5" aria-hidden />
                 )}
               </div>
 
-              <div className="mt-2.5 flex items-center justify-between gap-2">
-                <span className="flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
+              {/* main */}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span
+                      className="size-1.5 rounded-full"
+                      style={{ background: STATUS_DOT[post.status] }}
+                      aria-hidden
+                    />
+                    {STATUS_META[post.status].label}
+                  </span>
+                  <span>{post.type === "short" ? "动态" : "文章"}</span>
+                  {post.visibility === "followers" && <span>仅关注者</span>}
+                  <span className="ml-auto tabular-nums">{postTime(post)}</span>
+                </div>
+
+                {post.type === "article" ? (
+                  <>
+                    <p className="mt-1 truncate text-[15px] font-semibold text-foreground">
+                      {post.title || "(无标题)"}
+                    </p>
+                    {post.rejectReason && (
+                      <p className="mt-0.5 truncate text-xs text-destructive">
+                        驳回原因:{post.rejectReason}
+                      </p>
+                    )}
+                    <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+                      {postExcerpt(post)}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-foreground">
+                      {postExcerpt(post)}
+                    </p>
+                    {post.rejectReason && (
+                      <p className="mt-0.5 truncate text-xs text-destructive">
+                        驳回原因:{post.rejectReason}
+                      </p>
+                    )}
+                  </>
+                )}
+
+                <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
                   <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
                   <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
                   <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
-                </span>
+                </div>
+              </div>
+
+              {/* actions — hover reveal on desktop, always visible on touch */}
+              <div className="flex shrink-0 flex-col items-end gap-1.5 self-center opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 {rowActions(post)}
               </div>
             </li>
