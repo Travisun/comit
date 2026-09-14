@@ -274,22 +274,30 @@ export function MyPostsManager() {
           {items.map((post) => (
             <li
               key={post.id}
-              className="group flex items-start gap-3 p-4 transition-colors hover:bg-[var(--hover)]"
+              className="group flex items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--hover)]"
             >
               {/* thumbnail: cover / first image / doc placeholder */}
-              <div className="grid size-14 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-[var(--muted)] text-muted-foreground">
+              <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-[var(--muted)] text-muted-foreground">
                 {post.thumb ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={post.thumb} alt="" className="size-full object-cover" loading="lazy" />
                 ) : (
-                  <FileText className="size-5" aria-hidden />
+                  <FileText className="size-4" aria-hidden />
                 )}
               </div>
 
-              {/* main */}
+              {/* main: two tight lines */}
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1.5">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {post.type === "article"
+                    ? post.title || "(无标题)"
+                    : postExcerpt(post)}
+                </p>
+                {post.type === "article" && (
+                  <p className="truncate text-xs text-muted-foreground">{postExcerpt(post)}</p>
+                )}
+                <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex shrink-0 items-center gap-1.5">
                     <span
                       className="size-1.5 rounded-full"
                       style={{ background: STATUS_DOT[post.status] }}
@@ -297,47 +305,22 @@ export function MyPostsManager() {
                     />
                     {STATUS_META[post.status].label}
                   </span>
-                  <span>{post.type === "short" ? "动态" : "文章"}</span>
-                  {post.visibility === "followers" && <span>仅关注者</span>}
-                  <span className="ml-auto tabular-nums">{postTime(post)}</span>
-                </div>
-
-                {post.type === "article" ? (
-                  <>
-                    <p className="mt-1 truncate text-[15px] font-semibold text-foreground">
-                      {post.title || "(无标题)"}
-                    </p>
-                    {post.rejectReason && (
-                      <p className="mt-0.5 truncate text-xs text-destructive">
-                        驳回原因:{post.rejectReason}
-                      </p>
-                    )}
-                    <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
-                      {postExcerpt(post)}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-foreground">
-                      {postExcerpt(post)}
-                    </p>
-                    {post.rejectReason && (
-                      <p className="mt-0.5 truncate text-xs text-destructive">
-                        驳回原因:{post.rejectReason}
-                      </p>
-                    )}
-                  </>
-                )}
-
-                <div className="mt-1.5 flex items-center gap-3 text-xs text-muted-foreground tabular-nums">
-                  <span className="inline-flex items-center gap-1"><Eye className="size-3" />{post.views}</span>
-                  <span className="inline-flex items-center gap-1"><Heart className="size-3" />{post.likeCount}</span>
-                  <span className="inline-flex items-center gap-1"><MessageCircle className="size-3" />{post.commentCount}</span>
+                  <span className="shrink-0">{post.type === "short" ? "动态" : "文章"}</span>
+                  {post.visibility === "followers" && <span className="shrink-0">仅关注者</span>}
+                  {post.rejectReason && (
+                    <span className="truncate text-destructive">驳回:{post.rejectReason}</span>
+                  )}
+                  <span className="ml-auto shrink-0 tabular-nums">{postTime(post)}</span>
+                  <span className="hidden shrink-0 items-center gap-2 tabular-nums sm:flex">
+                    <span className="inline-flex items-center gap-0.5"><Eye className="size-3" />{post.views}</span>
+                    <span className="inline-flex items-center gap-0.5"><Heart className="size-3" />{post.likeCount}</span>
+                    <span className="inline-flex items-center gap-0.5"><MessageCircle className="size-3" />{post.commentCount}</span>
+                  </span>
                 </div>
               </div>
 
               {/* actions — hover reveal on desktop, always visible on touch */}
-              <div className="flex shrink-0 flex-col items-end gap-1.5 self-center opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+              <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
                 {rowActions(post)}
               </div>
             </li>
