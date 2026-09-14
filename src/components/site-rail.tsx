@@ -35,7 +35,7 @@ export function SiteRail({
   return (
     <div className="space-y-3">
       {/* search — GET /explore?q= */}
-      <form action={routes.explore} role="search" className="sticky top-0 z-10 bg-card pb-1.5">
+      <form action={routes.explore} role="search" className="sticky top-0 z-10 bg-card/80 backdrop-blur-md pb-1.5">
         <label className="flex items-center gap-2 rounded-full border border-border px-3.5 py-2 transition-colors focus-within:border-primary/50 focus-within:bg-card">
           <Hash className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
