@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
+import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/primitives";
 import {
   Dialog,
   DialogContent,
@@ -171,13 +170,6 @@ export function MyPostsManager() {
         </>
       ) : (
         <>
-          {post.status === "published" && post.slug && (
-            <Button asChild variant="ghost" size="icon-sm" title="查看">
-              <a href={`/p/${post.id}`} target="_blank" rel="noreferrer">
-                <ExternalLink className="size-3.5" />
-              </a>
-            </Button>
-          )}
           <Button asChild variant="ghost" size="icon-sm" title="编辑">
             <Link href={`/write/${post.id}`}>
               <PenLine className="size-3.5" />
@@ -196,14 +188,6 @@ export function MyPostsManager() {
         </>
       )}
     </div>
-  );
-
-  const postMeta = (post: MyPost) => (
-    <>
-      <Badge variant={STATUS_META[post.status].badge}>{STATUS_META[post.status].label}</Badge>
-      {post.type === "short" && <Badge variant="outline">动态</Badge>}
-      {post.visibility === "followers" && <Badge variant="outline">仅关注者</Badge>}
-    </>
   );
 
   const postTime = (post: MyPost) => {
@@ -276,6 +260,13 @@ export function MyPostsManager() {
               key={post.id}
               className="group flex items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--hover)]"
             >
+              {/* whole item links to the detail page (works for shorts and
+                  articles alike; articles redirect to their canonical slug) */}
+              <Link
+                href={`/p/${post.id}`}
+                className="flex min-w-0 flex-1 items-center gap-3"
+                title="查看详情"
+              >
               {/* thumbnail: cover / first image / doc placeholder */}
               <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-[var(--muted)] text-muted-foreground">
                 {post.thumb ? (
@@ -288,7 +279,7 @@ export function MyPostsManager() {
 
               {/* main: two tight lines */}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
+                <p className="truncate text-sm font-medium text-foreground group-hover:underline">
                   {post.type === "article"
                     ? post.title || "(无标题)"
                     : postExcerpt(post)}
@@ -318,6 +309,7 @@ export function MyPostsManager() {
                   </span>
                 </div>
               </div>
+              </Link>
 
               {/* actions — hover reveal on desktop, always visible on touch */}
               <div className="flex shrink-0 items-center gap-1 opacity-100 transition-opacity focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
