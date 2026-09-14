@@ -521,7 +521,8 @@ export function SiteShell({
             )}
           >
             <div className="flex flex-1 justify-center">{children}</div>
-            {footer}
+            {/* 版权信息已并入右栏底部，xl（右栏可见）下不重复展示 */}
+            <div className="xl:hidden">{footer}</div>
           </div>
 
           {/* right rail — merged into the panel as its own scroll column (xl only) */}
