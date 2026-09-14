@@ -127,9 +127,9 @@
 
   /* E-Ink reading font — system serif stack (zero download); swap to a
      subsetted Noto Serif SC for production consistency on low-DPI screens */
-  /* 全站衬线：基础字体整体切换为思源宋体（自托管 webfont，任何机器渲染一致） */
-  --font-sans: "Noto Serif SC", Georgia, "Songti SC", "STSong", SimSun, serif;
-  --font-reading: "Noto Serif SC", Georgia, "Songti SC", "STSong", SimSun, serif;
+  /* 全站 Noto Sans SC（思源黑体，自托管 webfont，任何机器渲染一致） */
+  --font-sans: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-reading: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* all reading content (titles / article prose / post text / comments / the

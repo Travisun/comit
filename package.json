@@ -15,7 +15,7 @@
     "start:cluster:2": "WEB_CONCURRENCY=2 node scripts/cluster-server.mjs"
   },
   "dependencies": {
-    "@fontsource/noto-serif-sc": "^5.3.0",
+    "@fontsource/noto-sans-sc": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@radix-ui/react-avatar": "^1.2.6",
     "@radix-ui/react-checkbox": "^1.3.11",

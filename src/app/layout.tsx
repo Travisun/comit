@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Toaster } from "sonner";
-import "@fontsource/noto-serif-sc/400.css";
-import "@fontsource/noto-serif-sc/500.css";
-import "@fontsource/noto-serif-sc/600.css";
-import "@fontsource/noto-serif-sc/700.css";
+import "@fontsource/noto-sans-sc/400.css";
+import "@fontsource/noto-sans-sc/500.css";
+import "@fontsource/noto-sans-sc/700.css";
 import "./globals.css";
 import { siteMetadata } from "@/lib/seo";
 import { getLocale } from "@/lib/i18n/index.server";
