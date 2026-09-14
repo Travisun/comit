@@ -67,7 +67,7 @@ export default async function SettingsHomePage() {
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className="flex items-center gap-2.5 px-4 py-2 transition-colors hover:bg-[var(--hover)]"
+                      className="flex items-center gap-2.5 rounded-lg px-4 py-2 transition-colors hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] focus-visible:outline-none"
                     >
                       <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--muted)] text-muted-foreground">
                         <Icon className="size-4" />
