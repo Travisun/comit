@@ -35,7 +35,7 @@ export function TimelineRow({
   return (
     <article
       className={cn(
-        "flex gap-3 border-b border-border px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+        "flex gap-3 rounded-lg px-2.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
         className,
       )}
     >

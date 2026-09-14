@@ -87,7 +87,7 @@ export default async function ExplorePage({ searchParams }: Props) {
         {topics.length === 0 ? (
           <Empty text="还没有话题，发布文章时添加话题后会出现在这里。" />
         ) : (
-          <ol className="px-5">
+          <ol className="px-5 pb-2.5">
             {topics.slice(0, 15).map((tp, i) => (
               <li key={tp.slug}>
                 <Link
@@ -115,7 +115,7 @@ export default async function ExplorePage({ searchParams }: Props) {
         {hot.length === 0 ? (
           <Empty text="暂无热门内容。" />
         ) : (
-          <ol className="px-5">
+          <ol className="px-5 pb-2.5">
             {hot.map((it, i) => (
               <li key={it.post.id}>
                 <Link
