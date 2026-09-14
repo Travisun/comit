@@ -92,6 +92,8 @@ export interface PublishedPostsQuery {
   excludeShort?: boolean;
   /** explicit type filter (wins over excludeShort) */
   type?: "article" | "short";
+  /** 关注流：限定为该 viewer 关注的作者 */
+  followingOf?: string;
   limit?: number;
   offset?: number;
 }
@@ -106,6 +108,18 @@ export async function getPublishedPosts(
 
   const conds = [eq(posts.status, "published"), eq(posts.visibility, "public")];
   if (opts.authorId) conds.push(eq(posts.authorId, opts.authorId));
+  // 关注流：只看自己关注的作者（无关注则返回空流）
+  if (opts.followingOf) {
+    conds.push(
+      inArray(
+        posts.authorId,
+        db
+          .select({ id: follows.followeeId })
+          .from(follows)
+          .where(eq(follows.followerId, opts.followingOf)),
+      ),
+    );
+  }
   if (opts.collectionId) conds.push(eq(posts.collectionId, opts.collectionId));
   if (type) conds.push(eq(posts.type, type));
   if (opts.topicSlug) {

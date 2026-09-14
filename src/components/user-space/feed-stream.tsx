@@ -15,12 +15,15 @@ export function FeedStream({
   initialCursor,
   emptyText = "还没有动态，关注一些人或发布第一条动态吧。",
   viewerUsername,
+  scope,
 }: {
   initialItems: FeedItemDTO[];
   initialCursor: number | null;
   emptyText?: string;
   /** signed-in viewer — enables inline edit / delete on own posts */
   viewerUsername?: string;
+  /** feed scope: "following" 只加载关注作者的动态 */
+  scope?: "following";
 }) {
   const [items, setItems] = useState<FeedItemDTO[]>(initialItems);
   const [cursor, setCursor] = useState<number | null>(initialCursor);
@@ -35,7 +38,7 @@ export function FeedStream({
     loadingRef.current = true;
     setLoading(true);
     try {
-      const res = await fetch(`/api/feed?cursor=${c}`);
+      const res = await fetch(`/api/feed?cursor=${c}${scope === "following" ? "&scope=following" : ""}`);
       if (!res.ok) throw new Error("failed");
       const data = (await res.json()) as { items: FeedItemDTO[]; nextOffset: number | null };
       setItems((prev) => {
@@ -52,7 +55,7 @@ export function FeedStream({
       loadingRef.current = false;
       setLoading(false);
     }
-  }, []);
+  }, [scope]);
 
   useEffect(() => {
     const el = sentinelRef.current;

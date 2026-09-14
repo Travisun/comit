@@ -4,13 +4,7 @@ import { routes } from "@/core/routes";
 import { getSetting } from "@/lib/settings";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n";
-import {
-  getActiveAuthors,
-  getCommunityStats,
-  getHotPosts,
-  getPublishedPosts,
-  toFeedItemDTO,
-} from "@/components/user-space/queries";
+import { getPublishedPosts, toFeedItemDTO } from "@/components/user-space/queries";
 import { resolveSingleUser, SingleUserHome } from "@/components/user-space/profile-view";
 import { FeedStream } from "@/components/user-space/feed-stream";
 import { TimelineHeader, UnderlineTabs } from "@/components/site-shell";
@@ -31,14 +25,16 @@ export const metadata: Metadata = {
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ compose?: string }>;
+  searchParams: Promise<{ compose?: string; tab?: string }>;
 }) {
+  const sp = await searchParams;
   const [{ t }, viewer, mode, { compose }] = await Promise.all([
     getT(),
     getCurrentUser(),
     getSetting("site.mode"),
-    searchParams,
+    Promise.resolve(sp),
   ]);
+  const tab = sp.tab === "following" && viewer ? "following" : "latest";
 
   if (mode === "single") {
     const username = await getSetting("site.singleUser");
@@ -47,21 +43,25 @@ export default async function HomePage({
     // fall through to community home when the configured user is missing
   }
 
-  // 数据获取保持不变（混合流 + 社区数据 + 热门/话题/活跃作者——后三者由右栏 SiteRail 消费）
-  const [{ items, nextOffset }] = await Promise.all([
-    getPublishedPosts({ limit: 10 }),
-    getCommunityStats(),
-    getHotPosts(5),
-    getActiveAuthors(5),
-  ]);
+  const feed =
+    tab === "following" && viewer
+      ? await getPublishedPosts({ limit: 10, followingOf: viewer.id })
+      : await getPublishedPosts({ limit: 10 });
+  const { items, nextOffset } = feed;
 
   return (
     <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
       <TimelineHeader title="社区">
         <UnderlineTabs
           tabs={[
-            { key: "latest", label: "最新", active: true },
-            { key: "following", label: "关注", disabled: true },
+            { key: "latest", label: "最新", href: "/", active: tab !== "following" },
+            {
+              key: "following",
+              label: "关注",
+              href: "/?tab=following",
+              active: tab === "following",
+              disabled: !viewer,
+            },
           ]}
         />
       </TimelineHeader>
@@ -93,11 +93,18 @@ export default async function HomePage({
         </div>
       )}
 
-      <FeedStream
-        initialItems={items.map(toFeedItemDTO)}
-        initialCursor={nextOffset}
-        viewerUsername={viewer?.username}
-      />
+      {tab === "following" && feed.items.length === 0 ? (
+        <div className="px-4 py-16 text-center text-sm text-muted-foreground">
+          还没有关注的人发布的动态。去发现页找到感兴趣的人吧。
+        </div>
+      ) : (
+        <FeedStream
+          initialItems={feed.items.map(toFeedItemDTO)}
+          initialCursor={feed.nextOffset}
+          viewerUsername={viewer?.username}
+          scope={tab === "following" ? "following" : undefined}
+        />
+      )}
     </div>
   );
 }
