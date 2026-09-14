@@ -177,9 +177,24 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
 export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
   return withUser(req, async (auth) => {
     const { id } = await ctx.params;
-    parseWith(idSchema, id);
+    const purge = new URL(req.url).searchParams.get("purge") === "true";
     const post = await getAuthorPost(id, auth.user.id);
-    await db.delete(posts).where(and(eq(posts.id, post.id), eq(posts.authorId, auth.user.id)));
+
+    if (purge) {
+      // permanent removal from the recycle bin — everything goes
+      await db.delete(posts).where(and(eq(posts.id, post.id), eq(posts.authorId, auth.user.id)));
+      return ok({ id: post.id, deleted: true, purged: true });
+    }
+
+    // soft delete → recycle bin (keeps comments/likes; restorable)
+    await db
+      .update(posts)
+      .set({
+        status: "deleted",
+        preDeleteStatus: post.status,
+        deletedAt: new Date(),
+      })
+      .where(and(eq(posts.id, post.id), eq(posts.authorId, auth.user.id)));
     return ok({ id: post.id, deleted: true });
   });
 }

@@ -1,4 +1,4 @@
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
 import { withUser, ok } from "@/lib/http";
@@ -6,7 +6,8 @@ import { withUser, ok } from "@/lib/http";
 /**
  * GET /api/posts/mine?status=&type=&q=&limit=&offset=
  * The author's own posts across every lifecycle state — powers the
- * dashboard "我的文章" management table.
+ * "我的文章" management table. status=deleted lists the recycle bin;
+ * the default list never contains deleted posts.
  */
 export async function GET(req: Request) {
   return withUser(req, async (auth) => {
@@ -18,14 +19,20 @@ export async function GET(req: Request) {
     const offset = Number(url.searchParams.get("offset") ?? 0);
 
     const conds = [eq(posts.authorId, auth.user.id)];
-    if (status !== "all") conds.push(eq(posts.status, status as never));
+    if (status === "all") {
+      // live posts only — recycle-bin items need ?status=deleted
+      conds.push(ne(posts.status, "deleted"));
+    } else {
+      conds.push(eq(posts.status, status as never));
+    }
     if (type !== "all") conds.push(eq(posts.type, type as never));
     if (q) {
-    const like = `%${q}%`;
-    conds.push(or(ilike(posts.title, like), ilike(posts.content, like))!);
-  }
+      const like = `%${q}%`;
+      conds.push(or(ilike(posts.title, like), ilike(posts.content, like))!);
+    }
 
     const where = and(...conds);
+    const trash = status === "deleted";
     const [items, [{ total }]] = await Promise.all([
       db
         .select({
@@ -44,10 +51,12 @@ export async function GET(req: Request) {
           rejectReason: posts.rejectReason,
           publishedAt: posts.publishedAt,
           updatedAt: posts.updatedAt,
+          deletedAt: posts.deletedAt,
+          preDeleteStatus: posts.preDeleteStatus,
         })
         .from(posts)
         .where(where)
-        .orderBy(desc(posts.updatedAt))
+        .orderBy(trash ? desc(posts.deletedAt) : desc(posts.updatedAt))
         .limit(limit)
         .offset(offset),
       db.select({ total: count() }).from(posts).where(where),
@@ -55,4 +64,3 @@ export async function GET(req: Request) {
     return ok({ items, total, nextOffset: offset + items.length < total ? offset + limit : null });
   });
 }
-

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { postTopics, posts, topics } from "@/db/schema";
@@ -23,9 +23,9 @@ export default async function WriteEditPage({ params }: { params: Promise<{ id: 
   const [post] = await db
     .select()
     .from(posts)
-    .where(and(eq(posts.id, id), eq(posts.authorId, user.id)))
+    .where(and(eq(posts.id, id), eq(posts.authorId, user.id), ne(posts.status, "deleted")))
     .limit(1);
-  if (!post) notFound();
+  if (!post) notFound(); // recycle-bin posts are not directly editable
 
   const topicRows = await db
     .select({ name: topics.name })
@@ -39,7 +39,7 @@ export default async function WriteEditPage({ params }: { params: Promise<{ id: 
     content: post.content,
     summary: post.summary,
     slug: post.slug,
-    status: post.status,
+    status: post.status as EditorPost["status"],
     visibility: post.visibility,
     collectionId: post.collectionId,
     coverPath: post.coverPath,

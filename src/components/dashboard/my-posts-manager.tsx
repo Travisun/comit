@@ -8,7 +8,7 @@ import {
   DataTableTh,
 } from "@/components/ui/table";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Eye, Heart, MessageCircle, PenLine, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
+import { Eye, Heart, MessageCircle, PenLine, RotateCcw, Trash2, ExternalLink, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,7 @@ interface MyPost {
   slug: string | null;
   summary: string;
   label: string;
-  status: "draft" | "pending_review" | "published" | "rejected";
+  status: "draft" | "pending_review" | "published" | "rejected" | "deleted";
   visibility: "public" | "followers";
   views: number;
   likeCount: number;
@@ -47,6 +47,8 @@ interface MyPost {
   rejectReason: string | null;
   publishedAt: string | null;
   updatedAt: string;
+  deletedAt: string | null;
+  preDeleteStatus: string | null;
 }
 
 const STATUS_META: Record<MyPost["status"], { label: string; badge: "secondary" | "warning" | "success" | "destructive" }> = {
@@ -54,6 +56,7 @@ const STATUS_META: Record<MyPost["status"], { label: string; badge: "secondary" 
   pending_review: { label: "审核中", badge: "warning" },
   published: { label: "已发布", badge: "success" },
   rejected: { label: "被驳回", badge: "destructive" },
+  deleted: { label: "回收站", badge: "secondary" },
 };
 
 const FILTERS = [
@@ -62,10 +65,15 @@ const FILTERS = [
   { id: "draft", label: "草稿" },
   { id: "pending_review", label: "审核中" },
   { id: "rejected", label: "被驳回" },
+  { id: "deleted", label: "回收站" },
 ] as const;
 
 export function MyPostsManager() {
-  const [status, setStatus] = useState<string>("all");
+  const [status, setStatus] = useState<string>(() =>
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "trash"
+      ? "deleted"
+      : "all",
+  );
   const [q, setQ] = useState("");
   const [items, setItems] = useState<MyPost[]>([]);
   const [total, setTotal] = useState(0);
@@ -96,13 +104,30 @@ export function MyPostsManager() {
     if (!deleting) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/posts/${deleting.id}`, { method: "DELETE" });
+      // normal delete → recycle bin (soft); purge → permanent removal
+      const qs = deleting.status === "deleted" ? "?purge=true" : "";
+      const res = await fetch(`/api/posts/${deleting.id}${qs}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      toast.success("已删除");
+      toast.success(deleting.status === "deleted" ? "已彻底删除" : "已移入回收站");
       setDeleting(null);
       void load({ silent: true });
     } catch {
       toast.error("删除失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function restore(post: MyPost) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/posts/${post.id}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error();
+      toast.success("已恢复为草稿");
+      void load({ silent: true });
+    } catch {
+      toast.error("恢复失败");
     } finally {
       setBusy(false);
     }
@@ -120,27 +145,51 @@ export function MyPostsManager() {
 
   const rowActions = (post: MyPost) => (
     <div className="flex shrink-0 items-center justify-end gap-1.5">
-      {post.status === "published" && post.slug && (
-        <Button asChild variant="ghost" size="icon-sm" title="查看">
-          <Link href={`/p/${post.id}`} target="_blank">
-            <ExternalLink className="size-3.5" />
-          </Link>
-        </Button>
+      {post.status === "deleted" ? (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => void restore(post)}
+          >
+            <RotateCcw className="size-3.5" /> 恢复
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="彻底删除"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleting(post)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </>
+      ) : (
+        <>
+          {post.status === "published" && post.slug && (
+            <Button asChild variant="ghost" size="icon-sm" title="查看">
+              <Link href={`/p/${post.id}`} target="_blank">
+                <ExternalLink className="size-3.5" />
+              </Link>
+            </Button>
+          )}
+          <Button asChild variant="outline" size="sm" title="编辑">
+            <Link href={`/write/${post.id}`}>
+              <PenLine className="size-3.5" /> 编辑
+            </Link>
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            title="删除"
+            className="text-destructive hover:text-destructive"
+            onClick={() => setDeleting(post)}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        </>
       )}
-      <Button asChild variant="outline" size="sm" title="编辑">
-        <Link href={`/write/${post.id}`}>
-          <PenLine className="size-3.5" /> 编辑
-        </Link>
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        title="删除"
-        className="text-destructive hover:text-destructive"
-        onClick={() => setDeleting(post)}
-      >
-        <Trash2 className="size-3.5" />
-      </Button>
     </div>
   );
 
@@ -152,10 +201,12 @@ export function MyPostsManager() {
     </>
   );
 
-  const postTime = (post: MyPost) =>
-    post.status === "published" && post.publishedAt
+  const postTime = (post: MyPost) => {
+    if (post.status === "deleted" && post.deletedAt) return `删除于 ${timeAgo(post.deletedAt, "zh")}`;
+    return post.status === "published" && post.publishedAt
       ? `发布于 ${timeAgo(post.publishedAt, "zh")}`
       : `更新于 ${timeAgo(post.updatedAt, "zh")}`;
+  };
 
   return (
     <div className="space-y-4">
@@ -191,14 +242,20 @@ export function MyPostsManager() {
           <Loader2 className="mr-2 size-4 animate-spin" /> 加载中…
         </div>
       ) : items.length === 0 ? (
-        <div className="rounded-lg bg-[var(--muted)] py-16 text-center">
-          <p className="text-sm text-muted-foreground">这里还什么都没有。</p>
-          <Button asChild size="sm" className="mt-3">
-            <Link href="/write">
-              <PenLine className="size-3.5" /> 写第一篇
-            </Link>
-          </Button>
-        </div>
+        status === "deleted" ? (
+          <div className="rounded-lg bg-[var(--muted)] py-16 text-center">
+            <p className="text-sm text-muted-foreground">回收站是空的。</p>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-[var(--muted)] py-16 text-center">
+            <p className="text-sm text-muted-foreground">这里还什么都没有。</p>
+            <Button asChild size="sm" className="mt-3">
+              <Link href="/write">
+                <PenLine className="size-3.5" /> 写第一篇
+              </Link>
+            </Button>
+          </div>
+        )
       ) : (
         <>
           {/* desktop: flat table */}
@@ -274,15 +331,19 @@ export function MyPostsManager() {
       <Dialog open={Boolean(deleting)} onOpenChange={(o) => !o && setDeleting(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>删除这篇内容？</DialogTitle>
+            <DialogTitle>
+              {deleting?.status === "deleted" ? "彻底删除这篇内容？" : "删除这篇内容？"}
+            </DialogTitle>
             <DialogDescription>
-              「{deleting?.title || "(无标题)"}」将被永久删除，包括全部评论与点赞数据。此操作不可恢复。
+              {deleting?.status === "deleted"
+                ? `「${deleting?.title || "(无标题)"}」将被永久删除，包括全部评论与点赞数据。此操作不可恢复。`
+                : `「${deleting?.title || "(无标题)"}」将移入回收站，随时可以恢复。`}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
             <Button variant="destructive" onClick={confirmDelete} disabled={busy}>
-              {busy ? "删除中…" : "确认删除"}
+              {busy ? "删除中…" : deleting?.status === "deleted" ? "彻底删除" : "移入回收站"}
             </Button>
           </DialogFooter>
         </DialogContent>

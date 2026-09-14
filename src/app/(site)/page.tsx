@@ -93,7 +93,11 @@ export default async function HomePage({
         </div>
       )}
 
-      <FeedStream initialItems={items.map(toFeedItemDTO)} initialCursor={nextOffset} />
+      <FeedStream
+        initialItems={items.map(toFeedItemDTO)}
+        initialCursor={nextOffset}
+        viewerUsername={viewer?.username}
+      />
     </div>
   );
 }

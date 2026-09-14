@@ -24,6 +24,7 @@ export const postStatusEnum = pgEnum("post_status", [
   "pending_review",
   "published",
   "rejected",
+  "deleted",
 ]);
 export const postVisibilityEnum = pgEnum("post_visibility", ["public", "followers"]);
 export const tokenTypeEnum = pgEnum("token_type", ["email_verify", "password_reset"]);
@@ -231,6 +232,10 @@ export const posts = pgTable(
     publishedAt: timestamp("published_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    /** recycle bin — set when status = 'deleted'; null for live posts */
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    /** status the post had before it was moved to the recycle bin */
+    preDeleteStatus: varchar("pre_delete_status", { length: 24 }),
   },
   (t) => [
     uniqueIndex("posts_author_slug_key").on(t.authorId, t.slug),

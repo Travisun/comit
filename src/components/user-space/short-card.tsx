@@ -65,10 +65,13 @@ export function ShortCard({
   post,
   author,
   className,
+  viewerUsername,
 }: {
   post: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
   className?: string;
+  /** signed-in viewer — enables the inline edit / delete entries when author */
+  viewerUsername?: string;
 }) {
   const href = postHref(post, author);
   const { text } = extractImages(post.content || post.summary || " ");
@@ -90,7 +93,7 @@ export function ShortCard({
           显示更多
         </a>
       )}
-      <TimelineActions post={post} href={href} />
+      <TimelineActions post={post} href={href} mine={viewerUsername === author.username} />
     </TimelineRow>
   );
 }

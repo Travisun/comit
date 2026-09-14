@@ -1,15 +1,15 @@
 import Link from "next/link";
-import { Hash, LogIn, Rss } from "lucide-react";
+import { FileText, Hash, LogIn, Rss, Trash2 } from "lucide-react";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import type { AuthorCardData, TopicRef } from "@/components/user-space/types";
 import type { CommunityStats } from "@/components/user-space/queries";
 
 /**
- * Global right rail for the X-style shell (rendered by the site layout):
- * search → [logged-in: profile card | logged-out: sign-in CTA] → about
- * comit.sh → trending topics → active authors → footer links.
- * Flat bordered cards, no shadows.
+ * Global right rail for the X-style shell (rendered by the site layout),
+ * built around the viewing user's perspective: search → [logged-in: "我的博客"
+ * console card (own stats + management links) | logged-out: sign-in CTA] →
+ * about → trending topics → active authors. Flat bordered cards, no shadows.
  */
 export function SiteRail({
   siteName,
@@ -17,17 +17,20 @@ export function SiteRail({
   authors,
   stats,
   user,
+  myStats,
 }: {
   siteName: string;
   topics: TopicRef[];
   authors: AuthorCardData[];
   stats: CommunityStats | null;
-  /** logged-in viewer — shows the profile card instead of the sign-in CTA */
+  /** logged-in viewer — shows the personal blog console instead of the CTA */
   user?: {
     displayName: string;
     username: string;
     avatarPath: string | null;
   } | null;
+  /** viewer's own published/follow counts (best-effort) */
+  myStats?: { posts: number; followers: number; following: number } | null;
 }) {
   return (
     <div className="space-y-3">
@@ -45,7 +48,7 @@ export function SiteRail({
         </label>
       </form>
 
-      {/* profile card (logged-in) / sign-in CTA (logged-out) */}
+      {/* 我的博客 console (logged-in) / sign-in CTA (logged-out) */}
       {user ? (
         <section className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
@@ -62,12 +65,36 @@ export function SiteRail({
               <p className="truncate text-sm text-muted-foreground">@{user.username}</p>
             </div>
           </div>
-          <Link
-            href={routes.profile(user.username)}
-            className="mt-2.5 block rounded-full border border-border py-1 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
-          >
-            查看主页
-          </Link>
+          {myStats && (
+            <Link
+              href={routes.profile(user.username)}
+              className="num mt-2.5 block rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)]"
+            >
+              {myStats.posts} 篇内容 · {myStats.followers} 粉丝 · {myStats.following} 关注
+            </Link>
+          )}
+          <div className="mt-2 grid grid-cols-2 gap-1.5">
+            <Link
+              href="/write/posts"
+              className="flex items-center justify-center gap-1.5 rounded-full bg-primary py-1.5 text-center text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+            >
+              <FileText className="size-3.5" aria-hidden />
+              文章管理
+            </Link>
+            <Link
+              href="/write/posts?tab=trash"
+              className="flex items-center justify-center gap-1.5 rounded-full border border-border py-1.5 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
+            >
+              <Trash2 className="size-3.5" aria-hidden />
+              回收站
+            </Link>
+            <Link
+              href={routes.profile(user.username)}
+              className="col-span-2 block rounded-full border border-border py-1 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
+            >
+              我的主页
+            </Link>
+          </div>
         </section>
       ) : (
         <section className="rounded-lg border border-border p-3">

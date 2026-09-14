@@ -103,7 +103,14 @@ export async function getAuthorPost(postId: string, authorId: string) {
   const [post] = await db
     .select()
     .from(posts)
-    .where(and(eq(posts.id, postId), eq(posts.authorId, authorId)))
+    .where(
+      and(
+        eq(posts.id, postId),
+        eq(posts.authorId, authorId),
+        // recycle-bin posts are managed through restore/purge endpoints
+        ne(posts.status, "deleted"),
+      ),
+    )
     .limit(1);
   if (!post) throw notFound("文章不存在 / Post not found");
   return post;

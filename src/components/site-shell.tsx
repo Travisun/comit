@@ -176,6 +176,11 @@ function UserMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
+          <Link href="/write/posts">
+            <NotebookPen /> 文章管理
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
           <Link href={routes.settings()}>
             <Settings /> 设置
           </Link>
@@ -260,11 +265,6 @@ function LeftNav({
       href: user ? routes.profile(user.username) : login,
       label: "个人主页",
       icon: <UserIcon className="size-[18px]" />,
-    },
-    {
-      href: "/write/posts",
-      label: "我的文章",
-      icon: <NotebookPen className="size-[18px]" />,
     },
     {
       href: "/settings",
@@ -517,8 +517,7 @@ export function SiteShell({
         {/* the panel — two inner columns on xl: content | rail */}
         <div
           className={cn(
-            "flex w-full min-w-0 flex-col bg-card md:h-full md:flex-row md:overflow-hidden md:rounded-2xl md:border md:border-[var(--center-border)] md:scrollbar-none",
-            !isFullWidth && "md:my-[10px] md:h-[calc(100%-20px)]",
+            "flex w-full min-w-0 flex-col bg-card md:my-[10px] md:h-[calc(100%-20px)] md:flex-row md:overflow-hidden md:rounded-2xl md:border md:border-[var(--center-border)] md:scrollbar-none",
           )}
         >
           {/* content column — owns the scroll on md+ */}

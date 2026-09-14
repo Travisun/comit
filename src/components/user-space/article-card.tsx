@@ -1,5 +1,10 @@
+"use client";
+
 import Link from "next/link";
-import { Heart, MessageCircle, Pin, Repeat2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Heart, MessageCircle, PenLine, Pin, Repeat2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
@@ -7,10 +12,10 @@ import { AnnotationBadge } from "@/components/posts/annotation-badge";
 import type { FeedItemDTO } from "./types";
 
 /**
- * X-style timeline row (article flavor). Pure (no hooks / no server-only
- * imports) so it can be rendered from server pages and from the client-side
- * feed stream alike. Flat: no card border / radius / shadow — rows are
- * separated by 1px borders and tinted on hover.
+ * X-style timeline row (article flavor). Rendered from server pages and from
+ * the client-side feed stream alike. Flat: no card border / radius / shadow —
+ * rows are separated by 1px borders and tinted on hover. When the viewer is
+ * the author, the action strip gains inline edit / delete (recycle bin).
  */
 
 export function postHref(post: FeedItemDTO["post"], author: FeedItemDTO["author"]): string {
@@ -84,16 +89,39 @@ export function TimelineAuthorLine({
   );
 }
 
-/** Static X-style action strip: reply / repost / like (hover blue/green/red). */
+/** Static X-style action strip: reply / repost / like (hover blue/green/red).
+ * When `mine`, inline edit / delete entries appear for the author. */
 export function TimelineActions({
   post,
   href,
   className,
+  mine = false,
 }: {
   post: FeedItemDTO["post"];
   href: string;
   className?: string;
+  /** the viewing user authored this post → show edit / delete */
+  mine?: boolean;
 }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function onDelete() {
+    if (busy) return;
+    if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("已移入回收站");
+      router.refresh();
+    } catch {
+      toast.error("删除失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className={cn("mt-2 flex max-w-sm items-center justify-between text-muted-foreground", className)}>
       <Link
@@ -124,6 +152,28 @@ export function TimelineActions({
         </span>
         {post.likeCount > 0 && <span className="num tabular-nums">{post.likeCount}</span>}
       </span>
+      {mine && (
+        <span className="inline-flex items-center gap-1">
+          <Link
+            href={`/write/${post.id}`}
+            className="group/e grid size-7 place-items-center rounded-full transition-colors hover:bg-amber-500/10 hover:text-amber-600"
+            aria-label="编辑"
+            title="编辑"
+          >
+            <PenLine className="size-4" />
+          </Link>
+          <button
+            type="button"
+            onClick={() => void onDelete()}
+            disabled={busy}
+            className="group/d grid size-7 place-items-center rounded-full transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-50"
+            aria-label="删除"
+            title="移入回收站"
+          >
+            <Trash2 className="size-4" />
+          </button>
+        </span>
+      )}
     </div>
   );
 }
@@ -135,6 +185,7 @@ export function ArticleCard({
   showAuthor = true,
   className,
   pinned = false,
+  viewerUsername,
 }: {
   post: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
@@ -144,6 +195,8 @@ export function ArticleCard({
   className?: string;
   /** render the pinned「代表作」label above the row content */
   pinned?: boolean;
+  /** signed-in viewer — enables the inline edit / delete entries when author */
+  viewerUsername?: string;
 }) {
   const href = postHref(post, author);
   const cover = post.coverPath ? routes.media(post.coverPath) : null;
@@ -193,7 +246,7 @@ export function ArticleCard({
           <img src={cover} alt="" loading="lazy" className="aspect-[2/1] w-full object-cover" />
         </Link>
       )}
-      <TimelineActions post={post} href={href} />
+      <TimelineActions post={post} href={href} mine={viewerUsername === author.username} />
     </TimelineRow>
   );
 }

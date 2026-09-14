@@ -1,6 +1,6 @@
 import { and, count, eq, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { conversations, messages, notifications } from "@/db/schema";
+import { conversations, follows, messages, notifications, posts } from "@/db/schema";
 import { getAuth } from "@/lib/auth/session";
 import { getLocale } from "@/lib/i18n/index.server";
 import { getSetting } from "@/lib/settings";
@@ -74,6 +74,24 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     // db not ready — rail renders without data cards
   }
 
+  // viewer's own blog stats for the rail console card (best-effort)
+  let myStats: { posts: number; followers: number; following: number } | null = null;
+  if (user) {
+    try {
+      const [[p], [f], [g]] = await Promise.all([
+        db
+          .select({ n: count() })
+          .from(posts)
+          .where(and(eq(posts.authorId, user.id), eq(posts.status, "published"))),
+        db.select({ n: count() }).from(follows).where(eq(follows.followeeId, user.id)),
+        db.select({ n: count() }).from(follows).where(eq(follows.followerId, user.id)),
+      ]);
+      myStats = { posts: p.n, followers: f.n, following: g.n };
+    } catch {
+      // db not ready — card renders without stats
+    }
+  }
+
   return (
     <SiteShell
       user={user}
@@ -85,6 +103,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
           topics={topics}
           authors={authors}
           stats={stats}
+          myStats={myStats}
           user={user ? { displayName: user.displayName, username: user.username, avatarPath: user.avatarPath } : null}
         />
       }

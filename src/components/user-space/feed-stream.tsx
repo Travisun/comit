@@ -14,10 +14,13 @@ export function FeedStream({
   initialItems,
   initialCursor,
   emptyText = "还没有动态，关注一些人或发布第一条动态吧。",
+  viewerUsername,
 }: {
   initialItems: FeedItemDTO[];
   initialCursor: number | null;
   emptyText?: string;
+  /** signed-in viewer — enables inline edit / delete on own posts */
+  viewerUsername?: string;
 }) {
   const [items, setItems] = useState<FeedItemDTO[]>(initialItems);
   const [cursor, setCursor] = useState<number | null>(initialCursor);
@@ -117,9 +120,9 @@ export function FeedStream({
       )}
       {items.map((item) =>
         item.post.type === "short" ? (
-          <ShortCard key={item.post.id} post={item.post} author={item.author} />
+          <ShortCard key={item.post.id} post={item.post} author={item.author} viewerUsername={viewerUsername} />
         ) : (
-          <ArticleCard key={item.post.id} post={item.post} author={item.author} variant="list" />
+          <ArticleCard key={item.post.id} post={item.post} author={item.author} variant="list" viewerUsername={viewerUsername} />
         ),
       )}
       {loading && <ListSkeleton rows={2} />}
