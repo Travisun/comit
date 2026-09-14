@@ -354,7 +354,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
               onChange={(e) => setTitle(e.target.value)}
               placeholder={t("editor.titlePlaceholder")}
               maxLength={200}
-              className="w-full bg-transparent text-3xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
+              className="reading-serif w-full bg-transparent text-3xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
             />
           </div>
           <div className="mx-auto w-full max-w-4xl md:px-4">

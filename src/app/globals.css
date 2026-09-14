@@ -144,6 +144,11 @@
   line-height: 1.95;
 }
 
+/* 长文编辑器（/write）：Vditor 内容区用阅读衬线，编辑即所见 */
+:root:not(.dark) .theme-paper .vditor-reset {
+  font-family: var(--font-reading);
+}
+
 :root:not(.dark) .theme-paper .article-prose blockquote {
   background: #f3eee2;
   border-left: 3px solid #d8cfba;

@@ -7,7 +7,8 @@ import { getT } from "@/lib/i18n";
 import { getPublishedPosts, toFeedItemDTO } from "@/components/user-space/queries";
 import { resolveSingleUser, SingleUserHome } from "@/components/user-space/profile-view";
 import { FeedStream } from "@/components/user-space/feed-stream";
-import { TimelineHeader, UnderlineTabs } from "@/components/site-shell";
+import { TimelineHeader } from "@/components/site-shell";
+import { cn } from "@/lib/utils";
 import { PinnedComposer } from "@/components/social/pinned-composer";
 import { Button } from "@/components/ui/button";
 
@@ -53,19 +54,32 @@ export default async function HomePage({
     <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
       <TimelineHeader
         title="社区"
-        tabs={
-          <UnderlineTabs
-            tabs={[
-              { key: "latest", label: "最新", href: "/", active: tab !== "following" },
-              {
-                key: "following",
-                label: "关注",
-                href: "/?tab=following",
-                active: tab === "following",
-                disabled: !viewer,
-              },
-            ]}
-          />
+        className="border-b border-border"
+        right={
+          <nav aria-label="时间线" className="flex items-center gap-1">
+            <Link
+              href="/"
+              className={cn(
+                "rounded-full px-3 py-1 text-sm transition-colors",
+                tab !== "following"
+                  ? "bg-[var(--selected)] font-semibold text-foreground"
+                  : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)]",
+              )}
+            >
+              最新
+            </Link>
+            <Link
+              href="/?tab=following"
+              className={cn(
+                "rounded-full px-3 py-1 text-sm transition-colors",
+                tab === "following"
+                  ? "bg-[var(--selected)] font-semibold text-foreground"
+                  : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)]",
+              )}
+            >
+              关注
+            </Link>
+          </nav>
         }
       />
 
