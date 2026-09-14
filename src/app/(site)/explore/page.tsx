@@ -87,12 +87,12 @@ export default async function ExplorePage({ searchParams }: Props) {
         {topics.length === 0 ? (
           <Empty text="还没有话题，发布文章时添加话题后会出现在这里。" />
         ) : (
-          <ol>
+          <ol className="px-5">
             {topics.slice(0, 15).map((tp, i) => (
               <li key={tp.slug}>
                 <Link
                   href={routes.topic(tp.slug)}
-                  className="flex rounded-lg items-baseline gap-3 px-5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -115,12 +115,12 @@ export default async function ExplorePage({ searchParams }: Props) {
         {hot.length === 0 ? (
           <Empty text="暂无热门内容。" />
         ) : (
-          <ol>
+          <ol className="px-5">
             {hot.map((it, i) => (
               <li key={it.post.id}>
                 <Link
                   href={it.post.slug ? routes.article(it.post.slug) : routes.shortPost(it.post.id)}
-                  className="flex rounded-lg items-baseline gap-3 px-5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -144,12 +144,12 @@ export default async function ExplorePage({ searchParams }: Props) {
         {authors.length === 0 ? (
           <Empty text="还没有活跃作者。" />
         ) : (
-          <ul>
+          <ul className="px-5">
             {authors.map((a) => (
-              <li key={a.username} className="border-t border-border first:border-t-0">
+              <li key={a.username}>
                 <Link
                   href={routes.profile(a.username)}
-                  className="flex rounded-lg items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-center gap-3 px-2.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <Avatar className="size-10">
                     {a.avatarPath && (
