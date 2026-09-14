@@ -301,8 +301,8 @@ export function ChatClient({ other }: { other: ChatPartner }) {
         />
         <Button
           variant="ghost"
-          size="icon"
-          className="mb-0.5 shrink-0"
+          size="icon-sm"
+          className="mb-1 shrink-0 rounded-full"
           aria-label={t("editor.cover")}
           disabled={uploading || sending}
           onClick={() => fileRef.current?.click()}
@@ -315,12 +315,12 @@ export function ChatClient({ other }: { other: ChatPartner }) {
           onKeyDown={onKeyDown}
           placeholder={t("messages.placeholder")}
           rows={1}
-          className="max-h-32 min-h-9 resize-none py-2"
+          className="max-h-32 min-h-9 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 shadow-none focus-visible:shadow-none"
           maxLength={2000}
         />
         <Button
-          size="icon"
-          className="mb-0.5 shrink-0"
+          size="icon-sm"
+          className="mb-1 shrink-0 rounded-full"
           aria-label={t("messages.send")}
           disabled={!input.trim() || sending || uploading}
           onClick={() => void sendText()}

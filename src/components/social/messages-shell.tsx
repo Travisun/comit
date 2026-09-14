@@ -29,7 +29,7 @@ export function MessagesShell({
       </aside>
       <section
         className={cn(
-          "min-w-0 flex-1 flex-col bg-background",
+          "min-w-0 flex-1 flex-col bg-card",
           selectedUserId ? "flex" : "hidden md:flex",
         )}
       >
