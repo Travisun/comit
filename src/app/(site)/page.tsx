@@ -56,7 +56,7 @@ export default async function HomePage({
   ]);
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px]">
+    <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
       <TimelineHeader title="社区">
         <UnderlineTabs
           tabs={[
