@@ -40,12 +40,12 @@ export default async function ExplorePage({ searchParams }: Props) {
   const maxTopic = Math.max(1, ...topics.map((tp) => tp.postCount));
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px]">
+    <div className="min-h-dvh w-full max-w-[600px] py-[10px]">
       <TimelineHeader title="发现" right={<TrendingUp className="size-5 text-muted-foreground" aria-hidden />} />
 
       {/* search — mirrors the rail search for < xl viewports */}
       <form action={routes.explore} role="search" className="border-b border-border p-3">
-        <label className="flex items-center gap-2 rounded-full border border-border bg-muted px-4 py-2.5 transition-colors focus-within:border-primary/50 focus-within:bg-card">
+        <label className="flex items-center gap-2 rounded-full border border-border bg-muted px-1.5 py-2.5 transition-colors focus-within:border-primary/50 focus-within:bg-card">
           <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
             type="search"
@@ -61,7 +61,7 @@ export default async function ExplorePage({ searchParams }: Props) {
       {/* search results */}
       {q && (
         <section aria-label="搜索结果">
-          <h2 className="border-b border-border px-4 pb-2 pt-3 text-sm text-muted-foreground">
+          <h2 className="border-b border-border px-1.5 pb-2 pt-3 text-sm text-muted-foreground">
             “{q}” 的搜索结果 · {results.length} 条
           </h2>
           {results.length === 0 ? (
@@ -83,7 +83,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* topic ranking */}
       <section className="border-b border-border">
-        <h2 className="px-4 pb-1 pt-3 text-[15px] font-bold">{t("user.topicCloud")}</h2>
+        <h2 className="px-1.5 pb-1 pt-3 text-[15px] font-bold">{t("user.topicCloud")}</h2>
         {topics.length === 0 ? (
           <Empty text="还没有话题，发布文章时添加话题后会出现在这里。" />
         ) : (
@@ -92,7 +92,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={tp.slug}>
                 <Link
                   href={routes.topic(tp.slug)}
-                  className="flex rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-1.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -111,7 +111,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* hot posts */}
       <section className="border-b border-border">
-        <h2 className="px-4 pb-1 pt-3 text-[15px] font-bold">{t("home.trending")}</h2>
+        <h2 className="px-1.5 pb-1 pt-3 text-[15px] font-bold">{t("home.trending")}</h2>
         {hot.length === 0 ? (
           <Empty text="暂无热门内容。" />
         ) : (
@@ -120,7 +120,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={it.post.id}>
                 <Link
                   href={it.post.slug ? routes.article(it.post.slug) : routes.shortPost(it.post.id)}
-                  className="flex rounded-lg items-baseline gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-1.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -140,7 +140,7 @@ export default async function ExplorePage({ searchParams }: Props) {
 
       {/* active authors */}
       <section>
-        <h2 className="px-4 pb-1 pt-3 text-[15px] font-bold">{t("home.featuredAuthors")}</h2>
+        <h2 className="px-1.5 pb-1 pt-3 text-[15px] font-bold">{t("home.featuredAuthors")}</h2>
         {authors.length === 0 ? (
           <Empty text="还没有活跃作者。" />
         ) : (
@@ -149,7 +149,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={a.username} className="border-t border-border first:border-t-0">
                 <Link
                   href={routes.profile(a.username)}
-                  className="flex rounded-lg items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-center gap-3 px-1.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <Avatar className="size-10">
                     {a.avatarPath && (
