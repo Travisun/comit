@@ -34,7 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { postJson } from "@/components/social/api";
+import { postJson } from "@/lib/client/api";
 import { REPORT_REASONS } from "@/components/social/report-dialog";
 import type { FeedItemDTO } from "./types";
 

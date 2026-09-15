@@ -22,7 +22,7 @@ import {
  * depending on `moderation.reviewMode`.
  */
 
-export const SHORT_CONTENT_MAX = 5000;
+export const SHORT_CONTENT_MAX = 8000;
 
 /* --------------------------- content annotation --------------------------- */
 

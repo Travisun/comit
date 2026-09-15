@@ -18,6 +18,10 @@ import type { FeedItemDTO } from "./types";
  * the author, the action strip gains inline edit / delete (recycle bin).
  */
 
+/** 所有时间线（主页流/个人主页/发现/话题/合集）共用的行样式：
+ * 1px 分割线（.feed-row）+ 与页面标题等元素对齐的左右 20px 内边距。 */
+export const FEED_ROW_CLASS = "feed-row px-5 py-2.5";
+
 /** 浏览次数展示：1.2w 形式的紧凑数字。 */
 export function formatViews(n: number): string {
   if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/.0$/, "")}w`;
@@ -66,7 +70,7 @@ export function TimelineRow({
       role={interactive ? "link" : undefined}
       tabIndex={interactive ? 0 : undefined}
     >
-      <Link href={routes.profile(author.username)} className="shrink-0" aria-label={author.displayName}>
+      <Link href={routes.profile(author.username)} className="shrink-0" aria-label={author.displayName} prefetch={false}>
         <Avatar className="size-10">
           {author.avatarPath && (
             <AvatarImage src={routes.media(author.avatarPath)} alt={author.displayName} />
@@ -99,6 +103,7 @@ export function TimelineAuthorLine({
       <Link
         href={routes.profile(author.username)}
         className="truncate font-medium hover:underline"
+        prefetch={false}
       >
         {author.displayName}
       </Link>
@@ -106,7 +111,7 @@ export function TimelineAuthorLine({
       {date && (
         <>
           <span className="shrink-0 text-muted-foreground">·</span>
-          <Link href={href ?? routes.profile(author.username)} className="shrink-0 text-muted-foreground hover:underline">
+          <Link href={href ?? routes.profile(author.username)} className="shrink-0 text-muted-foreground hover:underline" prefetch={false}>
             <time dateTime={date.toISOString()}>{timeAgo(date, "zh")}</time>
           </Link>
         </>
@@ -146,6 +151,7 @@ export function TimelineActions({
         href={href}
         className="group/a inline-flex items-center gap-1 text-xs transition-colors hover:text-sky-500"
         aria-label="评论"
+        prefetch={false}
       >
         <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/a:bg-sky-500/10">
           <MessageCircle className="size-4" />
@@ -232,7 +238,7 @@ export function ArticleCard({
             <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
           )}
           <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
-            <Link href={href} className="line-clamp-2 hover:underline">
+            <Link href={href} className="line-clamp-2 hover:underline" prefetch={false}>
               {post.title ?? post.summary?.slice(0, 40) ?? "无题"}
             </Link>
           </h3>
@@ -247,6 +253,7 @@ export function ArticleCard({
             href={href}
             tabIndex={-1}
             aria-hidden
+            prefetch={false}
             className="hidden size-24 shrink-0 overflow-hidden rounded-lg bg-[var(--muted)] sm:block"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -255,7 +262,7 @@ export function ArticleCard({
         )}
       </div>
       {cover && !thumb && (
-        <Link href={href} tabIndex={-1} aria-hidden className="mt-2 block overflow-hidden rounded-lg bg-[var(--muted)]">
+        <Link href={href} tabIndex={-1} aria-hidden prefetch={false} className="mt-2 block overflow-hidden rounded-lg bg-[var(--muted)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={cover} alt="" loading="lazy" className="aspect-[2/1] w-full object-cover" />
         </Link>

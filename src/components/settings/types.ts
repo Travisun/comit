@@ -39,6 +39,7 @@ export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
   { key: "message.new", label: { zh: "新私信", en: "New messages" } },
   { key: "like.post", label: { zh: "文章获赞", en: "Post likes" } },
   { key: "moderation.rejected", label: { zh: "内容未通过审核", en: "Moderation rejections" } },
+  { key: "poll.ended", label: { zh: "投票结果", en: "Poll results" } },
 ];
 
 export interface ChannelOption {

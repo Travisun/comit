@@ -23,6 +23,7 @@ export function VirtualSelect({
   icon,
   className,
   panelClassName,
+  triggerClassName,
   disabled = false,
   dropUp = false,
 }: {
@@ -33,6 +34,8 @@ export function VirtualSelect({
   icon?: ReactNode;
   className?: string;
   panelClassName?: string;
+  /** 覆写触发按钮样式（如 composer 内的紧凑 pill） */
+  triggerClassName?: string;
   disabled?: boolean;
   /** open the panel above the trigger (for toolbars pinned to a sheet bottom) */
   dropUp?: boolean;
@@ -75,7 +78,7 @@ export function VirtualSelect({
           "shadow-[0_0_0_1px_var(--field-line),0_1px_1px_rgba(0,0,0,0.08)]",
           "outline-none transition-shadow focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)]",
           disabled && "cursor-not-allowed opacity-50",
-          className,
+          triggerClassName,
         )}
       >
         {icon}

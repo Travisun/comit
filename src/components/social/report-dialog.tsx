@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { postJson } from "./api";
+import { postJson } from "@/lib/client/api";
 
 /** 常用举报原因（单选）；「其他」时需填写自定义说明。 */
 export const REPORT_REASONS = [

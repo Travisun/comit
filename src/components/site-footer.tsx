@@ -17,19 +17,19 @@ export function SiteFooter({ locale }: { locale: "zh" | "en" }) {
           {config.app.name}
         </span>
         <span>{zh ? "内容版权归作者所有" : "Content belongs to its authors"}</span>
-        <Link href={routes.legal.terms} className={link}>
+        <Link href={routes.legal.terms} className={link} prefetch={false}>
           {zh ? "服务协议" : "Terms"}
         </Link>
-        <Link href={routes.legal.privacy} className={link}>
+        <Link href={routes.legal.privacy} className={link} prefetch={false}>
           {zh ? "隐私政策" : "Privacy"}
         </Link>
-        <Link href="/legal/copyright" className={link}>
+        <Link href="/legal/copyright" className={link} prefetch={false}>
           {zh ? "版权声明" : "Copyright"}
         </Link>
-        <Link href="/about" className={link}>
+        <Link href="/about" className={link} prefetch={false}>
           {zh ? "关于" : "About"}
         </Link>
-        <Link href={routes.globalRss} className={`${link} inline-flex items-center gap-1`}>
+        <Link href={routes.globalRss} className={`${link} inline-flex items-center gap-1`} prefetch={false}>
           <Rss className="size-3" /> RSS
         </Link>
         <span>

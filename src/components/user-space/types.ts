@@ -1,47 +1,19 @@
 /**
  * Client-safe DTO types shared between server queries and client components.
  * Dates are serialized to ISO strings before crossing the RSC boundary.
+ *
+ * 跨 HTTP 边界的核心模型（UserBrief / PostBrief / FeedItemDTO / TopicRef）
+ * 由 Zod schema 推导（src/lib/models/feed.ts）——schema 即类型即校验器，
+ * 这里保留再导出以兼容既有引用。仅经 RSC props 传递（编译期即可校验、
+ * 无运行时边界）的形状继续定义在本文件。
  */
 
-export interface UserBrief {
-  username: string;
-  displayName: string;
-  avatarPath: string | null;
-}
+import type { FeedItem, UserBrief } from "@/lib/models/feed";
 
-export interface PostBrief {
-  id: string;
-  type: "article" | "short";
-  slug: string | null;
-  title: string | null;
-  summary: string;
-  /** raw markdown for short posts ("" for articles — too large to ship) */
-  content: string;
-  coverPath: string | null;
-  visibility: "public" | "followers";
-  views: number;
-  likeCount: number;
-  commentCount: number;
-  repostCount: number;
-  publishedAt: string | null;
-  /** content annotation (AI/转载/赞助…) — optional so older payloads stay valid */
-  label?: string | null;
-  sourceUrl?: string | null;
-  sourceName?: string | null;
-}
+export type { UserBrief, PostBrief, TopicRef } from "@/lib/models/feed";
 
-export interface FeedItemDTO {
-  post: PostBrief;
-  author: UserBrief;
-}
-
-export interface TopicRef {
-  slug: string;
-  name: string;
-  description?: string;
-  /** number of published public posts using this topic */
-  postCount?: number;
-}
+/** feed 行（post + author）；历史名称为 FeedItemDTO */
+export type FeedItemDTO = FeedItem;
 
 export interface AuthorCardData extends UserBrief {
   bio?: string;

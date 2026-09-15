@@ -17,6 +17,7 @@ import {
   collections,
   follows,
   likes,
+  polls,
   postTopics,
   posts,
   reposts,
@@ -45,7 +46,7 @@ export type { ViewerInteractions };
  * author info. Pagination returns `nextOffset` (null when exhausted).
  */
 
-export type FeedItem = { post: Post; author: UserBrief };
+export type FeedItem = { post: Post; author: UserBrief; /** 非空 ⇒ 该帖附带投票 */ pollId?: string | null };
 
 const DAY = 86_400_000;
 
@@ -78,6 +79,7 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
       label: item.post.label,
       sourceUrl: item.post.sourceUrl,
       sourceName: item.post.sourceName,
+      hasPoll: Boolean(item.pollId),
     },
     author: item.author,
   };
@@ -140,9 +142,11 @@ export async function getPublishedPosts(
     .select({
       post: posts,
       author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      pollId: polls.id,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(polls, eq(polls.postId, posts.id))
     .where(and(...conds))
     .orderBy(desc(posts.publishedAt))
     .limit(limit + 1)
@@ -162,9 +166,11 @@ export async function getHotPosts(limit = 5): Promise<FeedItem[]> {
       .select({
         post: posts,
         author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+        pollId: polls.id,
       })
       .from(posts)
       .innerJoin(users, eq(users.id, posts.authorId))
+      .leftJoin(polls, eq(polls.postId, posts.id))
       .where(extra)
       .orderBy(desc(score))
       .limit(limit);
@@ -180,9 +186,11 @@ export async function getUserHotPosts(userId: string, limit = 5): Promise<FeedIt
     .select({
       post: posts,
       author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      pollId: polls.id,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(polls, eq(polls.postId, posts.id))
     .where(and(eq(posts.authorId, userId), eq(posts.status, "published"), eq(posts.visibility, "public")))
     .orderBy(desc(sql`(${posts.views} + ${posts.likeCount} * 3)`))
     .limit(limit);
@@ -393,10 +401,12 @@ export async function listBookmarkPosts(
     .select({
       post: posts,
       author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      pollId: polls.id,
     })
     .from(bookmarks)
     .innerJoin(posts, eq(posts.id, bookmarks.postId))
     .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(polls, eq(polls.postId, posts.id))
     .where(and(eq(bookmarks.userId, userId), eq(posts.status, "published")))
     .orderBy(desc(bookmarks.createdAt))
     .limit(limit);
@@ -742,9 +752,11 @@ export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedI
     .select({
       post: posts,
       author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      pollId: polls.id,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(polls, eq(polls.postId, posts.id))
     .where(
       and(
         eq(posts.status, "published"),

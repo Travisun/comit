@@ -5,7 +5,7 @@ import { Heart } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
-import { postJson } from "./api";
+import { postJson } from "@/lib/client/api";
 
 export function LikeButton({
   targetType,

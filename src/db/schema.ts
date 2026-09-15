@@ -646,6 +646,48 @@ export const exportJobs = pgTable("export_jobs", {
   finishedAt: timestamp("finished_at", { withTimezone: true }),
 });
 
+/* ============================== polls ================================= */
+
+/** 附加在短动态上的投票（一帖一票；随帖子级联删除）。 */
+export const polls = pgTable(
+  "polls",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    /** single = 单选，multiple = 多选 */
+    mode: varchar("mode", { length: 12 }).default("single").notNull(),
+    /** 选项文案，下标与 poll_votes.optionIndex 对齐（2–5 项） */
+    options: jsonb("options").$type<string[]>().notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** poll.end 任务派发完结果通知后置位（幂等标记） */
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("polls_post_id_key").on(t.postId)],
+);
+
+/** 投票记录：单选一行；多选每个选中项一行。 */
+export const pollVotes = pgTable(
+  "poll_votes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pollId: uuid("poll_id")
+      .notNull()
+      .references(() => polls.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    optionIndex: integer("option_index").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("poll_votes_unique").on(t.pollId, t.userId, t.optionIndex),
+    index("poll_votes_poll_idx").on(t.pollId),
+  ],
+);
+
 /* ============================= types ================================== */
 
 export type User = typeof users.$inferSelect;
@@ -658,3 +700,4 @@ export type Webhook = typeof webhooks.$inferSelect;
 export type NotificationRow = typeof notifications.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
+export type Poll = typeof polls.$inferSelect;

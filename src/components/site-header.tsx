@@ -58,7 +58,8 @@ export function SiteHeader({
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/");
+    // replace：登出后浏览器回退不应回到已登录页面
+    router.replace("/");
     router.refresh();
   }
 

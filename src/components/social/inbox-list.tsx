@@ -7,7 +7,7 @@ import { Bell, Loader2, SquarePen } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
-import { mediaUrl, postJson, requestJson } from "./api";
+import { mediaUrl, postJson, requestJson } from "@/lib/client/api";
 
 /**
  * Unified message stream — the left pane of the inbox. DM conversations and

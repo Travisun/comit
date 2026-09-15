@@ -22,7 +22,7 @@ import {
   mediaUrl,
   postJson,
   requestJson,
-} from "./api";
+} from "@/lib/client/api";
 
 interface MessageItem {
   id: string;

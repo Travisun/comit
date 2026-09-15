@@ -32,14 +32,14 @@ export function ProfileCard({
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <div className="flex items-center gap-3">
-        <Link href={routes.profile(user.username)}>
+        <Link href={routes.profile(user.username)} prefetch={false}>
           <Avatar className="size-12 border border-border">
             {user.avatarPath && <AvatarImage src={routes.media(user.avatarPath)} alt={user.displayName} />}
             <AvatarFallback className="text-base">{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
         </Link>
         <div className="min-w-0">
-          <Link href={routes.profile(user.username)} className="block truncate font-semibold hover:underline">
+          <Link href={routes.profile(user.username)} className="block truncate font-semibold hover:underline" prefetch={false}>
             {user.displayName}
           </Link>
           <div className="truncate text-xs text-muted-foreground">@{user.username}</div>
@@ -58,20 +58,20 @@ export function ProfileCard({
         ) : (
           !viewerName && (
             <Button asChild variant="outline" size="sm" className="w-full">
-              <Link href={routes.login}>关注</Link>
+              <Link href={routes.login} prefetch={false}>关注</Link>
             </Button>
           )
         )}
         {isSelf && (
           <Button asChild variant="outline" size="sm" className="w-full">
-            <Link href={routes.settings()}>编辑资料</Link>
+            <Link href={routes.settings()} prefetch={false}>编辑资料</Link>
           </Button>
         )}
       </div>
 
       {viewerName && !isSelf && user.dmEnabled && (
         <Button asChild variant="ghost" size="sm" className="mt-2 w-full text-muted-foreground">
-          <Link href={routes.conversation(user.id)}>
+          <Link href={routes.conversation(user.id)} prefetch={false}>
             <MessageCircle className="size-3.5" /> 私信
           </Link>
         </Button>
@@ -116,7 +116,7 @@ export function SocialLinks({
         </a>
       )}
       {user.rssEnabled && (
-        <Link href={routes.userRss(user.username)} className={cls}>
+        <Link href={routes.userRss(user.username)} className={cls} prefetch={false}>
           RSS
         </Link>
       )}

@@ -15,6 +15,8 @@ import { RepostButton } from "@/components/social/repost-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
 import { PreviewBanner } from "@/components/social/preview-banner";
+import { PostDetailAfterSlot } from "@/plugins.client";
+import { getPollView } from "@/lib/poll-server";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -72,6 +74,7 @@ export default async function PostPermalinkPage({
     reposted = repostRow.length > 0;
   }
 
+  const poll = await getPollView(post.id, viewer?.id ?? null);
   const published = post.publishedAt ?? post.createdAt;
 
   return (
@@ -109,13 +112,17 @@ export default async function PostPermalinkPage({
           <PreviewBanner postId={post.id} status={post.status} rejectReason={post.rejectReason} />
         )}
 
-        {/* short-post content (paragraphs / line breaks / images) */}
+        {/* short-post content (optional title / paragraphs / images / poll) */}
         <div className="mt-3">
+        {post.title && (
+          <h1 className="reading-serif mb-1.5 text-[22px] font-normal leading-snug">{post.title}</h1>
+        )}
         {post.content.trim() ? (
           <ShortContent content={post.content} className="text-base" />
         ) : (
-          <p className="text-sm italic text-muted-foreground">{t("feed.compose")}</p>
+          !poll && <p className="text-sm italic text-muted-foreground">{t("feed.compose")}</p>
         )}
+        <PostDetailAfterSlot postId={post.id} hasPoll={Boolean(poll)} />
       </div>
 
         {/* action row */}

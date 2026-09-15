@@ -24,6 +24,8 @@ export interface JobPayloads {
   "moderation.review": { postId: string };
   "export.build": { userId: string; requestId: string };
   "export.cleanup": { requestId: string };
+  /** 投票到期：给作者与投票用户派发结果通知（创建时按 endsAt 延迟投递） */
+  "poll.end": { postId: string };
 }
 
 type JobName = keyof JobPayloads;

@@ -1,6 +1,5 @@
 "use client";
 
-import { useI18n } from "@/lib/i18n/client";
 import type { DictKey } from "@/lib/i18n/client";
 import type { SettingsData, SettingsTab } from "./types";
 import { ProfileForm } from "./profile-form";
@@ -51,13 +50,8 @@ export function SettingsPanel({
   tokenScopes: string[];
   enabledTabs?: string[];
 }) {
-  const { t } = useI18n();
-  const def = SETTINGS_SECTION_DEFS.find((s) => s.id === tab);
-
   return (
     <div className="mx-auto w-full max-w-[600px] px-4 pt-4">
-      {def && tab !== "profile" ? null : null}
-
       <div className="animate-[slide-up_0.3s_cubic-bezier(0.16,1,0.3,1)_both]">
         {section(tab, data, webhookEvents, tokenScopes, enabledTabs)}
       </div>

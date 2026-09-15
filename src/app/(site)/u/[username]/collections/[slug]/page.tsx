@@ -9,6 +9,7 @@ import {
   toFeedItemDTO,
 } from "@/components/user-space/queries";
 import { CollectionView } from "@/components/user-space/collection-view";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,14 @@ export default async function CollectionPage({ params }: Props) {
     collectionId,
     limit: 50,
   });
+  const viewer = await getCurrentUser();
 
-  return <CollectionView collection={collection} author={user} items={items.map(toFeedItemDTO)} />;
+  return (
+    <CollectionView
+      collection={collection}
+      author={user}
+      items={items.map(toFeedItemDTO)}
+      viewerUsername={viewer?.username}
+    />
+  );
 }

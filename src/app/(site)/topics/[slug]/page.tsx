@@ -4,8 +4,9 @@ import type { Metadata } from "next";
 import { routes } from "@/core/routes";
 import { getPublishedPosts, getTopicBySlug, toFeedItemDTO } from "@/components/user-space/queries";
 import { TimelineHeader } from "@/components/site-shell";
-import { ArticleCard } from "@/components/user-space/article-card";
+import { ArticleCard, FEED_ROW_CLASS } from "@/components/user-space/article-card";
 import { ShortCard } from "@/components/user-space/short-card";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,8 @@ export default async function TopicPage({ params, searchParams }: Props) {
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
+  const viewer = await getCurrentUser();
+  const viewerUsername = viewer?.username;
 
   const pageHref = (p: number) => (p === 0 ? routes.topic(topic.slug) : `${routes.topic(topic.slug)}?page=${p}`);
   const pagerCls =
@@ -65,9 +68,26 @@ export default async function TopicPage({ params, searchParams }: Props) {
           items.map((it) => {
             const dto = toFeedItemDTO(it);
             return dto.post.type === "short" ? (
-              <ShortCard key={it.post.id} post={dto.post} author={dto.author} />
+              <ShortCard
+                key={it.post.id}
+                post={dto.post}
+                author={dto.author}
+                className={FEED_ROW_CLASS}
+                viewerUsername={viewerUsername}
+                rowHref
+                menu={Boolean(viewerUsername)}
+              />
             ) : (
-              <ArticleCard key={it.post.id} post={dto.post} author={dto.author} variant="list" />
+              <ArticleCard
+                key={it.post.id}
+                post={dto.post}
+                author={dto.author}
+                variant="list"
+                className={FEED_ROW_CLASS}
+                viewerUsername={viewerUsername}
+                rowHref
+                menu={Boolean(viewerUsername)}
+              />
             );
           })
         )}

@@ -5,6 +5,7 @@ import { queue } from "@/core/queue";
 import { sendMail } from "@/lib/mail";
 import { processModerationJob } from "@/plugins/moderation";
 import { processExportJob } from "@/plugins/export";
+import { processPollEnd } from "@/plugins/poll";
 import { signPayload } from "@/plugins/webhooks";
 
 /**
@@ -19,6 +20,10 @@ export async function startWorkers(): Promise<void> {
 
   await queue.work("moderation.review", async (data) => {
     await processModerationJob(data.postId);
+  });
+
+  await queue.work("poll.end", async (data) => {
+    await processPollEnd(data.postId);
   });
 
   await queue.work("export.build", async (data) => {

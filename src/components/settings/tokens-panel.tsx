@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Copy, KeyRound, Loader2, Plus, SquareArrowOutUpRight, Trash2 } from "lucide-react";
+import { Copy, KeyRound, Loader2, Plus, Plug, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/primitives";
@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SettingsSectionHeader } from "@/components/ui/settings";
+import { SettingsPanelList, SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
@@ -32,33 +32,49 @@ const SCOPE_LABELS: Record<string, string> = {
 
 /** MCP 接入：端点地址 + 复制 / 打开。 */
 export function McpPanel({ appUrl }: { appUrl: string }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const zh = locale === "zh";
   const mcpEndpoint = `${appUrl}/api/mcp`;
 
   return (
     <div className="space-y-4">
       <SettingsSectionHeader description={t("settings.tokens.desc")} />
-      <div className="flex max-w-xl items-center gap-2">
-        <Input readOnly value={mcpEndpoint} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
-        <Button
-          variant="outline"
-          size="icon"
-          title={t("common.copy")}
-          onClick={async () => {
-            if (await copyText(mcpEndpoint)) toast.success(t("common.copied"));
-          }}
-        >
-          <Copy />
-        </Button>
-        <Button
-          variant="outline"
-          size="icon"
-          title={t("external.continue")}
-          onClick={() => window.open(mcpEndpoint, "_blank")}
-        >
-          <SquareArrowOutUpRight />
-        </Button>
-      </div>
+      <SettingsPanelList>
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-2.5">
+            <Plug className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">{zh ? "MCP 端点" : "MCP endpoint"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {zh
+                  ? "复制到支持 MCP 的客户端（如 Claude、Cursor）即可接入。"
+                  : "Paste into any MCP-capable client (Claude, Cursor, …)."}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2 pl-[26px]">
+            <Input readOnly value={mcpEndpoint} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+            <Button
+              variant="outline"
+              size="icon"
+              title={t("common.copy")}
+              onClick={async () => {
+                if (await copyText(mcpEndpoint)) toast.success(t("common.copied"));
+              }}
+            >
+              <Copy />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              title={t("external.continue")}
+              onClick={() => window.open(mcpEndpoint, "_blank")}
+            >
+              <SquareArrowOutUpRight />
+            </Button>
+          </div>
+        </div>
+      </SettingsPanelList>
     </div>
   );
 }
@@ -133,16 +149,16 @@ export function ApiTokensPanel({
               <li
                 key={tk.id}
                 className={cn(
-                  "flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-4 py-3.5 transition-colors",
+                  "flex flex-wrap items-start justify-between gap-x-6 gap-y-2 px-4 py-3 transition-colors",
                   revoked ? "opacity-55" : "hover:bg-[var(--hover,#f7f8f8)]",
                 )}
               >
-                {/* 主信息列 */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                  {/* 第一行：名称 + 状态 + 时间 meta */}
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span
                       className={cn(
-                        "inline-flex size-7 shrink-0 items-center justify-center rounded-md",
+                        "inline-flex size-6 shrink-0 items-center justify-center rounded-md",
                         revoked ? "bg-[var(--muted)] text-muted-foreground" : "bg-primary/[0.06] text-foreground",
                       )}
                     >
@@ -154,11 +170,9 @@ export function ApiTokensPanel({
                     ) : (
                       <Badge variant="success">{locale === "zh" ? "使用中" : "Active"}</Badge>
                     )}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-9 text-xs text-muted-foreground">
-                    <span className="font-mono">mbt_{tk.prefix}…</span>
-                    <span>{locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}</span>
-                    <span>
+                    <span className="text-xs text-muted-foreground">
+                      {locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}
+                      {" · "}
                       {tk.lastUsedAt
                         ? `${locale === "zh" ? "最近使用" : "Last used"} ${formatDate(tk.lastUsedAt, locale)}`
                         : locale === "zh"
@@ -166,23 +180,26 @@ export function ApiTokensPanel({
                           : "Never used"}
                     </span>
                   </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1 pl-9">
-                    {tk.scopes.map((s) => (
-                      <Badge key={s} variant="secondary">
-                        {s}
-                      </Badge>
-                    ))}
+                  {/* 第二行：令牌独占一行 + 权限徽章 */}
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-8">
+                    <code className="font-mono text-xs text-muted-foreground select-all">mbt_{tk.prefix}…</code>
+                    <span className="flex flex-wrap items-center gap-1">
+                      {tk.scopes.map((s) => (
+                        <Badge key={s} variant="secondary">
+                          {s}
+                        </Badge>
+                      ))}
+                    </span>
                   </div>
                 </div>
-                {/* 操作列 */}
-                <div className="shrink-0 pt-1">
-                  {!revoked && (
+                {!revoked && (
+                  <div className="shrink-0">
                     <Button variant="outline" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
                       <Trash2 />
                       {t("settings.tokens.revoke")}
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </li>
             );
           })}

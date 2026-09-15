@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { isAuthError, postJson } from "./api";
+import { isAuthError, postJson } from "@/lib/client/api";
 
 export function RepostButton({
   postId,

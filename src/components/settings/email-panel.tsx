@@ -3,10 +3,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Loader2, MailCheck } from "lucide-react";
+import { Loader2, MailCheck, MailQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { SettingsSection, SettingsSectionHeader } from "@/components/ui/settings";
+import {
+  SettingsPanelList,
+  SettingsPanelRow,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { apiRequest } from "./client";
 
@@ -79,21 +84,23 @@ export function EmailPanel() {
         }
       />
       <div className="max-w-md space-y-5">
-        <div className="flex items-center gap-2.5 rounded-lg border border-border px-4 py-3">
-          <MailCheck className="size-4 text-muted-foreground" />
-          <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">{zh ? "当前邮箱" : "Current email"}</p>
-            <p className="font-mono text-sm text-foreground">{state.email ?? "—"}</p>
-          </div>
-        </div>
-
-        {state.pendingEmail && (
-          <p className="rounded-lg bg-[var(--muted)] px-4 py-2.5 text-sm text-muted-foreground">
-            {zh ? "待确认的新邮箱：" : "Pending new email: "}
-            <span className="font-mono text-foreground">{state.pendingEmail}</span>
-            {zh ? "（点击确认邮件中的链接生效）" : " (click the link in the email to confirm)"}
-          </p>
-        )}
+        <SettingsPanelList>
+          <SettingsPanelRow
+            icon={<MailCheck className="size-4" />}
+            title={zh ? "当前邮箱" : "Current email"}
+            control={<span className="font-mono text-sm text-foreground">{state.email ?? "—"}</span>}
+          />
+          {state.pendingEmail && (
+            <SettingsPanelRow
+              icon={<MailQuestion className="size-4" />}
+              title={zh ? "待确认的新邮箱" : "Pending new email"}
+              description={
+                zh ? "点击确认邮件中的链接后生效。" : "Takes effect via the link in the confirmation email."
+              }
+              control={<span className="font-mono text-sm text-foreground">{state.pendingEmail}</span>}
+            />
+          )}
+        </SettingsPanelList>
 
         <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-2">

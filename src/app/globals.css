@@ -305,6 +305,40 @@ body {
 }
 
 /* ============================================================
+   Composer 全屏写作：从底部输入条展开 / 收起
+   ============================================================ */
+/* Composer 工具栏内的紧凑下拉触发器（覆盖 VirtualSelect 默认字段样式；
+   未分层规则优先于 utilities 层，focus 环需在此显式恢复）：
+   默认仅「文字 + 下拉箭头」、背景穿透，hover 轻染，文字与箭头间距收窄 */
+.composer-pill {
+  height: 1.75rem;
+  border-radius: 9999px;
+  background: transparent;
+  padding-inline: 0.375rem;
+  font-size: 12px;
+  gap: 0.25rem;
+  color: var(--muted-foreground);
+  box-shadow: none;
+}
+.composer-pill:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.composer-pill:focus-visible {
+  background: var(--hover);
+  box-shadow: 0 0 0 1px var(--field-focus-a), 0 0 0 2px var(--field-focus-b);
+}
+
+@keyframes composer-rise {
+  from { opacity: 0; transform: translateY(4%) scale(0.99); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes composer-sink {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(4%) scale(0.99); }
+}
+
+/* ============================================================
    Article typography (.article-prose) — hand-rolled prose tuned
    for CJK + code + math + tables. Used for rendered markdown.
    ============================================================ */

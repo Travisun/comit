@@ -1,11 +1,14 @@
 import { z } from "zod";
 import { db } from "@/db";
-import { posts } from "@/db/schema";
+import { polls, posts } from "@/db/schema";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { AppError } from "@/core/errors";
 import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
+import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
+import { POLL_MAX_DURATION_DAYS, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, validatePollOptions } from "@/lib/poll";
 import {
   assertCollectionOwned,
   blockedResponse,
@@ -39,6 +42,14 @@ const createSchema = z
     coverPath: z.string().trim().min(1).max(500).nullish(),
     mediaPaths: z.array(z.string().trim().min(1).max(500)).max(9).optional(),
     ...labelFieldsSchema,
+    /** 可选投票（仅短动态）：选项 2–5 项、权重 ≤32（16 汉字/32 字符）、最长 30 天 */
+    poll: z
+      .object({
+        mode: z.enum(["single", "multiple"]),
+        options: z.array(z.string().trim().min(1).max(64)).min(POLL_OPTIONS_MIN).max(POLL_OPTIONS_MAX),
+        endsAt: z.coerce.date(),
+      })
+      .optional(),
     action: z.enum(["draft", "submit"]),
   })
   .refine((v) => v.type !== "article" || v.content.trim().length > 0, {
@@ -49,9 +60,11 @@ const createSchema = z
     (v) =>
       v.type !== "short" ||
       (v.content.length <= SHORT_CONTENT_MAX &&
-        (v.content.trim().length > 0 || (v.mediaPaths?.length ?? 0) > 0)),
+        (v.content.trim().length > 0 ||
+          (v.mediaPaths?.length ?? 0) > 0 ||
+          v.poll !== undefined)),
     {
-      message: `短动态最多 ${SHORT_CONTENT_MAX} 字，文字与图片至少其一（支持纯图片）`,
+      message: `短动态最多 ${SHORT_CONTENT_MAX} 字，文字、图片与投票至少其一`,
       path: ["content"],
     },
   );
@@ -72,6 +85,24 @@ export async function POST(req: Request): Promise<Response> {
         : body.content;
 
     if (body.collectionId) await assertCollectionOwned(body.collectionId, auth.user.id);
+
+    // poll 选项/截止时间的语义校验（长度权重、2–5 项、时间窗）
+    const pollRow =
+      body.type === "short" && body.poll
+        ? (() => {
+            const err = validatePollOptions(body.poll.options);
+            if (err) throw new AppError(err, 400, "validation_error");
+            const endsAt = body.poll.endsAt;
+            const t = endsAt.getTime();
+            if (!Number.isFinite(t) || t <= Date.now()) {
+              throw new AppError("投票结束时间必须晚于现在 / Poll end must be in the future", 400, "validation_error");
+            }
+            if (t - Date.now() > POLL_MAX_DURATION_DAYS * 86_400_000) {
+              throw new AppError(`投票最长持续 ${POLL_MAX_DURATION_DAYS} 天`, 400, "validation_error");
+            }
+            return { mode: body.poll.mode, options: body.poll.options, endsAt };
+          })()
+        : null;
 
     // hard keyword gate — nothing is persisted when blocked
     if (body.action === "submit") {
@@ -105,8 +136,31 @@ export async function POST(req: Request): Promise<Response> {
         })
         .returning();
       if (body.topicNames?.length) await syncPostTopics(tx, row.id, body.topicNames);
+      if (pollRow) {
+        await tx.insert(polls).values({
+          postId: row.id,
+          mode: pollRow.mode,
+          options: pollRow.options,
+          endsAt: pollRow.endsAt,
+        });
+      }
       return row;
     });
+
+    // 投票结束任务：到点拉取计票并给作者与投票用户发结果通知；
+    // 帖子被删/未发布时 worker 直接跳过。
+    if (pollRow) {
+      await queue.send(
+        "poll.end",
+        { postId: post.id },
+        {
+          startAfterSeconds: Math.max(
+            60,
+            Math.round((pollRow.endsAt.getTime() - Date.now()) / 1000),
+          ),
+        },
+      );
+    }
 
     if (body.action === "submit") {
       // reviewMode=off → the moderation plugin publishes right away and emits

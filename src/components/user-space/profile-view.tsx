@@ -27,7 +27,7 @@ import {
   type UserCard,
 } from "./queries";
 import { VerifiedBadge } from "./verified-badge";
-import { ArticleCard } from "./article-card";
+import { ArticleCard, FEED_ROW_CLASS } from "./article-card";
 import { ShortCard } from "./short-card";
 import { SocialLinks } from "./sidebar-widgets";
 import type { UserStats, ViewerFollowState } from "./types";
@@ -167,6 +167,7 @@ function StatLink({
     <Link
       href={`${routes.profile(username)}?tab=${tab}`}
       className="text-muted-foreground transition-colors hover:text-foreground hover:underline"
+      prefetch={false}
     >
       <strong className="num font-semibold text-foreground">{value}</strong> {label}
     </Link>
@@ -301,7 +302,7 @@ function Pager({
   if (page === 0 && !hasMore) return null;
   const cls = "rounded-full border border-border px-4 py-1.5 font-medium transition-colors hover:bg-[var(--hover)]";
   return (
-    <nav className="flex items-center justify-between px-4 py-4 text-sm" aria-label="Pagination">
+    <nav className="flex items-center justify-between px-5 py-4 text-sm" aria-label="Pagination">
       {page > 0 ? (
         <Link href={`${routes.profile(username)}?tab=${tab}&page=${page - 1}`} className={cls}>
           上一页
@@ -319,8 +320,6 @@ function Pager({
     </nav>
   );
 }
-
-const FEED_ROW_CLASS = "feed-row px-5 py-2.5";
 
 async function PostsTab({
   user,
@@ -371,7 +370,18 @@ async function PostsTab({
 
       {rest.map((it) => {
         const dto = toFeedItemDTO(it);
-        return <ArticleCard key={it.post.id} post={dto.post} author={dto.author} variant="list" />;
+        return (
+          <ArticleCard
+            key={it.post.id}
+            post={dto.post}
+            author={dto.author}
+            variant="list"
+            className={FEED_ROW_CLASS}
+            viewerUsername={viewerUsername}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
+        );
       })}
       <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
     </div>
@@ -523,8 +533,8 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
   const isSelf = Boolean(viewer && viewer.id === card.id);
   const viewerState = isSelf || !viewer ? null : await getFollowState(viewer.id, card.id);
   return (
-    <div className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--hover)]">
-      <Link href={routes.profile(card.username)} className="shrink-0">
+    <div className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--hover)]">
+      <Link href={routes.profile(card.username)} className="shrink-0" prefetch={false}>
         <Avatar className="size-10">
           {card.avatarPath && <AvatarImage src={routes.media(card.avatarPath)} alt={card.displayName} />}
           <AvatarFallback>{card.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
@@ -534,6 +544,7 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
         <Link
           href={routes.profile(card.username)}
           className="inline-flex items-center gap-1 truncate text-[15px] font-medium hover:underline"
+          prefetch={false}
         >
           {card.displayName}
           <VerifiedBadge verified={card.verified} size="sm" />
@@ -557,12 +568,13 @@ async function CollectionsTab({ user }: { user: User }) {
   const collections = await getUserCollections(user.id);
   if (collections.length === 0) return <EmptyState text="还没有创建合集" />;
   return (
-    <div className="grid gap-3 p-4 sm:grid-cols-2">
+    <div className="grid gap-3 p-5 sm:grid-cols-2">
       {collections.map((c) => (
         <Link
           key={c.slug}
           href={routes.collection(user.username, c.slug)}
           className="group rounded-lg border border-border p-4 transition-colors hover:bg-[var(--hover)]"
+          prefetch={false}
         >
           <div className="flex items-center gap-2 text-[15px] font-normal">
             <FolderOpen className="size-4 text-primary/70" />
@@ -608,7 +620,18 @@ export async function SingleUserHome({ user, viewer }: { user: User; viewer: Use
       ) : (
         items.map((it) => {
           const dto = toFeedItemDTO(it);
-          return <ArticleCard key={it.post.id} post={dto.post} author={dto.author} variant="list" />;
+          return (
+            <ArticleCard
+              key={it.post.id}
+              post={dto.post}
+              author={dto.author}
+              variant="list"
+              className={FEED_ROW_CLASS}
+              viewerUsername={viewer?.username}
+              rowHref
+              menu={Boolean(viewer)}
+            />
+          );
         })
       )}
     </main>

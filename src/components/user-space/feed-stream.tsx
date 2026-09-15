@@ -1,14 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ArticleCard } from "./article-card";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
+import { feedPageSchema } from "@/lib/models/feed";
+import { ArticleCard, FEED_ROW_CLASS } from "./article-card";
 import { ShortCard } from "./short-card";
 import { ListSkeleton } from "./list-skeleton";
 import type { FeedItemDTO } from "./types";
 
 /**
  * Mixed article/short stream with IntersectionObserver "load more".
- * Appends pages from GET /api/feed?cursor=<offset> until exhausted.
+ * 分页由 useInfiniteQuery 管理：服务端首屏数据作为 initialData 第一页，
+ * 后续页按 cursor 递增拉取；跨页去重交给 items 聚合处的 seen 集合。
  */
 export function FeedStream({
   initialItems,
@@ -25,50 +30,35 @@ export function FeedStream({
   /** feed scope: "following" 只加载关注作者的动态 */
   scope?: "following";
 }) {
-  const [items, setItems] = useState<FeedItemDTO[]>(initialItems);
-  const [cursor, setCursor] = useState<number | null>(initialCursor);
-  const [loading, setLoading] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
-  const cursorRef = useRef<number | null>(initialCursor);
-  const loadingRef = useRef(false);
+  const feedUrl = (cursor: number) =>
+    `/api/feed?cursor=${cursor}${scope === "following" ? "&scope=following" : ""}`;
 
-  const loadMore = useCallback(async () => {
-    const c = cursorRef.current;
-    if (c === null || loadingRef.current) return;
-    loadingRef.current = true;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/feed?cursor=${c}${scope === "following" ? "&scope=following" : ""}`);
-      if (!res.ok) throw new Error("failed");
-      const data = (await res.json()) as { items: FeedItemDTO[]; nextOffset: number | null };
-      setItems((prev) => {
-        const seen = new Set(prev.map((i) => i.post.id));
-        return [...prev, ...data.items.filter((i) => !seen.has(i.post.id))];
-      });
-      cursorRef.current = data.nextOffset;
-      setCursor(data.nextOffset);
-    } catch {
-      // stop trying on failure — cursor nulled to unmount the observer work
-      cursorRef.current = null;
-      setCursor(null);
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
+  const query = useInfiniteQuery({
+    queryKey: queryKeys.feed(scope),
+    queryFn: async ({ pageParam }) => feedPageSchema.parse(await apiGet<unknown>(feedUrl(pageParam))),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextOffset,
+    // 服务端渲染的首屏数据作为第一页，挂载不重复请求
+    initialData: {
+      pages: [{ items: initialItems, nextOffset: initialCursor }],
+      pageParams: [0],
+    },
+    staleTime: 15_000,
+  });
+
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    const out: FeedItemDTO[] = [];
+    for (const page of query.data?.pages ?? []) {
+      for (const item of page.items) {
+        if (!seen.has(item.post.id)) {
+          seen.add(item.post.id);
+          out.push(item);
+        }
+      }
     }
-  }, [scope]);
-
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || cursor === null) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) void loadMore();
-      },
-      { rootMargin: "400px 0px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [cursor, loadMore]);
+    return out;
+  }, [query.data]);
 
   // ---- auto-refresh: poll for new posts, show banner ----
   const [newCount, setNewCount] = useState(0);
@@ -77,30 +67,35 @@ export function FeedStream({
     const timer = setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        const r = await fetch(`/api/feed?limit=5${scope === "following" ? "&scope=following" : ""}`);
-        if (!r.ok) return;
-        const data = (await r.json()) as { items: FeedItemDTO[] };
-        const fresh = data.items.filter(
-          (i) => !items.some((e) => e.post.id === i.post.id),
-        );
-        setNewCount(fresh.length);
+        const page = feedPageSchema.parse(await apiGet<unknown>(feedUrl(0)));
+        const seen = new Set(items.map((i) => i.post.id));
+        setNewCount(page.items.filter((i) => !seen.has(i.post.id)).length);
       } catch { /* silent */ }
     }, 30_000);
     return () => clearInterval(timer);
-  }, [items]);
+  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps -- items 变化时重置计时器（沿用原行为）
 
-  const loadNew = useCallback(async () => {
-    try {
-      const r = await fetch(`/api/feed?limit=20${scope === "following" ? "&scope=following" : ""}`);
-      if (!r.ok) return;
-      const data = (await r.json()) as { items: FeedItemDTO[]; nextOffset: number | null };
-      setItems((prev) => {
-        const seen = new Set(prev.map((i) => i.post.id));
-        return [...data.items.filter((i) => !seen.has(i.post.id)), ...prev];
-      });
-      setNewCount(0);
-    } catch { /* silent */ }
-  }, [items]);
+  const loadNew = () => {
+    setNewCount(0);
+    // 重拉已取回的所有页：新帖自然排到最前，游标状态保持一致
+    void query.refetch();
+  };
+
+  // ---- IntersectionObserver "load more" ----
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const fetchNextPage = query.fetchNextPage;
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !query.hasNextPage) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) void fetchNextPage();
+      },
+      { rootMargin: "400px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [query.hasNextPage, fetchNextPage]);
 
   if (items.length === 0) {
     return (
@@ -110,17 +105,16 @@ export function FeedStream({
     );
   }
 
-  /* 最新/关注流的行样式：1px 分割线 + hover 整行融入背景（.feed-row），
-     左右 padding 与发现页对齐（px-5），纵向更紧凑；隐藏内容标注 chip，
-     整行点击进详情（行内链接/按钮保持自身行为）。 */
-  const rowClass = "feed-row px-5 py-2.5";
+  /* 最新/关注流的行样式与个人主页/发现页共用 FEED_ROW_CLASS：
+     1px 分割线 + 左右 20px 内边距；隐藏内容标注 chip，整行点击进详情。 */
+  const rowClass = FEED_ROW_CLASS;
 
   return (
     <div>
       {newCount > 0 && (
         <button
           type="button"
-          onClick={() => void loadNew()}
+          onClick={loadNew}
           className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 border-b border-border bg-[var(--primary)] py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
           <span className="num font-semibold">{newCount}</span> 条新动态 · 点击查看
@@ -152,8 +146,8 @@ export function FeedStream({
           />
         ),
       )}
-      {loading && <ListSkeleton rows={2} />}
-      {cursor !== null ? (
+      {query.isFetchingNextPage && <ListSkeleton rows={2} />}
+      {query.hasNextPage ? (
         <div ref={sentinelRef} className="h-4" aria-hidden />
       ) : (
         <p className="py-6 text-center text-xs text-muted-foreground">已经到底啦</p>

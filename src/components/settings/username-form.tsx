@@ -112,9 +112,7 @@ export function UsernameForm({ data }: { data: UsernameData }) {
         }
       />
       <form onSubmit={save}>
-        <div className="divide-y divide-border">
-          <div className="py-4">
-            <SettingField htmlFor="username">
+        <SettingField htmlFor="username">
               <div className="relative flex max-w-md items-center gap-0 overflow-hidden rounded-md border border-input bg-transparent focus-within:border-primary/50">
                 <span className="shrink-0 whitespace-nowrap border-r border-border bg-[var(--muted)] px-2.5 py-2 font-mono text-xs text-muted-foreground">
                   {origin ? `${origin}/` : "…/"}
@@ -160,8 +158,6 @@ export function UsernameForm({ data }: { data: UsernameData }) {
                 </p>
               )}
             </div>
-          </div>
-        </div>
         <SettingsFooter
           hint={
             inCooldown

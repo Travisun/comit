@@ -180,8 +180,17 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
     return () => {
       host.removeEventListener("keydown", onKey, true);
       host.removeEventListener("blur", onBlur, true);
-      vd.destroy();
+      // Vditor 完成异步初始化（lute wasm）之前调用 destroy 会在内部引用
+      // 尚未挂载的 DOM 而抛错 — 未就绪时直接丢弃实例即可
+      if (readyRef.current) {
+        try {
+          vd.destroy();
+        } catch {
+          // teardown race (unmount during init) — nothing left to clean
+        }
+      }
       vditorRef.current = null;
+      readyRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once
   }, []);

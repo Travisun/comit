@@ -28,7 +28,7 @@ import { ImageUploader } from "./image-uploader";
 import { TopicInput } from "./topic-input";
 import { CollectionSelect } from "./collection-select";
 import { BlockedDialog } from "./blocked-dialog";
-import { ARTICLE_DRAFT_KEY } from "@/components/social/api";
+import { ARTICLE_DRAFT_KEY } from "@/lib/client/api";
 
 /**
  * Full-page article editor:

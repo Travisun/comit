@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/primitives";
 import {
   SettingsFooter,
+  SettingsPanelList,
+  SettingsPanelRow,
   SettingsSection,
   SettingsSectionHeader,
-  SettingRow,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { apiRequest } from "./client";
@@ -65,11 +66,11 @@ export function NotificationsPanel({
         title={t("settings.tab.notifications")}
         description={t("settings.notifications.byType")}
       />
-      <div className="flex flex-col gap-y-1">
+      <SettingsPanelList>
         {NOTIFICATION_EVENTS.map((event) => (
-          <SettingRow
+          <SettingsPanelRow
             key={event.key}
-            label={locale === "zh" ? event.label.zh : event.label.en}
+            title={locale === "zh" ? event.label.zh : event.label.en}
             description={event.key}
             control={
               <div className="flex flex-wrap gap-x-5 gap-y-2">
@@ -89,7 +90,7 @@ export function NotificationsPanel({
             }
           />
         ))}
-      </div>
+      </SettingsPanelList>
       <SettingsFooter
         hint={
           dirty

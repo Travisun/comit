@@ -124,9 +124,9 @@ export function WebhooksPanel({
           {locale === "zh" ? "还没有 Webhook" : "No webhooks yet"}
         </p>
       ) : (
-        <ul className="space-y-3">
+        <ul className="divide-y divide-border rounded-lg border border-border">
           {hooks.map((h) => (
-            <li key={h.id} className="flex flex-col gap-2 border-b border-border py-4 first:pt-0 last:border-0 last:pb-0">
+            <li key={h.id} className="flex flex-col gap-2 px-4 py-4">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-mono text-sm">{h.url}</p>

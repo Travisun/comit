@@ -70,7 +70,7 @@ export function SiteRail({
             <Link
               href={routes.profile(user.username)}
               className="num block rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)]"
-            >
+             prefetch={false}>
               {myStats.posts} 篇内容 · {myStats.followers} 粉丝 · {myStats.following} 关注
             </Link>
           )}
@@ -78,21 +78,21 @@ export function SiteRail({
             <Link
               href="/write/posts"
               className="flex items-center justify-center gap-1.5 rounded-full bg-primary py-1.5 text-center text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+             prefetch={false}>
               <FileText className="size-3.5" aria-hidden />
               文章管理
             </Link>
             <Link
               href="/write/posts?tab=trash"
               className="flex items-center justify-center gap-1.5 rounded-full border border-border py-1.5 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
-            >
+             prefetch={false}>
               <Trash2 className="size-3.5" aria-hidden />
               回收站
             </Link>
             <Link
               href={routes.profile(user.username)}
               className="col-span-2 block rounded-full border border-border py-1 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
-            >
+             prefetch={false}>
               我的主页
             </Link>
           </div>
@@ -107,13 +107,13 @@ export function SiteRail({
             <Link
               href="/auth/register"
               className="rounded-full bg-primary py-1.5 text-center text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
-            >
+             prefetch={false}>
               创建账号
             </Link>
             <Link
               href="/auth/login"
               className="flex items-center justify-center gap-1.5 rounded-full border border-border py-1.5 text-center text-[13px] font-medium transition-colors hover:bg-[var(--hover)]"
-            >
+             prefetch={false}>
               <LogIn className="size-3.5" />
               登录
             </Link>
@@ -135,7 +135,7 @@ export function SiteRail({
         <Link
           href="/about"
           className="mt-2 inline-block text-[13px] font-medium text-primary hover:underline"
-        >
+         prefetch={false}>
           了解更多 →
         </Link>
       </section>
@@ -150,7 +150,7 @@ export function SiteRail({
                 <Link
                   href={routes.topic(tp.slug)}
                   className="block px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-                >
+                 prefetch={false}>
                   <span className="block truncate text-sm font-medium">#{tp.name}</span>
                   <span className="num block text-xs text-muted-foreground">
                     {tp.postCount ?? 0} 条内容
@@ -162,7 +162,7 @@ export function SiteRail({
           <Link
             href={routes.explore}
             className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-          >
+           prefetch={false}>
             查看全部 →
           </Link>
         </section>
@@ -178,7 +178,7 @@ export function SiteRail({
                 <Link
                   href={routes.profile(a.username)}
                   className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-                >
+                 prefetch={false}>
                   <Avatar className="size-10">
                     {a.avatarPath && (
                       <AvatarImage src={routes.media(a.avatarPath)} alt={a.displayName} />
@@ -201,7 +201,7 @@ export function SiteRail({
           <Link
             href={routes.explore}
             className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-          >
+           prefetch={false}>
             查看全部 →
           </Link>
         </section>
@@ -209,16 +209,16 @@ export function SiteRail({
 
       {/* footer links */}
       <footer className="flex flex-wrap gap-x-3 gap-y-1 px-1 pb-6 text-xs text-muted-foreground">
-        <Link href={routes.legal.terms} className="hover:underline">
+        <Link href={routes.legal.terms} className="hover:underline" prefetch={false}>
           服务协议
         </Link>
-        <Link href={routes.legal.privacy} className="hover:underline">
+        <Link href={routes.legal.privacy} className="hover:underline" prefetch={false}>
           隐私政策
         </Link>
-        <Link href="/about" className="hover:underline">
+        <Link href="/about" className="hover:underline" prefetch={false}>
           关于 comit.sh
         </Link>
-        <Link href={routes.globalRss} className="inline-flex items-center gap-1 hover:underline">
+        <Link href={routes.globalRss} className="inline-flex items-center gap-1 hover:underline" prefetch={false}>
           <Rss className="size-3" /> RSS
         </Link>
         <span>© {new Date().getFullYear()} {siteName}</span>

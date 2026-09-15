@@ -167,7 +167,63 @@ function PropertyRow({
   );
 }
 
-/* --------------------------- section tabs ---------------------------- */
+/* --------------------------- boxed item panels --------------------------- */
+
+/**
+ * 多项目面板 — 隐私/账号绑定页的排版：圆角边框盒子 + 行间 hairline 分割线。
+ * 设置页里「图标 + 标题 + 说明 + 右侧控件」的属性行、数据列表统一用它，
+ * 与裸露的表单字段（SettingField）区分。行内配 VirtualSelect 时不要给容器
+ * 加 overflow-hidden —— 下拉面板依赖溢出显示。
+ */
+function SettingsPanelList({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      className={cn("divide-y divide-border rounded-lg border border-border", className)}
+      {...props}
+    />
+  );
+}
+
+/** 面板行：左侧图标 + 标题 + 说明，右侧控件（下拉/开关/按钮/值）。 */
+function SettingsPanelRow({
+  icon,
+  title,
+  description,
+  control,
+  className,
+}: {
+  icon?: React.ReactNode;
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  /** Right-aligned control — select, switch, button or a read-only value. */
+  control?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3",
+        className,
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-2.5">
+        {icon ? <span className="mt-0.5 shrink-0 text-muted-foreground">{icon}</span> : null}
+        <div className="min-w-0">
+          <p className="text-sm text-foreground">{title}</p>
+          {description ? (
+            <p className="mt-0.5 text-xs leading-5 text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+      </div>
+      {control ? <div className="shrink-0">{control}</div> : null}
+    </div>
+  );
+}
+
+/* ------------------------------ section tabs ---------------------------- */
 
 /**
  * Stripe settings sub-section tabs: a muted track with the active segment
@@ -379,4 +435,6 @@ export {
   PropertyRow,
   SettingsFooter,
   Notice,
+  SettingsPanelList,
+  SettingsPanelRow,
 };

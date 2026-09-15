@@ -11,9 +11,10 @@ import {
   toFeedItemDTO,
 } from "@/components/user-space/queries";
 import { TimelineHeader } from "@/components/site-shell";
-import { ArticleCard } from "@/components/user-space/article-card";
+import { ArticleCard, FEED_ROW_CLASS } from "@/components/user-space/article-card";
 import { ShortCard } from "@/components/user-space/short-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
+import { getCurrentUser } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,15 @@ export default async function ExplorePage({ searchParams }: Props) {
   const { q: qParam } = await searchParams;
   const q = (qParam ?? "").trim();
 
-  const [{ t }, topics, hot, authors, results] = await Promise.all([
+  const [{ t }, topics, hot, authors, results, viewer] = await Promise.all([
     getT(),
     getTrendingTopics(30),
     getHotPosts(10),
     getActiveAuthors(12),
     q ? searchPublishedPosts(q, 20) : Promise.resolve([]),
+    getCurrentUser(),
   ]);
+  const viewerUsername = viewer?.username;
 
   const maxTopic = Math.max(1, ...topics.map((tp) => tp.postCount));
 
@@ -72,9 +75,26 @@ export default async function ExplorePage({ searchParams }: Props) {
             results.map((it) => {
               const dto = toFeedItemDTO(it);
               return dto.post.type === "short" ? (
-                <ShortCard key={dto.post.id} post={dto.post} author={dto.author} />
+                <ShortCard
+                  key={dto.post.id}
+                  post={dto.post}
+                  author={dto.author}
+                  className={FEED_ROW_CLASS}
+                  viewerUsername={viewerUsername}
+                  rowHref
+                  menu={Boolean(viewerUsername)}
+                />
               ) : (
-                <ArticleCard key={dto.post.id} post={dto.post} author={dto.author} variant="list" />
+                <ArticleCard
+                  key={dto.post.id}
+                  post={dto.post}
+                  author={dto.author}
+                  variant="list"
+                  className={FEED_ROW_CLASS}
+                  viewerUsername={viewerUsername}
+                  rowHref
+                  menu={Boolean(viewerUsername)}
+                />
               );
             })
           )}

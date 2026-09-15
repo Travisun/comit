@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Loader2, LogOut, RefreshCw } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Loader2, LogOut, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/primitives";
 import {
   Notice,
-  PropertyRow,
   SectionTabs,
   SettingField,
   SettingsFooter,
+  SettingsPanelList,
+  SettingsPanelRow,
   SettingsSection,
   SettingsSectionHeader,
 } from "@/components/ui/settings";
@@ -149,34 +150,32 @@ function TwoFactorCard({ data }: { data: SecurityData }) {
             : "Two-factor auth is off — enable it from the Verification page."}
         </Notice>
       )}
-      <div className="divide-y divide-border">
-        <PropertyRow
-          label={locale === "zh" ? "状态" : "Status"}
-          value={
-            <span className="inline-flex items-center gap-2">
-              {data.twoFactorConfirmed ? (
-                <Badge variant="success">{t("settings.security.2faOn")}</Badge>
-              ) : (
-                <Badge variant="warning">{locale === "zh" ? "未启用" : "Not enabled"}</Badge>
-              )}
-            </span>
+      <SettingsPanelList>
+        <SettingsPanelRow
+          icon={<ShieldCheck className="size-4" />}
+          title={locale === "zh" ? "两步验证" : "Two-factor"}
+          control={
+            data.twoFactorConfirmed ? (
+              <Badge variant="success">{t("settings.security.2faOn")}</Badge>
+            ) : (
+              <Badge variant="warning">{locale === "zh" ? "未启用" : "Not enabled"}</Badge>
+            )
           }
         />
-        <PropertyRow
-          label={locale === "zh" ? "恢复代码" : "Recovery codes"}
-          value={
-            locale === "zh"
-              ? `剩余 ${remaining} 个`
-              : `${remaining} code(s) left`
+        <SettingsPanelRow
+          icon={<KeyRound className="size-4" />}
+          title={locale === "zh" ? "恢复代码" : "Recovery codes"}
+          description={
+            locale === "zh" ? `剩余 ${remaining} 个` : `${remaining} code(s) left`
           }
-          action={
+          control={
             <Button variant="outline" size="sm" onClick={regen} disabled={busy || !data.twoFactorConfirmed}>
               {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {t("settings.security.regenRecovery")}
             </Button>
           }
         />
-      </div>
+      </SettingsPanelList>
       {codes && (
         <div className="mt-4 rounded-md border border-border bg-[var(--muted)] p-4">
           <p className="mb-2 text-sm">{t("auth.2fa.recoveryHint")}</p>
@@ -232,9 +231,9 @@ function SessionsCard({ sessions }: { sessions: SessionView[] }) {
           {t("settings.security.revokeAll")}
         </Button>
       </div>
-      <div className="divide-y divide-border">
+      <SettingsPanelList>
         {list.map((s) => (
-          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
+          <div key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-sm font-medium text-foreground">
                 {deviceLabel(s.userAgent)}
@@ -246,7 +245,7 @@ function SessionsCard({ sessions }: { sessions: SessionView[] }) {
             </div>
           </div>
         ))}
-      </div>
+      </SettingsPanelList>
     </SettingsSection>
   );
 }

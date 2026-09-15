@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { isAuthError, postJson } from "./api";
+import { isAuthError, postJson } from "@/lib/client/api";
 
 export function BlockButton({
   username,

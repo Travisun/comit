@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
-import { isAuthError, mediaUrl, postJson, requestJson } from "./api";
+import { isAuthError, mediaUrl, postJson, requestJson } from "@/lib/client/api";
 import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
 import { EmojiPopover, insertAtCursor } from "./composer-panels";

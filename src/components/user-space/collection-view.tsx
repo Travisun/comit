@@ -1,6 +1,6 @@
 import { FolderOpen } from "lucide-react";
 import type { User } from "@/db/schema";
-import { ArticleCard } from "./article-card";
+import { ArticleCard, FEED_ROW_CLASS } from "./article-card";
 import { toFeedItemDTO } from "./queries";
 import { TimelineHeader } from "@/components/site-shell";
 import type { CollectionCardData } from "./types";
@@ -14,10 +14,12 @@ export function CollectionView({
   collection,
   author,
   items,
+  viewerUsername,
 }: {
   collection: CollectionCardData;
   author: User;
   items: ReturnType<typeof toFeedItemDTO>[];
+  viewerUsername?: string;
 }) {
   return (
     <div className="min-h-dvh w-full max-w-[600px]">
@@ -41,7 +43,16 @@ export function CollectionView({
           </div>
         ) : (
           items.map((it) => (
-            <ArticleCard key={it.post.id} post={it.post} author={it.author} variant="list" />
+            <ArticleCard
+              key={it.post.id}
+              post={it.post}
+              author={it.author}
+              variant="list"
+              className={FEED_ROW_CLASS}
+              viewerUsername={viewerUsername}
+              rowHref
+              menu={Boolean(viewerUsername)}
+            />
           ))
         )}
       </div>

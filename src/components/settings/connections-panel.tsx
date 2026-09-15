@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Link2, Loader2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SettingsSection, SettingsSectionHeader } from "@/components/ui/settings";
+import {
+  SettingsPanelList,
+  SettingsPanelRow,
+  SettingsSection,
+  SettingsSectionHeader,
+} from "@/components/ui/settings";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "./client";
 import { useI18n } from "@/lib/i18n/client";
@@ -84,49 +89,50 @@ export function ConnectionsPanel() {
             : "Link third-party accounts to sign in with them. Linking opens the provider's authorization page."
         }
       />
-      <div className="divide-y divide-border rounded-lg border border-border">
+      <SettingsPanelList>
         {connections.map((conn) => (
-          <div key={conn.provider} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="flex min-w-0 items-start gap-2.5">
-              <Link2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-              <div className="min-w-0">
-                <p className="flex items-center gap-2 text-sm text-foreground">
-                  {conn.label}
-                  {conn.linked && (
-                    <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
-                      <Check className="size-3.5" /> {zh ? "已绑定" : "Linked"}
-                    </span>
-                  )}
-                </p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{PROVIDER_META[conn.provider]?.desc?.[zh ? "zh" : "en"] ?? ""}</p>
-              </div>
-            </div>
-            {conn.linked ? (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy === conn.provider}
-                onClick={() => void unbind(conn.provider)}
-              >
-                {busy === conn.provider ? <Loader2 className="animate-spin" /> : <Unlink />}
-                {zh ? "解除绑定" : "Unlink"}
-              </Button>
-            ) : (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!conn.enabled}
-                title={conn.enabled ? undefined : zh ? "站点未启用该登录方式" : "Provider not enabled"}
-                asChild
-              >
-                <a href={`/api/auth/oauth/${conn.provider}?link=1`}>
-                  {conn.enabled ? (zh ? "绑定" : "Link") : zh ? "未启用" : "Not available"}
-                </a>
-              </Button>
-            )}
-          </div>
+          <SettingsPanelRow
+            key={conn.provider}
+            icon={<Link2 className="size-4" />}
+            title={
+              <span className="flex items-center gap-2">
+                {conn.label}
+                {conn.linked && (
+                  <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                    <Check className="size-3.5" /> {zh ? "已绑定" : "Linked"}
+                  </span>
+                )}
+              </span>
+            }
+            description={PROVIDER_META[conn.provider]?.desc?.[zh ? "zh" : "en"] ?? ""}
+            control={
+              conn.linked ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={busy === conn.provider}
+                  onClick={() => void unbind(conn.provider)}
+                >
+                  {busy === conn.provider ? <Loader2 className="animate-spin" /> : <Unlink />}
+                  {zh ? "解除绑定" : "Unlink"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!conn.enabled}
+                  title={conn.enabled ? undefined : zh ? "站点未启用该登录方式" : "Provider not enabled"}
+                  asChild
+                >
+                  <a href={`/api/auth/oauth/${conn.provider}?link=1`}>
+                    {conn.enabled ? (zh ? "绑定" : "Link") : zh ? "未启用" : "Not available"}
+                  </a>
+                </Button>
+              )
+            }
+          />
         ))}
-      </div>
+      </SettingsPanelList>
     </SettingsSection>
   );
 }

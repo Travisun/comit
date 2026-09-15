@@ -5,6 +5,7 @@ import {
 } from "./article-card";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
+import { FeedRowAfterSlot } from "@/plugins.client";
 import type { FeedItemDTO } from "./types";
 
 /**
@@ -94,9 +95,17 @@ export function ShortCard({
         </div>
       )}
       <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
-      <div className="mt-0.5">
-        <ShortBody content={post.content || post.summary || " "} />
-      </div>
+      {post.title && (
+        <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
+          <span className="line-clamp-2">{post.title}</span>
+        </h3>
+      )}
+      {post.content && (
+        <div className="mt-0.5">
+          <ShortBody content={post.content || post.summary || " "} />
+        </div>
+      )}
+      <FeedRowAfterSlot postId={post.id} hasPoll={Boolean(post.hasPoll)} />
       {needsSummaryLink && (
         <a href={href} className="mt-1 inline-block text-sm text-sky-500 hover:underline">
           显示更多
