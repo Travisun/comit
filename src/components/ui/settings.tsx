@@ -78,12 +78,15 @@ function SettingField({
   label,
   htmlFor,
   hint,
+  description,
   children,
   className,
 }: {
   label: React.ReactNode;
   htmlFor?: string;
   hint?: React.ReactNode;
+  /** 字段说明，显示在输入框下方（弱化文字） */
+  description?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {
@@ -93,6 +96,7 @@ function SettingField({
         {label}
       </label>
       {children}
+      {description ? <p className="text-xs leading-5 text-muted-foreground">{description}</p> : null}
       {hint ? <p className="text-xs leading-5 text-muted-foreground">{hint}</p> : null}
     </div>
   );

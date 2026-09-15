@@ -9,6 +9,8 @@ import {
   Database,
   Globe,
   KeyRound,
+  Link2,
+  Mail,
   ShieldCheck,
   Terminal,
   UserRound,
@@ -24,7 +26,9 @@ const GROUPS = [
     label: { zh: "账户", en: "Account" },
     items: [
       { href: "/settings/profile", label: { zh: "资料", en: "Profile" }, desc: { zh: "昵称、头像、简介与界面语言", en: "Name, avatar, bio and language" }, icon: UserRound },
+      { href: "/settings/email", label: { zh: "邮箱", en: "Email" }, desc: { zh: "绑定或更换登录邮箱", en: "Bind or change your email" }, icon: Mail },
       { href: "/settings/security", label: { zh: "安全", en: "Security" }, desc: { zh: "密码、两步验证与登录会话", en: "Password, 2FA and sessions" }, icon: ShieldCheck },
+      { href: "/settings/connections", label: { zh: "账号绑定", en: "Connections" }, desc: { zh: "绑定或解绑 GitHub / Google 登录", en: "Link or unlink GitHub / Google" }, icon: Link2 },
       { href: "/settings/notifications", label: { zh: "通知", en: "Notifications" }, desc: { zh: "通知渠道与接收偏好", en: "Channels and preferences" }, icon: Bell },
     ],
   },

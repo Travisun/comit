@@ -104,13 +104,6 @@ export function UsernameForm({ data }: { data: UsernameData }) {
 
   return (
     <SettingsSection>
-      <SettingsSectionHeader
-        description={
-          zh
-            ? `你的个人主页通过 /${current} 访问。${cooldownDesc}`
-            : `Your profile lives at /${current}. ${cooldownDesc}`
-        }
-      />
       <form onSubmit={save}>
         <div className="divide-y divide-border">
           <div className="px-4 py-4">
@@ -124,7 +117,7 @@ export function UsernameForm({ data }: { data: UsernameData }) {
                   value={value}
                   onChange={(e) => setValue(e.target.value.toLowerCase())}
                   maxLength={data.max + 1}
-                  className="rounded-none border-0 bg-transparent pr-9 font-mono focus-visible:shadow-none"
+                  className="rounded-none border-0 bg-transparent pr-9 font-mono shadow-none focus-visible:shadow-none"
                   autoComplete="off"
                   spellCheck={false}
                   disabled={inCooldown}

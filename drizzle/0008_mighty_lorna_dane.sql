@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "pending_email" varchar(320);

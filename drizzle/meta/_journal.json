@@ -57,6 +57,13 @@
       "when": 1789400769774,
       "tag": "0007_ambitious_toro",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789454035677,
+      "tag": "0008_mighty_lorna_dane",
+      "breakpoints": true
     }
   ]
 }

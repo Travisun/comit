@@ -12,6 +12,9 @@ import { McpPanel, ApiTokensPanel } from "./tokens-panel";
 import { ExportPanel, DeleteAccountPanel } from "./data-panel";
 import { VerificationPanel } from "./verification-panel";
 import { UsernameForm } from "./username-form";
+import { PrivacyPanel } from "./privacy-panel";
+import { EmailPanel } from "./email-panel";
+import { ConnectionsPanel } from "./connections-panel";
 
 /** Section manifest — rendered as the dashboard sidebar menu. */
 export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
@@ -19,6 +22,9 @@ export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
   { id: "security", labelKey: "settings.tab.security" },
   { id: "notifications", labelKey: "settings.tab.notifications" },
   { id: "username", labelKey: "settings.tab.username" },
+  { id: "privacy", labelKey: "settings.tab.privacy" },
+  { id: "email", labelKey: "settings.tab.email" },
+  { id: "connections", labelKey: "settings.tab.connections" },
   { id: "invites", labelKey: "settings.tab.invites" },
   { id: "verification", labelKey: "settings.tab.verification" },
   { id: "mcp", labelKey: "settings.tab.mcp" },
@@ -75,6 +81,12 @@ function section(
       return <NotificationsPanel channels={data.notifications.channels} initialPrefs={data.notifications.prefs} />;
     case "username":
       return <UsernameForm data={data.username} />;
+    case "privacy":
+      return <PrivacyPanel initial={{ hideFollowers: data.profile.hideFollowers, hideFollowing: data.profile.hideFollowing }} />;
+    case "email":
+      return <EmailPanel />;
+    case "connections":
+      return <ConnectionsPanel />;
     case "invites":
       return <InvitesPanel data={data.invites} appUrl={data.appUrl} />;
     case "verification":

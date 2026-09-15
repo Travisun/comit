@@ -2,10 +2,10 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { CircleUser, EyeOff, ImageUp, Loader2 } from "lucide-react";
+import { CircleUser, ImageUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage, Switch } from "@/components/ui/primitives";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import {
   SectionTabs,
   SettingField,
@@ -40,8 +40,6 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const [uiLocale, setUiLocale] = useState<"zh" | "en">(initial.locale);
   const [avatarPath, setAvatarPath] = useState(initial.avatarPath);
   const [coverPath, setCoverPath] = useState(initial.coverPath);
-  const [hideFollowers, setHideFollowers] = useState(initial.hideFollowers);
-  const [hideFollowing, setHideFollowing] = useState(initial.hideFollowing);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -293,44 +291,6 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
           </SettingField>
         </div>
 
-        {/* 隐私设置：开关即保存，不与上方资料字段混存 */}
-        <div className="rounded-lg border border-border">
-          <p className="flex items-center gap-1.5 border-b border-border px-4 py-2.5 text-sm font-medium">
-            <EyeOff className="size-4 text-muted-foreground" />
-            {locale === "zh" ? "隐私" : "Privacy"}
-          </p>
-          <div className="divide-y divide-border">
-            <PrivacyToggle
-              label={locale === "zh" ? "隐藏「关注中」列表" : "Hide following list"}
-              desc={locale === "zh" ? "关闭后其他人无法在你的主页查看你关注了谁。" : "Others can't see who you follow on your profile."}
-              checked={hideFollowing}
-              onChange={(v) => {
-                setHideFollowing(v);
-                void apiRequest("/api/me/profile", "PUT", { hideFollowing: v })
-                  .then(() => toast.success(locale === "zh" ? "隐私设置已保存" : "Privacy setting saved"))
-                  .catch((err) => {
-                    setHideFollowing(!v);
-                    toast.error((err as Error).message);
-                  });
-              }}
-            />
-            <PrivacyToggle
-              label={locale === "zh" ? "隐藏「粉丝」列表" : "Hide followers list"}
-              desc={locale === "zh" ? "关闭后其他人无法在你的主页查看你的粉丝。" : "Others can't see your followers on your profile."}
-              checked={hideFollowers}
-              onChange={(v) => {
-                setHideFollowers(v);
-                void apiRequest("/api/me/profile", "PUT", { hideFollowers: v })
-                  .then(() => toast.success(locale === "zh" ? "隐私设置已保存" : "Privacy setting saved"))
-                  .catch((err) => {
-                    setHideFollowers(!v);
-                    toast.error((err as Error).message);
-                  });
-              }}
-            />
-          </div>
-        </div>
-
         {footerFor(profileDirty, () => void saveProfile())}
       </SettingsSection>}
 
@@ -343,8 +303,13 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 : "Third-party profiles and links shown on your public page."
             }
           />
-          <div className="grid max-w-2xl gap-4 sm:grid-cols-3">
-            <SettingField label={t("settings.profile.github")} htmlFor="github">
+          <div className="max-w-2xl space-y-5">
+            <SettingField
+              label={t("settings.profile.github")}
+              htmlFor="github"
+              hint={undefined}
+              description={locale === "zh" ? "你的 GitHub 用户名，将展示为主页链接。" : "Shown as a link on your profile."}
+            >
               <Input
                 id="github"
                 value={github}
@@ -352,7 +317,11 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 onChange={(e) => setGithub(e.target.value)}
               />
             </SettingField>
-            <SettingField label={t("settings.profile.orcid")} htmlFor="orcid">
+            <SettingField
+              label={t("settings.profile.orcid")}
+              htmlFor="orcid"
+              description={locale === "zh" ? "学术身份标识（ORCID iD），用于关联你的科研成果。" : "Your ORCID iD linking research outputs."}
+            >
               <Input
                 id="orcid"
                 value={orcid}
@@ -360,7 +329,11 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
                 onChange={(e) => setOrcid(e.target.value)}
               />
             </SettingField>
-            <SettingField label={t("settings.profile.website")} htmlFor="website">
+            <SettingField
+              label={t("settings.profile.website")}
+              htmlFor="website"
+              description={locale === "zh" ? "个人网站或主页，将以链接展示。" : "A personal site shown as a link."}
+            >
               <Input
                 id="website"
                 value={website}
@@ -376,24 +349,3 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   );
 }
 
-function PrivacyToggle({
-  label,
-  desc,
-  checked,
-  onChange,
-}: {
-  label: string;
-  desc: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="min-w-0">
-        <p className="text-sm text-foreground">{label}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
-      </div>
-      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
-    </div>
-  );
-}

@@ -20,6 +20,7 @@ const SSO_KEY: Record<Provider, SettingsKey> = {
 
 const STATE_COOKIE = "mb_oauth_state";
 const VERIFIER_COOKIE = "mb_oauth_verifier";
+const LINK_COOKIE = "mb_oauth_link";
 const COOKIE_BASE = {
   httpOnly: true,
   sameSite: "lax" as const,
@@ -40,11 +41,23 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ provider: 
       return NextResponse.redirect(loginError);
     }
 
+    // 设置页「账号绑定」发起：link=1 且已登录 → 回调时绑定到当前账户
+    let linkUserId: string | null = null;
+    if (_req.nextUrl.searchParams.get("link") === "1") {
+      const { getCurrentUser } = await import("@/lib/auth/session");
+      const user = await getCurrentUser();
+      if (user) linkUserId = user.id;
+    }
+
     const state = randomToken(16);
-    const { url, codeVerifier } = await createOAuthUrl(p, state);
+    const { url: oauthUrl, codeVerifier } = await createOAuthUrl(p, state);
+    const url = oauthUrl;
     const res = NextResponse.redirect(url.toString());
     res.cookies.set(STATE_COOKIE, state, COOKIE_BASE);
     if (codeVerifier) res.cookies.set(VERIFIER_COOKIE, codeVerifier, COOKIE_BASE);
+    if (linkUserId) {
+      res.cookies.set(LINK_COOKIE, linkUserId, { ...COOKIE_BASE, maxAge: 600 });
+    }
     return res;
   } catch (err) {
     console.error("[auth/oauth] start failed:", err);

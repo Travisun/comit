@@ -39,6 +39,8 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     email: varchar("email", { length: 320 }).notNull(),
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+    /** 换绑邮箱：待确认的新地址（验证邮件确认后替换 email） */
+    pendingEmail: varchar("pending_email", { length: 320 }),
     passwordHash: text("password_hash"), // null ⇒ OAuth/SSO-only account
     username: varchar("username", { length: 64 }).notNull(),
     displayName: varchar("display_name", { length: 80 }).notNull(),
