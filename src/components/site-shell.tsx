@@ -87,7 +87,7 @@ function BrandLink({ siteName }: { siteName: string }) {
       <img
         src="/icons/favicon@32w.png"
         alt={siteName}
-        className="size-8 select-none rounded-md dark:invert"
+        className="size-8 select-none rounded-md dark:invert lg:hidden"
       />
       <BrandMark className="hidden h-[22px] lg:block" />
     </Link>

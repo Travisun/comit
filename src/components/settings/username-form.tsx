@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AtSign, CircleCheck, CircleX, Loader2 } from "lucide-react";
+import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +36,10 @@ export function UsernameForm({ data }: { data: UsernameData }) {
   const [current, setCurrent] = useState(data.username);
   const [saving, setSaving] = useState(false);
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
+  const [origin, setOrigin] = useState("");
+  useEffect(() => {
+    setOrigin(window.location.host);
+  }, []);
   /** which input value the availability result describes (stale-result guard) */
   const [checkedValue, setCheckedValue] = useState<string | null>(current);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -114,25 +118,28 @@ export function UsernameForm({ data }: { data: UsernameData }) {
             label={zh ? "主页地址" : "Profile URL"}
             value={
               <span className="font-mono text-sm text-muted-foreground">
-                /{current}
+                {origin ? `${origin}/` : "/"}
+                {current}
               </span>
             }
           />
           <div className="px-4 py-4">
             <SettingField label={zh ? "用户名" : "Username"} htmlFor="username">
-              <div className="relative max-w-sm">
-                <AtSign className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <div className="flex max-w-md items-center gap-0 overflow-hidden rounded-md border border-input bg-transparent focus-within:border-primary/50">
+                <span className="shrink-0 whitespace-nowrap border-r border-border bg-[var(--muted)] px-2.5 py-2 font-mono text-xs text-muted-foreground">
+                  {origin ? `${origin}/` : "…/"}
+                </span>
                 <Input
                   id="username"
                   value={value}
                   onChange={(e) => setValue(e.target.value.toLowerCase())}
                   maxLength={data.max + 1}
-                  className="pl-9 pr-9 font-mono"
+                  className="rounded-none border-0 bg-transparent pr-9 font-mono focus-visible:shadow-none"
                   autoComplete="off"
                   spellCheck={false}
                   disabled={inCooldown}
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
+                <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2">
                   {availability.state === "checking" && freshCheck && (
                     <Loader2 className="size-4 animate-spin text-muted-foreground" />
                   )}

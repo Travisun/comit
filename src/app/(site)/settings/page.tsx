@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Database,
   Globe,
+  KeyRound,
   ShieldCheck,
   Terminal,
   UserRound,
@@ -33,13 +34,14 @@ const GROUPS: {
   {
     label: { zh: "站点", en: "Site" },
     items: [
-      { href: "/settings/site", label: { zh: "站点", en: "Site" }, desc: { zh: "子域名与邀请码", en: "Subdomain and invites" }, icon: Globe },
+      { href: "/settings/site", label: { zh: "站点", en: "Site" }, desc: { zh: "用户名与邀请码", en: "Username and invites" }, icon: Globe },
     ],
   },
   {
     label: { zh: "开发者", en: "Developer" },
     items: [
-      { href: "/settings/developers", label: { zh: "开发设置", en: "Developer" }, desc: { zh: "Webhook 与 API · MCP 令牌", en: "Webhooks and API · MCP tokens" }, icon: Terminal },
+      { href: "/settings/mcp", label: { zh: "MCP", en: "MCP" }, desc: { zh: "MCP 接入端点", en: "MCP endpoint" }, icon: Terminal },
+      { href: "/settings/api", label: { zh: "API", en: "API" }, desc: { zh: "API 令牌与 Webhook", en: "API tokens and webhooks" }, icon: KeyRound },
       { href: "/settings/data", label: { zh: "数据与导出", en: "Data & export" }, desc: { zh: "导出你的全部内容", en: "Export all of your content" }, icon: Database },
     ],
   },

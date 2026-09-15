@@ -23,6 +23,7 @@ export default async function SettingsTabPage({
   const LEGACY: Record<string, string> = {
     webhooks: "api",
     tokens: "api",
+    developers: "mcp",
     subdomain: "site",
     invites: "site",
   };
