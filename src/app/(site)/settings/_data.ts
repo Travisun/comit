@@ -23,7 +23,8 @@ export const SETTINGS_TABS = [
   "verification",
   "mcp",
   "api",
-  "data",
+  "export",
+  "delete",
 ] as const;
 
 export function isSettingsTab(v: string | undefined): v is SettingsTab {

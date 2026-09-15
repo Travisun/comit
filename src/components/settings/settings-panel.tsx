@@ -9,7 +9,7 @@ import { NotificationsPanel } from "./notifications-panel";
 import { InvitesPanel } from "./invites-panel";
 import { WebhooksPanel } from "./webhooks-panel";
 import { McpPanel, ApiTokensPanel } from "./tokens-panel";
-import { DataPanel } from "./data-panel";
+import { ExportPanel, DeleteAccountPanel } from "./data-panel";
 import { VerificationPanel } from "./verification-panel";
 import { UsernameForm } from "./username-form";
 
@@ -23,7 +23,8 @@ export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
   { id: "verification", labelKey: "settings.tab.verification" },
   { id: "mcp", labelKey: "settings.tab.mcp" },
   { id: "api", labelKey: "settings.tab.api" },
-  { id: "data", labelKey: "settings.tab.data" },
+  { id: "export", labelKey: "settings.tab.export" },
+  { id: "delete", labelKey: "settings.tab.delete" },
 ];
 
 /**
@@ -87,8 +88,10 @@ function section(
           <WebhooksPanel initial={data.webhooks} availableEvents={webhookEvents} />
         </div>
       );
-    case "data":
-      return <DataPanel initial={data.exports} hasPassword={data.security.hasPassword} />;
+    case "export":
+      return <ExportPanel initial={data.exports} />;
+    case "delete":
+      return <DeleteAccountPanel hasPassword={data.security.hasPassword} />;
     default: {
       void enabledTabs;
       return null;

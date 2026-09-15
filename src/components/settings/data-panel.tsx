@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AlertTriangle, Download, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SectionTabs } from "@/components/ui/settings";
 import { Input, Label } from "@/components/ui/input";
 import { Badge, Checkbox } from "@/components/ui/primitives";
 import {
@@ -228,28 +227,10 @@ function DangerZone({ hasPassword }: { hasPassword: boolean }) {
   );
 }
 
-export function DataPanel({
-  initial,
-  hasPassword,
-}: {
-  initial: ExportJobView[];
-  hasPassword: boolean;
-}) {
-  const [tab, setTab] = useState<"export" | "danger">("export");
-  const { locale } = useI18n();
+export function ExportPanel({ initial }: { initial: ExportJobView[] }) {
+  return <ExportCard initial={initial} />;
+}
 
-  return (
-    <div className="space-y-6">
-      <SectionTabs
-        value={tab}
-        onChange={(id) => setTab(id as "export" | "danger")}
-        tabs={[
-          { id: "export", label: locale === "zh" ? "数据导出" : "Export" },
-          { id: "danger", label: locale === "zh" ? "危险操作" : "Danger zone" },
-        ]}
-      />
-      {tab === "export" && <ExportCard initial={initial} />}
-      {tab === "danger" && <DangerZone hasPassword={hasPassword} />}
-    </div>
-  );
+export function DeleteAccountPanel({ hasPassword }: { hasPassword: boolean }) {
+  return <DangerZone hasPassword={hasPassword} />;
 }

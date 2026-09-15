@@ -16,7 +16,8 @@ export type SettingsTab =
   | "mcp"
   | "api"
   | "developers"
-  | "data"
+  | "export"
+  | "delete"
   // legacy single-item routes (redirect to their merged page)
   | "subdomain"
   | "invites"

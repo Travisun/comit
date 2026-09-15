@@ -21,6 +21,7 @@ export default async function SettingsTabPage({
   const { tab } = await params;
   // legacy single-item routes → their merged page
   const LEGACY: Record<string, string> = {
+    data: "export",
     webhooks: "api",
     tokens: "api",
     developers: "mcp",
@@ -36,7 +37,7 @@ export default async function SettingsTabPage({
 
   const zh = (await getT()).locale === "zh";
   const { SettingsPanel } = await import("@/components/settings/settings-panel");
-  const label = { profile: "资料", security: "安全", notifications: "通知", site: "站点", verification: "认证", username: "用户名", mcp: "MCP", api: "API", data: "数据与导出", appearance: "外观", subdomain: "子域名", invites: "邀请码", webhooks: "Webhook", tokens: "API · MCP", developers: "MCP" }[tab] ?? tab;
+  const label = { profile: "资料", security: "安全", notifications: "通知", site: "站点", verification: "认证", username: "用户名", invites: "邀请码", mcp: "MCP", api: "API", export: "数据导出", delete: "账户删除", appearance: "外观", subdomain: "子域名", webhooks: "Webhook", tokens: "API · MCP", developers: "MCP" }[tab] ?? tab;
 
   return (
     <div className="w-full pt-[10px]">

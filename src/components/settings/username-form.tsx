@@ -6,7 +6,6 @@ import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  PropertyRow,
   SettingField,
   SettingsFooter,
   SettingsSection,
@@ -114,15 +113,6 @@ export function UsernameForm({ data }: { data: UsernameData }) {
       />
       <form onSubmit={save}>
         <div className="divide-y divide-border">
-          <PropertyRow
-            label={zh ? "主页地址" : "Profile URL"}
-            value={
-              <span className="font-mono text-sm text-muted-foreground">
-                {origin ? `${origin}/` : "/"}
-                {current}
-              </span>
-            }
-          />
           <div className="px-4 py-4">
             <SettingField label={zh ? "用户名" : "Username"} htmlFor="username">
               <div className="flex max-w-md items-center gap-0 overflow-hidden rounded-md border border-input bg-transparent focus-within:border-primary/50">

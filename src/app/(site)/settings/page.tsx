@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
+  AlertTriangle,
   BadgeCheck,
   Bell,
   ChevronRight,
@@ -18,31 +19,35 @@ import { TimelineHeader } from "@/components/site-shell";
 
 export const metadata: Metadata = { title: "设置", robots: { index: false, follow: false } };
 
-const GROUPS: {
-  label: { zh: string; en: string };
-  items: { href: string; label: { zh: string; en: string }; desc: { zh: string; en: string }; icon: React.ElementType }[];
-}[] = [
+const GROUPS = [
   {
     label: { zh: "账户", en: "Account" },
     items: [
-      { href: "/settings/profile", label: { zh: "资料", en: "Profile" }, desc: { zh: "头像、昵称、简介与社交链接", en: "Avatar, name, bio and social links" }, icon: UserRound },
+      { href: "/settings/profile", label: { zh: "资料", en: "Profile" }, desc: { zh: "昵称、头像、简介与界面语言", en: "Name, avatar, bio and language" }, icon: UserRound },
       { href: "/settings/security", label: { zh: "安全", en: "Security" }, desc: { zh: "密码、两步验证与登录会话", en: "Password, 2FA and sessions" }, icon: ShieldCheck },
-      { href: "/settings/notifications", label: { zh: "通知", en: "Notifications" }, desc: { zh: "按事件选择接收渠道", en: "Choose channels per event" }, icon: Bell },
-      { href: "/settings/verification", label: { zh: "认证", en: "Verification" }, desc: { zh: "申请身份认证徽章", en: "Apply for a verification badge" }, icon: BadgeCheck },
+      { href: "/settings/notifications", label: { zh: "通知", en: "Notifications" }, desc: { zh: "通知渠道与接收偏好", en: "Channels and preferences" }, icon: Bell },
     ],
   },
   {
-    label: { zh: "站点", en: "Site" },
+    label: { zh: "身份", en: "Identity" },
     items: [
-      { href: "/settings/site", label: { zh: "站点", en: "Site" }, desc: { zh: "用户名与邀请码", en: "Username and invites" }, icon: Globe },
+      { href: "/settings/username", label: { zh: "用户名", en: "Username" }, desc: { zh: "主页地址，每 30 天可修改一次", en: "Your profile URL, changeable every 30 days" }, icon: Globe },
+      { href: "/settings/invites", label: { zh: "邀请码", en: "Invites" }, desc: { zh: "生成邀请码并查看使用情况", en: "Generate and track invite codes" }, icon: KeyRound },
+      { href: "/settings/verification", label: { zh: "认证", en: "Verification" }, desc: { zh: "申请身份认证徽章", en: "Apply for a verification badge" }, icon: BadgeCheck },
     ],
   },
   {
     label: { zh: "开发者", en: "Developer" },
     items: [
-      { href: "/settings/mcp", label: { zh: "MCP", en: "MCP" }, desc: { zh: "MCP 接入端点", en: "MCP endpoint" }, icon: Terminal },
+      { href: "/settings/mcp", label: { zh: "MCP", en: "MCP" }, desc: { zh: "AI 客户端接入端点", en: "Endpoint for AI clients" }, icon: Terminal },
       { href: "/settings/api", label: { zh: "API", en: "API" }, desc: { zh: "API 令牌与 Webhook", en: "API tokens and webhooks" }, icon: KeyRound },
-      { href: "/settings/data", label: { zh: "数据与导出", en: "Data & export" }, desc: { zh: "导出你的全部内容", en: "Export all of your content" }, icon: Database },
+    ],
+  },
+  {
+    label: { zh: "数据", en: "Data" },
+    items: [
+      { href: "/settings/export", label: { zh: "数据导出", en: "Export data" }, desc: { zh: "打包下载你的全部内容", en: "Download all of your content" }, icon: Database },
+      { href: "/settings/delete", label: { zh: "账户删除", en: "Delete account" }, desc: { zh: "注销账户，此操作不可恢复", en: "Permanently delete your account" }, icon: AlertTriangle },
     ],
   },
 ];
