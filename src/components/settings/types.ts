@@ -12,6 +12,8 @@ export type SettingsTab =
   | "notifications"
   | "site"
   | "verification"
+  | "mcp"
+  | "api"
   | "developers"
   | "data"
   // legacy single-item routes (redirect to their merged page)
@@ -50,6 +52,7 @@ export interface SessionView {
 
 export interface InviteView {
   code: string;
+  createdAt: string;
   usedAt: string | null;
   usedByUsername: string | null;
 }
@@ -105,6 +108,8 @@ export interface SettingsData {
     locale: "zh" | "en";
     avatarPath: string | null;
     coverPath: string | null;
+    hideFollowers: boolean;
+    hideFollowing: boolean;
   };
   appearance: AppearanceValue;
   widgets: string[];
@@ -118,13 +123,12 @@ export interface SettingsData {
     channels: ChannelOption[];
     prefs: Record<string, string[]>;
   };
-  subdomain: {
-    subdomain: string | null;
-    locked: boolean;
-    changesThisYear: number;
-    yearlyLimit: number;
-    enabled: boolean;
-    rootDomain: string;
+  username: {
+    username: string;
+    min: number;
+    max: number;
+    cooldownDays: number;
+    daysUntilChangeAllowed: number;
   };
   invites: {
     codes: InviteView[];

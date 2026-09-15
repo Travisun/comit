@@ -25,8 +25,6 @@ interface SettingsResponse {
 }
 
 const FEATURE_KEYS: { key: string; label: string; desc: string }[] = [
-  { key: "site.subdomains", label: "启用子域名访问", desc: "为每位用户分配 username.根域名 的独立访问入口" },
-  { key: "site.subdomainLocked", label: "子域名锁定", desc: "每个账号只能设置一次子域名" },
   { key: "site.registrationOpen", label: "开放注册", desc: "关闭后新用户将无法注册" },
   { key: "site.inviteRequired", label: "注册需要邀请码", desc: "仅持有有效邀请码的用户可完成注册" },
   { key: "site.force2fa", label: "强制两步验证", desc: "所有用户登录时必须完成 TOTP 验证" },

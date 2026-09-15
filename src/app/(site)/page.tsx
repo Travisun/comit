@@ -1,3 +1,4 @@
+import { permanentRedirect } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { routes } from "@/core/routes";
@@ -8,7 +9,6 @@ import { getPublishedPosts, toFeedItemDTO } from "@/components/user-space/querie
 import { resolveSingleUser, SingleUserHome } from "@/components/user-space/profile-view";
 import { FeedStream } from "@/components/user-space/feed-stream";
 import { TimelineHeader } from "@/components/site-shell";
-import { cn } from "@/lib/utils";
 import { PinnedComposer } from "@/components/social/pinned-composer";
 import { Button } from "@/components/ui/button";
 
@@ -19,7 +19,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * 官方主页 = X 式时间线：页签条（最新/关注）+ 发布框 + 全站混合动态流。
+ * 首页 =「最新」时间线：发布框 + 全站混合动态流。
+ * 「关注」拆分为独立页面 /following，左侧菜单直达；旧 ?tab=following 链接永久重定向。
  * 品牌横幅并入右栏「comit.sh 是什么」卡（site-rail）。单用户模式下首页仍是
  * 该用户的个人博客。
  */
@@ -29,13 +30,15 @@ export default async function HomePage({
   searchParams: Promise<{ compose?: string; tab?: string }>;
 }) {
   const sp = await searchParams;
-  const [{ t }, viewer, mode, { compose }] = await Promise.all([
+  // 旧版顶栏药丸链接（/?tab=following）→ 独立关注流页
+  if (sp.tab === "following") permanentRedirect(routes.following);
+
+  const [{ t, locale }, viewer, mode, { compose }] = await Promise.all([
     getT(),
     getCurrentUser(),
     getSetting("site.mode"),
     Promise.resolve(sp),
   ]);
-  const tab = sp.tab === "following" && viewer ? "following" : "latest";
 
   if (mode === "single") {
     const username = await getSetting("site.singleUser");
@@ -44,42 +47,10 @@ export default async function HomePage({
     // fall through to community home when the configured user is missing
   }
 
-  const feed =
-    tab === "following" && viewer
-      ? await getPublishedPosts({ limit: 10, followingOf: viewer.id })
-      : await getPublishedPosts({ limit: 10 });
+  const feed = await getPublishedPosts({ limit: 10 });
   return (
-    <div className="min-h-dvh w-full max-w-[600px] pt-[10px]">
-      <TimelineHeader
-        title="社区"
-        className="border-b border-border"
-        right={
-          <nav aria-label="时间线" className="flex items-center gap-1">
-            <Link
-              href="/"
-              className={cn(
-                "rounded-full px-3 py-1 text-sm transition-colors",
-                tab !== "following"
-                  ? "bg-[var(--selected)] font-semibold text-foreground"
-                  : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)]",
-              )}
-            >
-              最新
-            </Link>
-            <Link
-              href="/?tab=following"
-              className={cn(
-                "rounded-full px-3 py-1 text-sm transition-colors",
-                tab === "following"
-                  ? "bg-[var(--selected)] font-semibold text-foreground"
-                  : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)]",
-              )}
-            >
-              关注
-            </Link>
-          </nav>
-        }
-      />
+    <div className="min-h-dvh w-full pt-[10px]">
+      <TimelineHeader title={locale === "zh" ? "最新" : "Latest"} paddingClass="px-5" />
 
       {viewer ? (
         <PinnedComposer
@@ -108,18 +79,11 @@ export default async function HomePage({
         </div>
       )}
 
-      {tab === "following" && feed.items.length === 0 ? (
-        <div className="px-4 py-16 text-center text-sm text-muted-foreground">
-          还没有关注的人发布的动态。去发现页找到感兴趣的人吧。
-        </div>
-      ) : (
-        <FeedStream
-          initialItems={feed.items.map(toFeedItemDTO)}
-          initialCursor={feed.nextOffset}
-          viewerUsername={viewer?.username}
-          scope={tab === "following" ? "following" : undefined}
-        />
-      )}
+      <FeedStream
+        initialItems={feed.items.map(toFeedItemDTO)}
+        initialCursor={feed.nextOffset}
+        viewerUsername={viewer?.username}
+      />
     </div>
   );
 }

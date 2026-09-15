@@ -12,7 +12,7 @@ type Props = {
   searchParams: Promise<{ tab?: string; page?: string }>;
 };
 
-const TAB_IDS: ProfileTab[] = ["posts", "short", "collections", "followers", "following", "about"];
+const TAB_IDS: ProfileTab[] = ["posts", "short", "collections", "followers", "following"];
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;

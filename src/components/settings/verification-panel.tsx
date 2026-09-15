@@ -162,7 +162,7 @@ function VerifiedCard({ verified }: { verified: VerificationMeResponse["verified
             <VerifiedBadge verified={verified} size="md" />
           </span>
           <div>
-            <h3 className="text-base font-semibold">
+            <h3 className="text-base font-normal">
               {zh ? "已认证" : "Verified"} · {typeName}
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -213,7 +213,7 @@ function PendingCard({
     <div className="rounded-lg border-amber-500/30 bg-amber-500/5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1.5">
-          <h3 className="flex items-center gap-2 text-base font-semibold">
+          <h3 className="flex items-center gap-2 text-base font-normal">
             <Hourglass className="size-4 text-amber-500" />
             {zh ? "认证审核中" : "Verification under review"}
           </h3>
@@ -249,7 +249,7 @@ function RejectedCard({
     <div className="rounded-lg border-destructive/30 bg-destructive/5 p-6">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
         <div className="space-y-1.5">
-          <h3 className="flex items-center gap-2 text-base font-semibold">
+          <h3 className="flex items-center gap-2 text-base font-normal">
             <CircleAlert className="size-4 text-destructive" />
             {zh ? "认证未通过" : "Verification rejected"}
           </h3>
@@ -356,7 +356,7 @@ function ApplyCard({
   return (
     <div className="space-y-4">
       <div className="mb-4">
-        <h3 className="text-base font-semibold leading-6 text-foreground">{upgrading ? (zh ? "重新认证" : "Re-verify") : zh ? "申请认证" : "Apply for verification"}</h3>
+        <h3 className="text-base font-normal leading-6 text-foreground">{upgrading ? (zh ? "重新认证" : "Re-verify") : zh ? "申请认证" : "Apply for verification"}</h3>
         <p className="text-sm text-muted-foreground">
           {zh
             ? "选择认证类型，填写认证名称并上传证明材料，审核通过后徽章将展示在你的主页。"
@@ -498,7 +498,7 @@ function HistoryCard({ requests }: { requests: VerificationRequestView[] }) {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-base font-semibold mb-4">{zh ? "申请记录" : "Application history"}</h3>
+      <h3 className="text-base font-normal mb-4">{zh ? "申请记录" : "Application history"}</h3>
       <ul className="flex flex-col gap-y-1">
         {requests.map((r) => {
           const info = VERIFICATION_TYPE_MAP[r.type];

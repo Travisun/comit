@@ -89,7 +89,7 @@ export default async function AboutPage() {
 
       {/* --------------------------- 为什么叫 comit --------------------------- */}
       <section className="mt-14">
-        <h2 className="text-lg font-bold tracking-tight">{t("about.origins.title")}</h2>
+        <h2 className="text-lg font-normal">{t("about.origins.title")}</h2>
         <div className="mt-5 space-y-7">
           {ORIGINS.map((o) => (
             <div key={o.title} className="flex gap-4">
@@ -100,7 +100,7 @@ export default async function AboutPage() {
                 <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground/80">
                   {t(o.tag)}
                 </p>
-                <h3 className="mt-1 font-semibold">{t(o.title)}</h3>
+                <h3 className="mt-1 font-normal">{t(o.title)}</h3>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t(o.body)}</p>
               </div>
             </div>
@@ -110,13 +110,13 @@ export default async function AboutPage() {
 
       {/* ------------------------------ 为谁而建 ------------------------------ */}
       <section className="mt-14">
-        <h2 className="text-lg font-bold tracking-tight">{t("about.audience.title")}</h2>
+        <h2 className="text-lg font-normal">{t("about.audience.title")}</h2>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           {AUDIENCE.map((a) => (
             <div key={a.name} className="rounded-2xl border border-border/70 bg-card p-4 shadow-[var(--shadow-soft)]">
               <div className="flex items-center gap-2">
                 <a.icon className="size-4 text-primary" />
-                <h3 className="font-semibold">{t(a.name)}</h3>
+                <h3 className="font-normal">{t(a.name)}</h3>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t(a.line)}</p>
             </div>
@@ -126,13 +126,13 @@ export default async function AboutPage() {
 
       {/* ------------------------------ 平台承诺 ------------------------------ */}
       <section className="mt-14">
-        <h2 className="text-lg font-bold tracking-tight">{t("about.promise.title")}</h2>
+        <h2 className="text-lg font-normal">{t("about.promise.title")}</h2>
         <ul className="mt-5 space-y-4">
           {PROMISES.map((p) => (
             <li key={p.title} className="flex gap-3.5">
               <p.icon className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="min-w-0">
-                <h3 className="text-sm font-semibold">{t(p.title)}</h3>
+                <h3 className="text-sm font-normal">{t(p.title)}</h3>
                 <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{t(p.desc)}</p>
               </div>
             </li>
@@ -142,7 +142,7 @@ export default async function AboutPage() {
 
       {/* -------------------------------- CTA -------------------------------- */}
       <section className="mt-16 border-t border-border/60 pt-10 text-center">
-        <h2 className="text-balance text-xl font-bold tracking-tight">{t("about.cta.title")}</h2>
+        <h2 className="text-balance text-xl font-normal">{t("about.cta.title")}</h2>
         <p className="mt-2 font-mono text-xs text-muted-foreground">{t("brand.commit.mantra")}</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           <Button asChild>

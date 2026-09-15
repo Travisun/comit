@@ -57,7 +57,7 @@ export default async function SettingsHomePage() {
       <div className="mx-auto w-full max-w-[600px] pb-10">
         {GROUPS.map((group) => (
           <section key={group.label.en} className="border-b border-border py-2 first:pt-0">
-            <h2 className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <h2 className="px-4 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
               {zh ? group.label.zh : group.label.en}
             </h2>
             <ul>

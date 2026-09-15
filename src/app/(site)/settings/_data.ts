@@ -1,6 +1,7 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { exportJobs, sessions, totpSecrets, users, webhooks } from "@/db/schema";
+import { USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users";
 import { listApiTokens } from "@/lib/tokens";
 import { listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
@@ -19,7 +20,8 @@ export const SETTINGS_TABS = [
   "notifications",
   "site",
   "verification",
-  "developers",
+  "mcp",
+  "api",
   "data",
 ] as const;
 
@@ -42,8 +44,12 @@ export async function getSettingsPageData(auth: {
     orcid: string | null;
     website: string | null;
     locale: string;
+    username: string;
+    usernameUpdatedAt: Date | null;
     avatarPath: string | null;
     coverPath: string | null;
+    hideFollowers: boolean;
+    hideFollowing: boolean;
     appearance: unknown;
     widgets: string[];
     notificationPrefs: Record<string, string[]> | null;
@@ -60,8 +66,8 @@ export async function getSettingsPageData(auth: {
   if (channels.size === 0) await bootPlugins();
 
   const [subEnabled, subLocked, twoFactorConfirmed] = await Promise.all([
-    getSetting("site.subdomains"),
-    getSetting("site.subdomainLocked"),
+    Promise.resolve(false),
+    Promise.resolve(false),
     hasConfirmedTotp(u.id),
   ]);
 
@@ -122,6 +128,8 @@ export async function getSettingsPageData(auth: {
       locale: u.locale === "en" ? "en" : "zh",
       avatarPath: u.avatarPath,
       coverPath: u.coverPath,
+      hideFollowers: u.hideFollowers,
+      hideFollowing: u.hideFollowing,
     },
     appearance: (u.appearance ?? {}) as SettingsData["appearance"],
     widgets: u.widgets ?? [],
@@ -144,17 +152,23 @@ export async function getSettingsPageData(auth: {
       channels: [...channels.values()].map((c) => ({ id: c.id, label: c.label })),
       prefs: u.notificationPrefs ?? {},
     },
-    subdomain: {
-      subdomain: u.subdomain,
-      locked: subLocked,
-      changesThisYear: changesThisYear(u.subdomainUpdatedAt),
-      yearlyLimit: 3,
-      enabled: subEnabled,
-      rootDomain: config.app.rootDomain,
-    },
+    username: (() => {
+      const changed = u.usernameUpdatedAt;
+      const days = changed ? (Date.now() - changed.getTime()) / 86_400_000 : Number.POSITIVE_INFINITY;
+      return {
+        username: u.username,
+        min: USERNAME_MIN,
+        max: USERNAME_MAX,
+        cooldownDays: USERNAME_COOLDOWN_DAYS,
+        daysUntilChangeAllowed: Number.isFinite(days)
+          ? Math.max(0, Math.ceil(USERNAME_COOLDOWN_DAYS - days))
+          : 0,
+      };
+    })(),
     invites: {
       codes: inviteRows.map((r) => ({
         code: r.code,
+        createdAt: r.createdAt.toISOString(),
         usedAt: r.usedAt ? r.usedAt.toISOString() : null,
         usedByUsername: r.usedBy ? usedByNames.get(r.usedBy) ?? null : null,
       })),

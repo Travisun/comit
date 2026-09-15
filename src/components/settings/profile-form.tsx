@@ -2,10 +2,10 @@
 
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { CircleUser, ImageUp, Loader2 } from "lucide-react";
+import { CircleUser, EyeOff, ImageUp, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
+import { Avatar, AvatarFallback, AvatarImage, Switch } from "@/components/ui/primitives";
 import {
   SectionTabs,
   SettingField,
@@ -26,6 +26,8 @@ export interface ProfileInitial {
   locale: "zh" | "en";
   avatarPath: string | null;
   coverPath: string | null;
+  hideFollowers: boolean;
+  hideFollowing: boolean;
 }
 
 export function ProfileForm({ initial }: { initial: ProfileInitial }) {
@@ -38,17 +40,11 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const [uiLocale, setUiLocale] = useState<"zh" | "en">(initial.locale);
   const [avatarPath, setAvatarPath] = useState(initial.avatarPath);
   const [coverPath, setCoverPath] = useState(initial.coverPath);
+  const [hideFollowers, setHideFollowers] = useState(initial.hideFollowers);
+  const [hideFollowing, setHideFollowing] = useState(initial.hideFollowing);
   const [uploading, setUploading] = useState<"avatar" | "cover" | null>(null);
+  const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
-  const dirty =
-    displayName !== initial.displayName ||
-    bio !== (initial.bio ?? "") ||
-    github !== (initial.github ?? "") ||
-    orcid !== (initial.orcid ?? "") ||
-    website !== (initial.website ?? "") ||
-    uiLocale !== initial.locale ||
-    avatarPath !== initial.avatarPath ||
-    coverPath !== initial.coverPath;
   const [tab, setTab] = useState<"profile" | "social" | "cover">("profile");
   const avatarInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
@@ -56,11 +52,17 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   async function onPickImage(target: "avatar" | "cover", file: File | undefined) {
     if (!file) return;
     setUploading(target);
+    setProgress(0);
     try {
-      const path = await uploadImage(file, target);
+      const path = await uploadImage(file, target, setProgress);
+      // 传完即生效：只提交图片字段，避免把表单里未保存的文字改动一起带上去。
+      // 若等手动保存，用户会以为上传即应用，回头看到主页没变以为出 bug。
+      await apiRequest("/api/me/profile", "PUT", {
+        [target === "avatar" ? "avatarPath" : "coverPath"]: path,
+      });
       if (target === "avatar") setAvatarPath(path);
       else setCoverPath(path);
-      toast.success(locale === "zh" ? "图片已上传" : "Image uploaded");
+      toast.success(locale === "zh" ? "已上传并保存" : "Uploaded and saved");
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -68,15 +70,13 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
     }
   }
 
-  async function save() {
+  async function saveProfile() {
     setSaving(true);
     try {
+      // 资料与社交分开保存：只提交本 tab 的字段，互不携带对方未保存的改动
       await apiRequest("/api/me/profile", "PUT", {
         displayName,
         bio,
-        github: github || null,
-        orcid: orcid || null,
-        website: website || null,
         locale: uiLocale,
         avatarPath,
         coverPath,
@@ -89,11 +89,61 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
     }
   }
 
+  async function saveSocial() {
+    setSaving(true);
+    try {
+      await apiRequest("/api/me/profile", "PUT", {
+        github: github || null,
+        orcid: orcid || null,
+        website: website || null,
+      });
+      toast.success(t("settings.profile.saved"));
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const avatarSrc = mediaUrl(avatarPath);
   const coverSrc = mediaUrl(coverPath);
 
+  const profileDirty =
+    displayName !== initial.displayName ||
+    bio !== (initial.bio ?? "") ||
+    uiLocale !== initial.locale ||
+    avatarPath !== initial.avatarPath ||
+    coverPath !== initial.coverPath;
+  const socialDirty =
+    github !== (initial.github ?? "") ||
+    orcid !== (initial.orcid ?? "") ||
+    website !== (initial.website ?? "");
+
+  /* 资料页与社交页各自的保存按钮（封面 tab 上传即自动保存，无需按钮） */
+  const footerFor = (dirty: boolean, onClick: () => void) => (
+    <SettingsFooter
+      hint={dirty ? undefined : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"}
+    >
+      <Button
+        type="button"
+        disabled={saving || !dirty || (onClick === saveProfile && !displayName.trim())}
+        onClick={onClick}
+      >
+        {saving && <Loader2 className="animate-spin" />}
+        {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+      </Button>
+    </SettingsFooter>
+  );
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); void save(); }} className="space-y-6">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (tab === "social") void saveSocial();
+        else void saveProfile();
+      }}
+      className="space-y-6"
+    >
       <SectionTabs
         value={tab}
         onChange={(id) => setTab(id as "cover" | "profile" | "social")}
@@ -104,7 +154,11 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
         ]}
       />
       {tab === "cover" && <SettingsSection>
-        <p className="text-sm text-muted-foreground">1920×840 · WebP</p>
+        <p className="text-sm text-muted-foreground">
+          {locale === "zh"
+            ? "建议 1920×840。上传时在本地压缩为 WebP，上传成功即自动保存并生效。"
+            : "Recommended 1920×840. Compressed to WebP in your browser; saved automatically on upload."}
+        </p>
         <button
           type="button"
           onClick={() => coverInput.current?.click()}
@@ -123,8 +177,9 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
             </span>
           )}
           {uploading === "cover" && (
-            <span className="absolute inset-0 flex items-center justify-center bg-background/60">
+            <span className="absolute inset-0 flex items-center justify-center gap-2 bg-background/60 text-sm font-medium">
               <Loader2 className="size-5 animate-spin" />
+              {progress > 0 ? `${progress}%` : "…"}
             </span>
           )}
         </button>
@@ -238,14 +293,45 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
           </SettingField>
         </div>
 
-        <SettingsFooter
-          hint={dirty ? undefined : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"}
-        >
-          <Button type="submit" disabled={saving || !dirty || !displayName.trim()}>
-            {saving && <Loader2 className="animate-spin" />}
-            {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
-          </Button>
-        </SettingsFooter>
+        {/* 隐私设置：开关即保存，不与上方资料字段混存 */}
+        <div className="rounded-lg border border-border">
+          <p className="flex items-center gap-1.5 border-b border-border px-4 py-2.5 text-sm font-medium">
+            <EyeOff className="size-4 text-muted-foreground" />
+            {locale === "zh" ? "隐私" : "Privacy"}
+          </p>
+          <div className="divide-y divide-border">
+            <PrivacyToggle
+              label={locale === "zh" ? "隐藏「关注中」列表" : "Hide following list"}
+              desc={locale === "zh" ? "关闭后其他人无法在你的主页查看你关注了谁。" : "Others can't see who you follow on your profile."}
+              checked={hideFollowing}
+              onChange={(v) => {
+                setHideFollowing(v);
+                void apiRequest("/api/me/profile", "PUT", { hideFollowing: v })
+                  .then(() => toast.success(locale === "zh" ? "隐私设置已保存" : "Privacy setting saved"))
+                  .catch((err) => {
+                    setHideFollowing(!v);
+                    toast.error((err as Error).message);
+                  });
+              }}
+            />
+            <PrivacyToggle
+              label={locale === "zh" ? "隐藏「粉丝」列表" : "Hide followers list"}
+              desc={locale === "zh" ? "关闭后其他人无法在你的主页查看你的粉丝。" : "Others can't see your followers on your profile."}
+              checked={hideFollowers}
+              onChange={(v) => {
+                setHideFollowers(v);
+                void apiRequest("/api/me/profile", "PUT", { hideFollowers: v })
+                  .then(() => toast.success(locale === "zh" ? "隐私设置已保存" : "Privacy setting saved"))
+                  .catch((err) => {
+                    setHideFollowers(!v);
+                    toast.error((err as Error).message);
+                  });
+              }}
+            />
+          </div>
+        </div>
+
+        {footerFor(profileDirty, () => void saveProfile())}
       </SettingsSection>}
 
       {tab === "social" && (
@@ -283,16 +369,31 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
               />
             </SettingField>
           </div>
-          <SettingsFooter
-            hint={dirty ? undefined : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"}
-          >
-            <Button type="submit" disabled={saving || !dirty || !displayName.trim()}>
-              {saving && <Loader2 className="animate-spin" />}
-              {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
-            </Button>
-          </SettingsFooter>
+          {footerFor(socialDirty, () => void saveSocial())}
         </SettingsSection>
       )}
     </form>
+  );
+}
+
+function PrivacyToggle({
+  label,
+  desc,
+  checked,
+  onChange,
+}: {
+  label: string;
+  desc: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm text-foreground">{label}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{desc}</p>
+      </div>
+      <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+    </div>
   );
 }

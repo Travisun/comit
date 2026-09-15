@@ -4,7 +4,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Copy, KeyRound, Loader2, Plus, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SectionTabs } from "@/components/ui/settings";
 import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/primitives";
 import {
@@ -15,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
@@ -30,20 +30,50 @@ const SCOPE_LABELS: Record<string, string> = {
   "profile:read": "资料读取 / Read profile",
 };
 
-export function TokensPanel({
+/** MCP 接入：端点地址 + 复制 / 打开。 */
+export function McpPanel({ appUrl }: { appUrl: string }) {
+  const { t } = useI18n();
+  const mcpEndpoint = `${appUrl}/api/mcp`;
+
+  return (
+    <div className="space-y-4">
+      <SettingsSectionHeader description={t("settings.tokens.desc")} />
+      <div className="flex max-w-xl items-center gap-2">
+        <Input readOnly value={mcpEndpoint} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
+        <Button
+          variant="outline"
+          size="icon"
+          title={t("common.copy")}
+          onClick={async () => {
+            if (await copyText(mcpEndpoint)) toast.success(t("common.copied"));
+          }}
+        >
+          <Copy />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          title={t("external.continue")}
+          onClick={() => window.open(mcpEndpoint, "_blank")}
+        >
+          <SquareArrowOutUpRight />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** API 令牌：创建 / 吊销 / 列表。 */
+export function ApiTokensPanel({
   initial,
-  appUrl,
   availableScopes,
 }: {
   initial: TokenView[];
-  appUrl: string;
   availableScopes: string[];
 }) {
   const { t, locale } = useI18n();
-  const mcpEndpoint = `${appUrl}/api/mcp`;
   const [tokens, setTokens] = useState(initial);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"mcp" | "tokens">("mcp");
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<string[]>(["posts:read"]);
   const [created, setCreated] = useState<string | null>(null);
@@ -83,88 +113,53 @@ export function TokensPanel({
   }
 
   return (
-    <div className="space-y-6">
-      <SectionTabs
-        value={tab}
-        onChange={(id) => setTab(id as "mcp" | "tokens")}
-        tabs={[
-          { id: "mcp", label: t("settings.tokens.mcpEndpoint") },
-          { id: "tokens", label: locale === "zh" ? "API 令牌" : "API tokens" },
-        ]}
-      />
-      {tab === "mcp" && <div className="space-y-4">
-        <p className="text-sm text-muted-foreground">{t("settings.tokens.desc")}</p>
-        <div className="flex max-w-xl items-center gap-2">
-            <Input readOnly value={mcpEndpoint} className="font-mono text-xs" onFocus={(e) => e.target.select()} />
-            <Button
-              variant="outline"
-              size="icon"
-              title={t("common.copy")}
-              onClick={async () => {
-                if (await copyText(mcpEndpoint)) toast.success(t("common.copied"));
-              }}
-            >
-              <Copy />
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              title={t("external.continue")}
-              onClick={() => window.open(mcpEndpoint, "_blank")}
-            >
-              <SquareArrowOutUpRight />
-            </Button>
-          </div>
-      </div>}
-
-      {tab === "tokens" && <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <p className="text-sm text-muted-foreground">{locale === "zh" ? "用于 MCP 或 REST 访问" : "For MCP / REST access"}</p>
-          <Button size="sm" onClick={() => setOpen(true)}>
-            <Plus />
-            {t("settings.tokens.create")}
-          </Button>
-        </div>
-          {tokens.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              {locale === "zh" ? "还没有令牌" : "No tokens yet"}
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-y-1">
-              {tokens.map((tk) => (
-                <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
-                  <div className="min-w-0">
-                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                      <KeyRound className="size-4 text-muted-foreground" />
-                      {tk.name}
-                      <span className="font-mono text-xs text-muted-foreground">mbt_{tk.prefix}…</span>
-                      {tk.revokedAt && <Badge variant="destructive">{locale === "zh" ? "已吊销" : "Revoked"}</Badge>}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                      {tk.scopes.map((s) => (
-                        <Badge key={s} variant="secondary">
-                          {s}
-                        </Badge>
-                      ))}
-                    </div>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}
-                      {tk.lastUsedAt
-                        ? ` · ${locale === "zh" ? "最近使用" : "last used"} ${formatDate(tk.lastUsedAt, locale)}`
-                        : ` · ${locale === "zh" ? "从未使用" : "never used"}`}
-                    </p>
-                  </div>
-                  {!tk.revokedAt && (
-                    <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
-                      <Trash2 />
-                      {t("settings.tokens.revoke")}
-                    </Button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-      </div>}
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <p className="text-sm text-muted-foreground">{locale === "zh" ? "用于 MCP 或 REST 访问" : "For MCP / REST access"}</p>
+        <Button size="sm" onClick={() => setOpen(true)}>
+          <Plus />
+          {t("settings.tokens.create")}
+        </Button>
+      </div>
+      {tokens.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          {locale === "zh" ? "还没有令牌" : "No tokens yet"}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-y-1">
+          {tokens.map((tk) => (
+            <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                  <KeyRound className="size-4 text-muted-foreground" />
+                  {tk.name}
+                  <span className="font-mono text-xs text-muted-foreground">mbt_{tk.prefix}…</span>
+                  {tk.revokedAt && <Badge variant="destructive">{locale === "zh" ? "已吊销" : "Revoked"}</Badge>}
+                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  {tk.scopes.map((s) => (
+                    <Badge key={s} variant="secondary">
+                      {s}
+                    </Badge>
+                  ))}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}
+                  {tk.lastUsedAt
+                    ? ` · ${locale === "zh" ? "最近使用" : "last used"} ${formatDate(tk.lastUsedAt, locale)}`
+                    : ` · ${locale === "zh" ? "从未使用" : "never used"}`}
+                </p>
+              </div>
+              {!tk.revokedAt && (
+                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
+                  <Trash2 />
+                  {t("settings.tokens.revoke")}
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">

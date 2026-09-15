@@ -12,7 +12,6 @@ import { TimelineHeader } from "@/components/site-shell";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
-import { PostReactions } from "@/components/social/post-reactions";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
 import { PreviewBanner } from "@/components/social/preview-banner";
@@ -132,7 +131,6 @@ export default async function PostPermalinkPage({
             initialCount={post.repostCount}
             initialReposted={reposted}
           />
-          {viewer && <PostReactions postId={post.id} />}
           <span className="flex-1" />
           {viewer && viewer.id !== author.id && (
             <ReportDialog targetType="post" targetId={post.id} />

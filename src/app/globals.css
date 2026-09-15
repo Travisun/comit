@@ -55,7 +55,7 @@
   /* hairline borders (sail gray-100) and field borders (#c4c8cc) */
   --border: #e3e8ee;
   --input: #c4c8cc;
-  --ring: rgba(58, 151, 212, 0.28);
+  --ring: rgba(36, 41, 47, 0.28);
 
   /* body copy color (sail gray-600) + translucent field keyline rings */
   --text-body: #4f566b;
@@ -78,376 +78,72 @@
 }
 
 /* ==========================================================================
-   前台纸感主题（E-Ink / Paper）— scoped to the site shell only.
-   SiteShell adds `.theme-paper` to <body> on mount; the (dashboard) admin
-   console and bare pages (auth/legal) never mount it, so they keep the
-   base Stripe tokens. Light mode only — dark mode keeps its own palette.
+   前台站点作用域 — SiteShell 给 <body> 挂 `.theme-site`；admin 控制台和
+   裸页（auth/legal）不挂，继续用基础 Stripe 令牌。配色即基础灰白主题，
+   此处只覆盖全站字体（自托管思源黑体），不再覆盖任何颜色令牌。
    ========================================================================== */
-:root:not(.dark) .theme-paper {
-  /* deeper paper behind the panel, brighter paper for the panel */
-  --background: #f1ece1;
-  --center-border: #e2dbc9;
-  --foreground: #1c1b18;
-
-  --chrome: #fdfbf7;
-  --card: #fdfbf7;
-  --card-foreground: #1c1b18;
-
-  --popover: #fffdf9;
-  --popover-foreground: #1c1b18;
-
-  /* ink primary — editorial black CTA */
-  --primary: #1c1b18;
-  --primary-hover: #000000;
-  --primary-foreground: #fffdf9;
-
-  --secondary: #f1ebdd;
-  --secondary-foreground: #1c1b18;
-
-  --muted: #f3eee2;
-  --muted-foreground: #6e6759;
-
-  --accent: #f1ebdd;
-  --accent-foreground: #1c1b18;
-
-  /* warm hairlines + ink focus */
-  --border: #e6dfd0;
-  --input: #cfc7b4;
-  --ring: rgba(28, 27, 24, 0.2);
-
-  --text-body: #45413a;
-  --field-line: rgba(28, 27, 24, 0.18);
-  --field-focus-a: rgba(28, 27, 24, 0.16);
-  --field-focus-b: rgba(28, 27, 24, 0.24);
-
-  --hover: #f0ead9;
-  --selected: #eae3d2;
-
-  --link: #1c1b18;
-
-  /* E-Ink reading font — system serif stack (zero download); swap to a
-     subsetted Noto Serif SC for production consistency on low-DPI screens */
+:root:not(.dark) .theme-site {
   /* 全站 Noto Sans SC（思源黑体，自托管 webfont，任何机器渲染一致） */
   --font-sans: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-reading: "Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* all reading content (titles / article prose / post text / comments / the
-   composer textarea) sets in serif; UI chrome stays sans */
-:root:not(.dark) .theme-paper .reading-serif,
-:root:not(.dark) .theme-paper .article-prose,
-:root:not(.dark) .theme-paper textarea {
+   composer textarea) sets in the reading font; UI chrome stays sans */
+:root:not(.dark) .theme-site .reading-serif,
+:root:not(.dark) .theme-site .article-prose,
+:root:not(.dark) .theme-site textarea {
   font-family: var(--font-reading);
 }
 
-:root:not(.dark) .theme-paper .article-prose {
+:root:not(.dark) .theme-site .article-prose {
   font-size: 16px;
   line-height: 2;
   /* 中文正文字距微增，长文可读性更佳（0.01em 级别最稳） */
   letter-spacing: 0.01em;
 }
 
-/* 中文标题字重 600：半粗即可，700 笔画过密显黑 */
-:root:not(.dark) .theme-paper .article-prose h2 {
-  font-size: 22px;
-  font-weight: 600;
+/* 中文标题全级统一 400：层级完全交给字号与颜色（与文章页大标题一致）。
+   字距归零——Latin 式负字距会让汉字互相贴靠；h4 与正文同号时靠 17px 区分。
+   覆盖基础 .article-prose 标题的 700/-0.01em（西文取向）。 */
+:root:not(.dark) .theme-site .article-prose h1,
+:root:not(.dark) .theme-site .article-prose h2,
+:root:not(.dark) .theme-site .article-prose h3,
+:root:not(.dark) .theme-site .article-prose h4 {
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+:root:not(.dark) .theme-site .article-prose h1 {
+  font-size: 24px;
   line-height: 1.35;
 }
 
-:root:not(.dark) .theme-paper .article-prose h3 {
+:root:not(.dark) .theme-site .article-prose h2 {
+  font-size: 22px;
+  line-height: 1.35;
+}
+
+:root:not(.dark) .theme-site .article-prose h3 {
   font-size: 18px;
+}
+
+:root:not(.dark) .theme-site .article-prose h4 {
+  font-size: 17px;
+}
+
+:root:not(.dark) .theme-site .article-prose strong {
   font-weight: 600;
 }
 
-:root:not(.dark) .theme-paper .article-prose strong {
-  font-weight: 600;
+/* 中文界面 UI：按钮/标签类 500（medium），700 在汉字小字号上发黑 */
+:root:not(.dark) .theme-site button {
+  font-weight: 500;
 }
 
-/* 长文编辑器（/write）：Vditor 内容区用阅读衬线，编辑即所见 */
-:root:not(.dark) .theme-paper .vditor-reset {
+/* 长文编辑器（/write）：Vditor 内容区用阅读字体，编辑即所见 */
+:root:not(.dark) .theme-site .vditor-reset {
   font-family: var(--font-reading);
-}
-
-:root:not(.dark) .theme-paper .article-prose blockquote {
-  background: #f3eee2;
-  border-left: 3px solid #d8cfba;
-  border-radius: 0 8px 8px 0;
-}
-
-/* ==========================================================================
-   前台瑞士极简主题（Swiss Modernism 2.0 / Minimalism & Swiss）— 与纸感主题
-   互斥的二选一实验主题，同经 SiteShell 挂到 <body>，admin 不受影响。
-   特征：zinc 冷灰阶、Inter/Helvetica、8px 数学节奏、锐角（圆角全站归零）、
-   无衬线全覆盖、单色 + 语义色保底。
-   ========================================================================== */
-:root:not(.dark) .theme-swiss {
-  --background: #fafafa;
-  --center-border: #e4e4e7;
-  --foreground: #18181b;
-
-  --chrome: #ffffff;
-  --card: #ffffff;
-  --card-foreground: #18181b;
-
-  --popover: #ffffff;
-  --popover-foreground: #18181b;
-
-  --primary: #18181b;
-  --primary-hover: #000000;
-  --primary-foreground: #ffffff;
-
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-
-  --muted: #f4f4f5;
-  --muted-foreground: #52525b;
-
-  --accent: #f4f4f5;
-  --accent-foreground: #18181b;
-
-  --border: #e4e4e7;
-  --input: #c8c8ce;
-  --ring: rgba(24, 24, 27, 0.22);
-
-  --text-body: #3f3f46;
-  --field-line: rgba(24, 24, 27, 0.18);
-  --field-focus-a: rgba(24, 24, 27, 0.16);
-  --field-focus-b: rgba(24, 24, 27, 0.24);
-
-  --hover: #f4f4f5;
-  --selected: #e8e8ec;
-
-  --link: #18181b;
-
-  /* Swiss type: Inter/Helvetica stack, tight tracking on display text */
-  --font-sans: Inter, "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", Roboto, Arial, sans-serif;
-}
-
-:root:not(.dark) .theme-swiss * {
-  /* the defining Swiss trait: sharp corners on every element */
-  border-radius: 0 !important;
-}
-
-:root:not(.dark) .theme-swiss h1,
-:root:not(.dark) .theme-swiss h2,
-:root:not(.dark) .theme-swiss h3 {
-  letter-spacing: -0.02em;
-}
-
-/* ==========================================================================
-   Aurora UI — 柔光渐变画布 + 紫罗兰强调，友好明亮
-   ========================================================================== */
-:root:not(.dark) body.theme-aurora {
-  --background: #f7f6fc;
-  --center-border: #e6e2f2;
-  --foreground: #211d33;
-  --card: #ffffff;
-  --card-foreground: #211d33;
-  --popover: #ffffff;
-  --popover-foreground: #211d33;
-  --primary: #6d5ae6;
-  --primary-hover: #5b48d6;
-  --primary-foreground: #ffffff;
-  --secondary: #f0edfa;
-  --secondary-foreground: #211d33;
-  --muted: #f2f0fa;
-  --muted-foreground: #5f5a72;
-  --accent: #f0edfa;
-  --accent-foreground: #211d33;
-  --border: #e6e2f2;
-  --input: #c9c2e4;
-  --ring: rgba(109, 90, 230, 0.28);
-  --text-body: #4a4560;
-  --field-line: rgba(33, 29, 51, 0.16);
-  --field-focus-a: rgba(109, 90, 230, 0.2);
-  --field-focus-b: rgba(109, 90, 230, 0.28);
-  --hover: #f1eefb;
-  --selected: #eae6f8;
-  --link: #6d5ae6;
-}
-
-:root:not(.dark) body.theme-aurora .bg-\[var\(--background\)\] {
-  background:
-    radial-gradient(1100px 520px at 12% -8%, rgba(109, 90, 230, 0.16) 0%, transparent 60%),
-    radial-gradient(900px 480px at 95% -5%, rgba(56, 178, 232, 0.14) 0%, transparent 55%),
-    radial-gradient(800px 600px at 60% 110%, rgba(236, 72, 153, 0.08) 0%, transparent 55%),
-    #f7f6fc;
-}
-
-/* ==========================================================================
-   Neubrutalism — 奶油底 + 粗黑描边 + 硬偏移阴影 + 蛋黄主 CTA
-   ========================================================================== */
-:root:not(.dark) body.theme-neubrutalism {
-  --background: #f5f0e6;
-  --center-border: #111111;
-  --foreground: #111111;
-  --card: #fffdf5;
-  --card-foreground: #111111;
-  --popover: #fffdf5;
-  --popover-foreground: #111111;
-  --primary: #ffde59;
-  --primary-hover: #ffd21f;
-  --primary-foreground: #111111;
-  --secondary: #ede6d4;
-  --secondary-foreground: #111111;
-  --muted: #f0ead9;
-  --muted-foreground: #57534a;
-  --accent: #ede6d4;
-  --accent-foreground: #111111;
-  --border: #111111;
-  --input: #111111;
-  --ring: rgba(17, 17, 17, 0.3);
-  --text-body: #33302a;
-  --field-line: rgba(17, 17, 17, 0.55);
-  --field-focus-a: rgba(17, 17, 17, 0.2);
-  --field-focus-b: rgba(17, 17, 17, 0.3);
-  --hover: #ece5d1;
-  --selected: #ffe9a8;
-  --link: #111111;
-}
-
-:root:not(.dark) body.theme-neubrutalism .bg-card,
-:root:not(.dark) body.theme-neubrutalism [class*="shadow-["] {
-  border: 2px solid #111111;
-  box-shadow: 4px 4px 0 #111111 !important;
-}
-
-:root:not(.dark) body.theme-neubrutalism .bg-\[var\(--background\)\] {
-  background:
-    linear-gradient(rgba(255, 222, 89, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 222, 89, 0.1) 1px, transparent 1px),
-    #f5f0e6;
-  background-size: 32px 32px;
-}
-
-/* ==========================================================================
-   OLED Dark — 纯黑高对比暗色（自带深色，不受 .dark 开关约束）
-   ========================================================================== */
-body.theme-oled {
-  --background: #000000;
-  --center-border: #26262b;
-  --foreground: #fafafa;
-  --chrome: #050505;
-  --card: #0a0a0c;
-  --card-foreground: #fafafa;
-  --popover: #0d0d10;
-  --popover-foreground: #fafafa;
-  --primary: #fafafa;
-  --primary-hover: #ffffff;
-  --primary-foreground: #000000;
-  --secondary: #16161a;
-  --secondary-foreground: #fafafa;
-  --muted: #141417;
-  --muted-foreground: #a1a1aa;
-  --accent: #16161a;
-  --accent-foreground: #fafafa;
-  --border: #232328;
-  --input: #3f3f46;
-  --ring: rgba(255, 255, 255, 0.3);
-  --text-body: #d4d4d8;
-  --field-line: rgba(255, 255, 255, 0.22);
-  --field-focus-a: rgba(255, 255, 255, 0.18);
-  --field-focus-b: rgba(255, 255, 255, 0.26);
-  --hover: #131316;
-  --selected: #1b1b1f;
-  --link: #fafafa;
-  color-scheme: dark;
-}
-
-/* ==========================================================================
-   Glassmorphism — 渐变网格画布 + 磨砂半透明面板 + 靛蓝强调
-   ========================================================================== */
-:root:not(.dark) body.theme-glass {
-  --background: #eef0fb;
-  --center-border: rgba(255, 255, 255, 0.65);
-  --foreground: #14121f;
-  --card: rgba(255, 255, 255, 0.6);
-  --card-foreground: #14121f;
-  --popover: rgba(255, 255, 255, 0.82);
-  --popover-foreground: #14121f;
-  --primary: #4f46e5;
-  --primary-hover: #4338ca;
-  --primary-foreground: #ffffff;
-  --secondary: rgba(255, 255, 255, 0.5);
-  --secondary-foreground: #14121f;
-  --muted: rgba(255, 255, 255, 0.45);
-  --muted-foreground: #4b4661;
-  --accent: rgba(255, 255, 255, 0.5);
-  --accent-foreground: #14121f;
-  --border: rgba(255, 255, 255, 0.65);
-  --input: rgba(20, 18, 31, 0.35);
-  --ring: rgba(79, 70, 229, 0.35);
-  --text-body: #37334a;
-  --field-line: rgba(20, 18, 31, 0.2);
-  --field-focus-a: rgba(79, 70, 229, 0.22);
-  --field-focus-b: rgba(79, 70, 229, 0.3);
-  --hover: rgba(255, 255, 255, 0.45);
-  --selected: rgba(255, 255, 255, 0.62);
-  --link: #4f46e5;
-}
-
-:root:not(.dark) body.theme-glass .bg-\[var\(--background\)\] {
-  background:
-    radial-gradient(900px 600px at 8% -10%, rgba(99, 102, 241, 0.28) 0%, transparent 55%),
-    radial-gradient(800px 500px at 100% 0%, rgba(236, 72, 153, 0.18) 0%, transparent 50%),
-    radial-gradient(1000px 700px at 50% 115%, rgba(56, 189, 248, 0.2) 0%, transparent 55%),
-    linear-gradient(180deg, #eef0fb 0%, #e8ebfa 100%);
-}
-
-:root:not(.dark) body.theme-glass .bg-card {
-  background: rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(22px) saturate(1.5);
-  -webkit-backdrop-filter: blur(22px) saturate(1.5);
-}
-
-:root:not(.dark) body.theme-glass .bg-popover,
-:root:not(.dark) body.theme-glass [class*="bg-popover"] {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
-}
-
-/* ==========================================================================
-   Terminal CLI — 墨绿磷屏 + 等宽字全覆盖，开发者趣味向
-   ========================================================================== */
-body.theme-terminal {
-  --background: #0b0f0c;
-  --center-border: #1f2f22;
-  --foreground: #c9e8cd;
-  --chrome: #080b09;
-  --card: #0d120e;
-  --card-foreground: #c9e8cd;
-  --popover: #0f150f;
-  --popover-foreground: #c9e8cd;
-  --primary: #4af08a;
-  --primary-hover: #71f5a5;
-  --primary-foreground: #06130a;
-  --secondary: #121a13;
-  --secondary-foreground: #c9e8cd;
-  --muted: #101711;
-  --muted-foreground: #7fa88a;
-  --accent: #121a13;
-  --accent-foreground: #c9e8cd;
-  --border: #1f2f22;
-  --input: #2c4430;
-  --ring: rgba(74, 240, 138, 0.35);
-  --text-body: #a8cfb0;
-  --field-line: rgba(74, 240, 138, 0.3);
-  --field-focus-a: rgba(74, 240, 138, 0.2);
-  --field-focus-b: rgba(74, 240, 138, 0.3);
-  --hover: #121a13;
-  --selected: #16241a;
-  --link: #4af08a;
-  --font-sans: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas,
-    "Liberation Mono", monospace;
-  color-scheme: dark;
-}
-
-/* dark themes: the dark wordmark asset needs inverting to stay visible */
-body.theme-oled img[src="/icons/comit.sh.svg"],
-body.theme-terminal img[src="/icons/comit.sh.svg"] {
-  filter: invert(1);
 }
 
 .dark {
@@ -592,6 +288,21 @@ body {
 /* Chinese typography helpers */
 .text-balance { text-wrap: balance; }
 .num { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   时间线行（最新/关注流）：1px 分割线常驻全宽（与发现页一致），
+   内容距左右边缘由行内 padding 控制；hover 仅染背景色块。
+   ============================================================ */
+.feed-row {
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+.feed-row:last-child {
+  border-bottom-color: transparent;
+}
+.feed-row:hover {
+  background: var(--hover, #f7f8f8);
+}
 
 /* ============================================================
    Article typography (.article-prose) — hand-rolled prose tuned

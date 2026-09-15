@@ -6,14 +6,12 @@ import type { SettingsData, SettingsTab } from "./types";
 import { ProfileForm } from "./profile-form";
 import { SecurityPanel } from "./security-panel";
 import { NotificationsPanel } from "./notifications-panel";
-import { SubdomainForm } from "./subdomain-form";
 import { InvitesPanel } from "./invites-panel";
 import { WebhooksPanel } from "./webhooks-panel";
-import { TokensPanel } from "./tokens-panel";
+import { McpPanel, ApiTokensPanel } from "./tokens-panel";
 import { DataPanel } from "./data-panel";
 import { VerificationPanel } from "./verification-panel";
 import { SitePanel } from "./site-panel";
-import { DevelopersPanel } from "./developers-panel";
 
 /** Section manifest — rendered as the dashboard sidebar menu. */
 export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
@@ -22,7 +20,8 @@ export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
   { id: "notifications", labelKey: "settings.tab.notifications" },
   { id: "site", labelKey: "settings.tab.site" },
   { id: "verification", labelKey: "settings.tab.verification" },
-  { id: "developers", labelKey: "settings.tab.developers" },
+  { id: "mcp", labelKey: "settings.tab.mcp" },
+  { id: "api", labelKey: "settings.tab.api" },
   { id: "data", labelKey: "settings.tab.data" },
 ];
 
@@ -73,18 +72,17 @@ function section(
     case "notifications":
       return <NotificationsPanel channels={data.notifications.channels} initialPrefs={data.notifications.prefs} />;
     case "site":
-      return <SitePanel subdomain={data.subdomain} invites={data.invites} appUrl={data.appUrl} />;
+      return <SitePanel username={data.username} invites={data.invites} appUrl={data.appUrl} />;
     case "verification":
       return <VerificationPanel />;
-    case "developers":
+    case "mcp":
+      return <McpPanel appUrl={data.appUrl} />;
+    case "api":
       return (
-        <DevelopersPanel
-          webhooks={data.webhooks}
-          tokens={data.tokens}
-          appUrl={data.appUrl}
-          webhookEvents={webhookEvents}
-          tokenScopes={tokenScopes}
-        />
+        <div className="space-y-8">
+          <ApiTokensPanel initial={data.tokens} availableScopes={tokenScopes} />
+          <WebhooksPanel initial={data.webhooks} availableEvents={webhookEvents} />
+        </div>
       );
     case "data":
       return <DataPanel initial={data.exports} hasPassword={data.security.hasPassword} />;

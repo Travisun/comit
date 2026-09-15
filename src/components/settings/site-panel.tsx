@@ -1,40 +1,34 @@
 "use client";
 
-import { useState } from "react";
-import { SectionTabs } from "@/components/ui/settings";
-import { SubdomainForm } from "./subdomain-form";
+import { UsernameForm } from "./username-form";
 import { InvitesPanel } from "./invites-panel";
 import type { SettingsData } from "./types";
 
 /**
- * 站点 — merged settings page (子域名 + 邀请码), Stripe sub-section tabs.
- * The 子域名 tab is hidden when the site-wide subdomain feature is off.
+ * 站点 — 用户名（主页地址）+ 邀请码。两个独立区块纵向堆叠，
+ * 不再使用内部 tabs。
  */
 export function SitePanel({
-  subdomain,
+  username,
   invites,
   appUrl,
 }: {
-  subdomain: SettingsData["subdomain"];
+  username: SettingsData["username"];
   invites: SettingsData["invites"];
   appUrl: string;
 }) {
-  const [tab, setTab] = useState<"subdomain" | "invites">(
-    subdomain.enabled ? "subdomain" : "invites",
-  );
-
   return (
-    <div className="space-y-6">
-      <SectionTabs
-        value={tab}
-        onChange={(id) => setTab(id as typeof tab)}
-        tabs={[
-          ...(subdomain.enabled ? [{ id: "subdomain", label: "子域名" }] : []),
-          { id: "invites", label: "邀请码" },
-        ]}
-      />
-      {tab === "subdomain" && subdomain.enabled && <SubdomainForm data={subdomain} />}
-      {tab === "invites" && <InvitesPanel data={invites} appUrl={appUrl} />}
+    <div className="space-y-8">
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-foreground">
+          用户名
+        </h2>
+        <UsernameForm data={username} />
+      </section>
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-foreground">邀请码</h2>
+        <InvitesPanel data={invites} appUrl={appUrl} />
+      </section>
     </div>
   );
 }
