@@ -213,9 +213,17 @@ function UserMenu({
 
 /* ====================================================== desktop nav ====== */
 
-function NavIcon({ children, badge }: { children: ReactNode; badge?: number }) {
+function NavIcon({
+  children,
+  badge,
+  className,
+}: {
+  children: ReactNode;
+  badge?: number;
+  className?: string;
+}) {
   return (
-    <span className="relative shrink-0">
+    <span className={cn("relative shrink-0", className)}>
       {children}
       {badge !== undefined && badge > 0 && (
         <span className="absolute -right-1.5 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums">
@@ -287,8 +295,17 @@ function LeftNav({
                 active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
-              <NavIcon badge={item.badge}>{item.icon}</NavIcon>
-              <span className="hidden text-sm lg:inline">{item.label}</span>
+              <NavIcon badge={item.badge} className="lg:hidden">
+                {item.icon}
+              </NavIcon>
+              <span className="relative hidden text-sm lg:inline">
+                {item.label}
+                {item.badge ? (
+                  <span className="absolute -top-1.5 right-0 grid h-[16px] min-w-[16px] translate-x-full place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                ) : null}
+              </span>
             </Link>
           );
         })}
@@ -513,12 +530,12 @@ export function SiteShell({
           >
             <div className="flex flex-1 justify-center">{children}</div>
             {/* 版权信息已并入右栏底部，xl（右栏可见）下不重复展示 */}
-            <div className="xl:hidden">{footer}</div>
+            <div className="lg:hidden">{footer}</div>
           </div>
 
           {/* right rail — merged into the panel as its own scroll column (xl only) */}
           {rail != null && (
-            <aside className="hidden w-[320px] shrink-0 border-l border-border xl:flex xl:flex-col">
+            <aside className="hidden w-[320px] shrink-0 border-l border-border lg:flex lg:flex-col">
               <div className="h-full space-y-3 overflow-y-auto px-5 pb-4 scrollbar-none">
                 {rail}
               </div>
