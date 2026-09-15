@@ -3,7 +3,7 @@ import { Calendar, Eye, Lock, MessageCircle } from "lucide-react";
 import type { Post, User } from "@/db/schema";
 import { config } from "@/core/config";
 import { routes } from "@/core/routes";
-import { formatDate, readingMinutes } from "@/lib/utils";
+import { formatDate, readingMinutes, timeAgo } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
@@ -111,7 +111,7 @@ export function PostView({
                 {author.displayName}
               </Link>
               <span className="block truncate text-xs text-muted-foreground">
-                @{author.username}
+                @{author.username} · {timeAgo(date, "zh")}
               </span>
             </span>
           </span>

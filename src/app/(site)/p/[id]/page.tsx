@@ -96,12 +96,11 @@ export default async function PostPermalinkPage({
                 {author.displayName}
               </Link>
               <span className="block truncate text-xs text-muted-foreground">
-                @{author.username}
+                @{author.username} · {timeAgo(published, locale)}{post.status !== "published" ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}` : ""}
               </span>
             </span>
           </span>
         }
-        subtitle={`${timeAgo(published, locale)}${post.status !== "published" ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}` : ""}`}
       />
 
       <article className="px-4 pb-12 md:px-5">
