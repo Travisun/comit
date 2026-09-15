@@ -26,6 +26,8 @@ export async function GET(req: Request) {
       locale: user.locale === "en" ? "en" : "zh",
       avatarPath: user.avatarPath,
       coverPath: user.coverPath,
+      hideFollowers: user.hideFollowers,
+      hideFollowing: user.hideFollowing,
       hasPassword: Boolean(user.passwordHash),
       createdAt: user.createdAt,
     });
@@ -41,6 +43,8 @@ const patchSchema = z.object({
   locale: localeSchema.optional(),
   avatarPath: z.string().nullable().optional(),
   coverPath: z.string().nullable().optional(),
+  hideFollowers: z.boolean().optional(),
+  hideFollowing: z.boolean().optional(),
 });
 
 /** PUT /api/me/profile — update profile fields. */
@@ -66,6 +70,8 @@ export async function PUT(req: Request) {
       if (body.coverPath) await assertOwnMedia(auth.user.id, body.coverPath);
       patch.coverPath = body.coverPath;
     }
+    if (body.hideFollowers !== undefined) patch.hideFollowers = body.hideFollowers;
+    if (body.hideFollowing !== undefined) patch.hideFollowing = body.hideFollowing;
 
     await db.update(users).set(patch).where(eq(users.id, auth.user.id));
     return ok();

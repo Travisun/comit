@@ -8,6 +8,8 @@ import { config } from "./config";
 export const routes = {
   // public
   home: "/",
+  /** 关注流（登录用户关注作者的最新动态） */
+  following: "/following",
   feed: "/feed",
   explore: "/explore",
   topic: (slug: string) => `/topics/${slug}`,

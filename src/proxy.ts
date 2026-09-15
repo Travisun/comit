@@ -2,33 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * Edge middleware:
- *  1. Subdomain → user-space rewrite: `alice.example.com/posts/slug`
- *     ⇒ `/u/alice/posts/slug` (only when host is a subdomain of ROOT_DOMAIN
- *     and not www/apex/reserved). The app itself reads DB settings per request,
- *     so if the admin disables subdomains the root app simply ignores the
- *     rewritten path shape — rewrites stay harmless.
+ *  1. Username-mode profile URLs: `/{username}` ⇒ `/u/{username}` for any
+ *     single path segment that is not a reserved top-level route or a file
+ *     (contains a dot). Multi-segment paths never match, so /explore,
+ *     /u/alice, /post/[slug]… keep their canonical handlers.
  *  2. Security headers.
  */
-const RESERVED = new Set(["www", "app", "api", "admin", "mail", "smtp", "ftp", "ns1", "ns2"]);
+const RESERVED_TOP_LEVEL = new Set([
+  // app pages & routers（与 /{username} 冲突的顶级路径一律保留）
+  "about", "api", "app", "archive", "auth", "explore", "feed", "following",
+  "icons", "images", "img", "legal", "login", "logout", "manifest", "media",
+  "messages", "notifications", "p", "post", "robots", "register", "rss",
+  "settings", "sitemap", "static", "sub", "topics", "u", "upload", "write",
+  "admin", "assets", "cdn", "docs", "search", "account", "console", "blog",
+  "help", "support", "status", "verify", "reset", "forgot", "2fa", "_next",
+]);
 
 export function proxy(req: NextRequest) {
-  const host = (req.headers.get("host") ?? "").toLowerCase().split(":")[0];
-  const rootDomain = (process.env.ROOT_DOMAIN ?? "localhost").toLowerCase();
   const url = req.nextUrl;
 
-  let subdomain: string | null = null;
-  if (host !== rootDomain && host.endsWith(`.${rootDomain}`)) {
-    const candidate = host.slice(0, -1 * (rootDomain.length + 1));
-    if (candidate && !candidate.includes(".") && !RESERVED.has(candidate) && candidate !== "www") {
-      subdomain = candidate;
-    }
-  }
-
   let res: NextResponse;
-  if (subdomain) {
-    // serve user space from the subdomain; keep the path as-is
+  const m = url.pathname.match(/^\/([A-Za-z0-9_]+)$/);
+  if (m && !RESERVED_TOP_LEVEL.has(m[1].toLowerCase())) {
+    // 用户名模式：/{username} → 用户空间
     const rewriteUrl = url.clone();
-    rewriteUrl.pathname = `/sub/${subdomain}${url.pathname === "/" ? "" : url.pathname}`;
+    rewriteUrl.pathname = `/u/${m[1].toLowerCase()}`;
     res = NextResponse.rewrite(rewriteUrl);
   } else {
     res = NextResponse.next();

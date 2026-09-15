@@ -81,9 +81,14 @@ export const users = pgTable(
     rssEnabled: boolean("rss_enabled").default(true).notNull(),
     commentsEnabled: boolean("comments_enabled").default(true).notNull(),
     dmEnabled: boolean("dm_enabled").default(true).notNull(),
-    // subdomain
+    // privacy: hide follow lists from other viewers
+    hideFollowers: boolean("hide_followers").default(false).notNull(),
+    hideFollowing: boolean("hide_following").default(false).notNull(),
+    // subdomain (deprecated — replaced by username-mode profile URLs)
     subdomain: varchar("subdomain", { length: 63 }),
     subdomainUpdatedAt: timestamp("subdomain_updated_at", { withTimezone: true }),
+    /** last time the user changed their username (30-day cooldown) */
+    usernameUpdatedAt: timestamp("username_updated_at", { withTimezone: true }),
     /** per-user notification preferences: { [key: string]: channel[] } overrides */
     notificationPrefs: jsonb("notification_prefs").$type<Record<string, string[]>>(),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
@@ -176,6 +181,27 @@ export const invites = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("invites_code_key").on(t.code), index("invites_creator_idx").on(t.createdBy)],
+);
+
+/* ============================ bookmarks ================================== */
+
+/** 收藏：用户稍后想回来看的帖子（评论/转推/点赞之外的独立维度）。 */
+export const bookmarks = pgTable(
+  "bookmarks",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => posts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("bookmarks_user_post_key").on(t.userId, t.postId),
+    index("bookmarks_user_idx").on(t.userId),
+  ],
 );
 
 /* ============================ content ================================= */
