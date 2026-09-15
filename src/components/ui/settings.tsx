@@ -51,7 +51,7 @@ function SettingsSectionHeader({
     <div className={cn("flex flex-wrap items-start justify-between gap-3", className)}>
       <div className="min-w-0 space-y-1">
         {title ? (
-          <h3 className="flex items-center gap-2 text-base font-semibold leading-6 text-foreground">
+          <h3 className="flex items-center gap-2 text-base font-normal leading-6 text-foreground">
             {title}
             {count != null && count !== 0 ? (
               <span className="rounded-full bg-[var(--selected)] px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">

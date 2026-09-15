@@ -104,11 +104,16 @@ export function FeedStream({
 
   if (items.length === 0) {
     return (
-      <div className="px-6 py-14 text-center text-sm text-muted-foreground">
+      <div className="px-5 py-14 text-center text-sm text-muted-foreground">
         {emptyText}
       </div>
     );
   }
+
+  /* 最新/关注流的行样式：1px 分割线 + hover 整行融入背景（.feed-row），
+     左右 padding 与发现页对齐（px-5），纵向更紧凑；隐藏内容标注 chip，
+     整行点击进详情（行内链接/按钮保持自身行为）。 */
+  const rowClass = "feed-row px-5 py-2.5";
 
   return (
     <div>
@@ -118,14 +123,33 @@ export function FeedStream({
           onClick={() => void loadNew()}
           className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 border-b border-border bg-[var(--primary)] py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
         >
-          <span className="num font-bold">{newCount}</span> 条新动态 · 点击查看
+          <span className="num font-semibold">{newCount}</span> 条新动态 · 点击查看
         </button>
       )}
       {items.map((item) =>
         item.post.type === "short" ? (
-          <ShortCard key={item.post.id} post={item.post} author={item.author} viewerUsername={viewerUsername} />
+          <ShortCard
+            key={item.post.id}
+            post={item.post}
+            author={item.author}
+            viewerUsername={viewerUsername}
+            className={rowClass}
+            showLabel={false}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
         ) : (
-          <ArticleCard key={item.post.id} post={item.post} author={item.author} variant="list" viewerUsername={viewerUsername} />
+          <ArticleCard
+            key={item.post.id}
+            post={item.post}
+            author={item.author}
+            variant="list"
+            viewerUsername={viewerUsername}
+            className={rowClass}
+            showLabel={false}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
         ),
       )}
       {loading && <ListSkeleton rows={2} />}

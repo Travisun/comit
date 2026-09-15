@@ -3,12 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Heart, MessageCircle, PenLine, Pin, Repeat2, Trash2 } from "lucide-react";
+import { Eye, Heart, MessageCircle, PenLine, Pin, Repeat2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn, timeAgo } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
+import { postHref } from "./post-href";
+import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
 
 /**
@@ -18,26 +20,53 @@ import type { FeedItemDTO } from "./types";
  * the author, the action strip gains inline edit / delete (recycle bin).
  */
 
-export function postHref(post: FeedItemDTO["post"], author: FeedItemDTO["author"]): string {
-  return post.slug ? routes.article(post.slug) : routes.shortPost(post.id);
+/** 浏览次数展示：1.2w 形式的紧凑数字。 */
+export function formatViews(n: number): string {
+  if (n >= 10000) return `${(n / 10000).toFixed(1).replace(/.0$/, "")}w`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/.0$/, "")}k`;
+  return String(n);
 }
 
-/** The shared timeline row shell: 40px avatar + content column. */
+/** The shared timeline row shell: 40px avatar + content column.
+ * With `href`, the whole row navigates to the post detail on click/Enter —
+ * clicks on real links/buttons inside keep their own behavior. */
 export function TimelineRow({
   author,
   children,
   className,
+  href,
 }: {
   author: FeedItemDTO["author"];
   children: React.ReactNode;
   className?: string;
+  href?: string;
 }) {
+  const router = useRouter();
+  const interactive = Boolean(href);
+
+  function activate(e: React.MouseEvent | React.KeyboardEvent) {
+    if (!href) return;
+    if (e.target instanceof HTMLElement && e.target.closest("a,button,input,textarea,[role='button']")) return;
+    router.push(href);
+  }
+
   return (
     <article
       className={cn(
-        "flex gap-3 rounded-lg px-2.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+        "relative flex gap-3 rounded-lg px-2.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+        interactive && "cursor-pointer",
         className,
       )}
+      onClick={interactive ? (e) => activate(e) : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" && !(e.target instanceof HTMLElement && e.target.closest("a,button"))) activate(e);
+            }
+          : undefined
+      }
+      role={interactive ? "link" : undefined}
+      tabIndex={interactive ? 0 : undefined}
     >
       <Link href={routes.profile(author.username)} className="shrink-0" aria-label={author.displayName}>
         <Avatar className="size-10">
@@ -52,22 +81,26 @@ export function TimelineRow({
   );
 }
 
-/** Bold name + @username + · relative time + visibility chip. */
+/** Bold name + @username + · relative time + visibility chip.
+ * `showLabel=false` hides the content-annotation chip (原创/转载…) — the
+ * home/following feeds keep the timeline clean; profiles still show it. */
 export function TimelineAuthorLine({
   post,
   author,
   href,
+  showLabel = true,
 }: {
   post?: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
   href?: string;
+  showLabel?: boolean;
 }) {
   const date = post?.publishedAt ? new Date(post.publishedAt) : null;
   return (
     <div className="flex min-w-0 items-center gap-1 text-[15px] leading-tight">
       <Link
         href={routes.profile(author.username)}
-        className="truncate font-semibold hover:underline"
+        className="truncate font-medium hover:underline"
       >
         {author.displayName}
       </Link>
@@ -85,7 +118,7 @@ export function TimelineAuthorLine({
           关注者可见
         </Badge>
       )}
-      {post?.label && (
+      {showLabel && post?.label && (
         <AnnotationBadge
           label={post.label}
           sourceUrl={post.sourceUrl}
@@ -144,7 +177,7 @@ export function TimelineActions({
         {post.commentCount > 0 && <span className="num tabular-nums">{post.commentCount}</span>}
       </Link>
       <span
-        className="group/r inline-flex cursor-pointer items-center gap-1 text-xs transition-colors hover:text-emerald-500"
+        className="group/r inline-flex items-center gap-1 text-xs transition-colors hover:text-emerald-500"
         aria-label="转推"
       >
         <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/r:bg-emerald-500/10">
@@ -152,8 +185,14 @@ export function TimelineActions({
         </span>
         {post.repostCount > 0 && <span className="num tabular-nums">{post.repostCount}</span>}
       </span>
+      <span className="group/v inline-flex items-center gap-1 text-xs" aria-label="查看次数" title="查看次数">
+        <span className="grid size-7 place-items-center rounded-full">
+          <Eye className="size-4" />
+        </span>
+        {post.views > 0 && <span className="num tabular-nums">{formatViews(post.views)}</span>}
+      </span>
       <span
-        className="group/l inline-flex cursor-pointer items-center gap-1 text-xs transition-colors hover:text-rose-500"
+        className="group/l inline-flex items-center gap-1 text-xs transition-colors hover:text-rose-500"
         aria-label="喜欢"
       >
         <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/l:bg-rose-500/10">
@@ -195,6 +234,9 @@ export function ArticleCard({
   className,
   pinned = false,
   viewerUsername,
+  showLabel = true,
+  rowHref = false,
+  menu = false,
 }: {
   post: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
@@ -206,22 +248,36 @@ export function ArticleCard({
   pinned?: boolean;
   /** signed-in viewer — enables the inline edit / delete entries when author */
   viewerUsername?: string;
+  /** hide the content-annotation chip (home/following feeds) */
+  showLabel?: boolean;
+  /** whole row navigates to the detail page on click (X-style) */
+  rowHref?: boolean;
+  /** render the「···」quick-actions menu (home/following feeds) */
+  menu?: boolean;
 }) {
-  const href = postHref(post, author);
+  const href = postHref(post);
   const cover = post.coverPath ? routes.media(post.coverPath) : null;
   const thumb = variant === "list" && cover;
+  const mine = viewerUsername === author.username;
 
   return (
-    <TimelineRow author={author} className={className}>
+    <TimelineRow author={author} className={className} href={rowHref ? href : undefined}>
+      {menu && (
+        <div className="absolute right-2 top-2">
+          <RowActionsMenu post={post} author={author} href={href} mine={mine} />
+        </div>
+      )}
       {pinned && (
-        <p className="mb-1 flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
           <Pin className="size-3.5" /> 代表作
         </p>
       )}
       <div className="flex gap-3">
         <div className="min-w-0 flex-1">
-          {showAuthor && <TimelineAuthorLine post={post} author={author} href={href} />}
-          <h3 className="reading-serif mt-0.5 text-base font-semibold leading-snug">
+          {showAuthor && (
+            <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
+          )}
+          <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline">
               {post.title ?? "Untitled"}
             </Link>
@@ -250,7 +306,7 @@ export function ArticleCard({
           <img src={cover} alt="" loading="lazy" className="aspect-[2/1] w-full object-cover" />
         </Link>
       )}
-      <TimelineActions post={post} href={href} mine={viewerUsername === author.username} />
+      <TimelineActions post={post} href={href} mine={mine} />
     </TimelineRow>
   );
 }

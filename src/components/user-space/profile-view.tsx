@@ -15,7 +15,6 @@ import { FollowButton } from "@/components/social/follow-button";
 import { BlockButton } from "@/components/social/block-button";
 import {
   getActiveUserByUsername,
-  getArchives,
   getFollowState,
   getPublishedPosts,
   getTopPosts,
@@ -92,12 +91,12 @@ export function ProfileHero({
           <div className="flex flex-wrap items-center gap-2 pt-3">
             {isSelf ? (
               <>
-                <Button asChild size="sm" className="rounded-full font-bold">
+                <Button asChild size="sm" className="rounded-full font-medium">
                   <Link href={routes.editorNew("article")}>
                     <PenLine className="size-4" /> 写文章
                   </Link>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="rounded-full font-bold">
+                <Button asChild size="sm" variant="outline" className="rounded-full font-medium">
                   <Link href="/write/posts">
                     <LayoutDashboard className="size-4" /> 管理文章
                   </Link>
@@ -110,7 +109,7 @@ export function ProfileHero({
         </div>
 
         <div className="mt-2">
-          <h1 className="inline-flex items-center gap-1.5 text-xl font-extrabold tracking-tight">
+          <h1 className="inline-flex items-center gap-1.5 text-xl font-normal">
             {user.displayName}
             <VerifiedBadge verified={user.verified} size="md" />
           </h1>
@@ -147,7 +146,7 @@ export function ProfileHero({
 function Stat({ value, label }: { value: number; label: string }) {
   return (
     <span className="text-muted-foreground">
-      <strong className="num font-bold text-foreground">{value}</strong> {label}
+      <strong className="num font-semibold text-foreground">{value}</strong> {label}
     </span>
   );
 }
@@ -168,7 +167,7 @@ function StatLink({
       href={`${routes.profile(username)}?tab=${tab}`}
       className="text-muted-foreground transition-colors hover:text-foreground hover:underline"
     >
-      <strong className="num font-bold text-foreground">{value}</strong> {label}
+      <strong className="num font-semibold text-foreground">{value}</strong> {label}
     </Link>
   );
 }
@@ -185,10 +184,10 @@ function ProfileActions({
       <FollowButton
         username={user.username}
         initialFollowing={viewerState.following}
-        className="rounded-full font-bold"
+        className="rounded-full font-medium"
       />
       {user.dmEnabled ? (
-        <Button asChild variant="outline" size="sm" className="rounded-full font-bold">
+        <Button asChild variant="outline" size="sm" className="rounded-full font-medium">
           <Link href={routes.conversation(user.id)}>
             <MessageCircle className="size-4" /> 私信
           </Link>
@@ -205,7 +204,7 @@ function ProfileActions({
 
 /* ------------------------------ profile view ------------------------------ */
 
-export type ProfileTab = "posts" | "short" | "collections" | "followers" | "following" | "about";
+export type ProfileTab = "posts" | "short" | "collections" | "followers" | "following";
 
 export async function UserProfileView({
   user,
@@ -236,7 +235,6 @@ export async function UserProfileView({
         {tab === "collections" && <CollectionsTab user={user} />}
         {tab === "followers" && <FollowsTab user={user} mode="followers" viewer={viewer} />}
         {tab === "following" && <FollowsTab user={user} mode="following" viewer={viewer} />}
-        {tab === "about" && <AboutTab user={user} stats={stats} />}
       </div>
     </main>
   );
@@ -250,7 +248,6 @@ const TABS: { id: ProfileTab; label: string }[] = [
   { id: "collections", label: "合集" },
   { id: "followers", label: "粉丝" },
   { id: "following", label: "关注中" },
-  { id: "about", label: "关于" },
 ];
 
 function ProfileTabs({ username, active }: { username: string; active: ProfileTab }) {
@@ -268,7 +265,7 @@ function ProfileTabs({ username, active }: { username: string; active: ProfileTa
             className={cn(
               "relative grid place-items-center px-1 py-3.5 text-sm transition-colors",
               active === t.id
-                ? "font-bold text-foreground"
+                ? "font-medium text-foreground"
                 : "text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground",
             )}
           >
@@ -295,7 +292,7 @@ function Pager({
   hasMore: boolean;
 }) {
   if (page === 0 && !hasMore) return null;
-  const cls = "rounded-full border border-border px-4 py-1.5 font-semibold transition-colors hover:bg-[var(--hover)]";
+  const cls = "rounded-full border border-border px-4 py-1.5 font-medium transition-colors hover:bg-[var(--hover)]";
   return (
     <nav className="flex items-center justify-between px-4 py-4 text-sm" aria-label="Pagination">
       {page > 0 ? (
@@ -379,6 +376,12 @@ async function FollowsTab({
   mode: "followers" | "following";
   viewer: User | null;
 }) {
+  // 隐私开关：本人始终可见，其他人看到提示文案
+  const hidden = mode === "followers" ? user.hideFollowers : user.hideFollowing;
+  const isSelf = Boolean(viewer && viewer.id === user.id);
+  if (hidden && !isSelf) {
+    return <EmptyState text="由于用户的隐私设置，无法查看该列表。" />;
+  }
   const cards = mode === "followers" ? await listFollowers(user.id) : await listFollowing(user.id);
   if (cards.length === 0) {
     return (
@@ -412,7 +415,7 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
       <div className="min-w-0 flex-1">
         <Link
           href={routes.profile(card.username)}
-          className="inline-flex items-center gap-1 truncate text-[15px] font-bold hover:underline"
+          className="inline-flex items-center gap-1 truncate text-[15px] font-medium hover:underline"
         >
           {card.displayName}
           <VerifiedBadge verified={card.verified} size="sm" />
@@ -425,7 +428,7 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
         <FollowButton
           username={card.username}
           initialFollowing={viewerState.following}
-          className="rounded-full font-bold"
+          className="rounded-full font-medium"
         />
       )}
     </div>
@@ -443,7 +446,7 @@ async function CollectionsTab({ user }: { user: User }) {
           href={routes.collection(user.username, c.slug)}
           className="group rounded-lg border border-border p-4 transition-colors hover:bg-[var(--hover)]"
         >
-          <div className="flex items-center gap-2 text-[15px] font-bold">
+          <div className="flex items-center gap-2 text-[15px] font-normal">
             <FolderOpen className="size-4 text-primary/70" />
             {c.name}
           </div>
@@ -455,59 +458,6 @@ async function CollectionsTab({ user }: { user: User }) {
   );
 }
 
-async function AboutTab({ user, stats }: { user: User; stats: UserStats }) {
-  const archives = await getArchives(user.id);
-  const years = archives.map((g) => g.year);
-  const totalPublic = archives.reduce((s, g) => s + g.count, 0);
-
-  return (
-    <section className="space-y-4 p-4">
-      <div>
-        <h2 className="text-sm font-bold text-foreground">关于 {user.displayName}</h2>
-        <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">
-          {user.bio || "这位作者还没有填写简介。"}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-        <SocialLinks user={user} size="md" />
-      </div>
-
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <AboutStat label="文章" value={stats.posts} />
-        <AboutStat label="关注者" value={stats.followers} />
-        <AboutStat label="关注中" value={stats.following} />
-        <AboutStat label="获赞" value={stats.likesReceived} />
-      </dl>
-
-      <div className="border-t border-border pt-4 text-sm text-muted-foreground">
-        <p>
-          加入于 {formatDate(user.createdAt, "zh")} · 公开发表 {totalPublic} 篇
-          {years.length > 0 && (
-            <>
-              {" "}
-              （{Math.min(...years)} 年 — {Math.max(...years)} 年）
-            </>
-          )}
-        </p>
-        {archives.length > 0 && (
-          <p className="mt-2">
-            最近更新于 {formatDate(archives[0].posts[0]?.publishedAt ?? user.createdAt, "zh")}
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function AboutStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-lg bg-muted/60 px-3 py-2">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="num text-lg font-bold">{value}</dd>
-    </div>
-  );
-}
 
 function EmptyState({ text }: { text: string }) {
   return (
@@ -534,7 +484,7 @@ export async function SingleUserHome({ user, viewer }: { user: User; viewer: Use
     <main className="w-full">
       <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} variant="site" />
 
-      <h2 className="border-b border-border px-4 pb-3 pt-4 text-[15px] font-bold">最新文章</h2>
+      <h2 className="border-b border-border px-4 pb-3 pt-4 text-[15px] font-normal">最新文章</h2>
       {items.length === 0 ? (
         <EmptyState text="还没有发布任何文章" />
       ) : (

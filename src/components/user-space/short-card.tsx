@@ -1,10 +1,10 @@
-import { AnnotationBadge } from "@/components/posts/annotation-badge";
 import {
   TimelineActions,
   TimelineAuthorLine,
   TimelineRow,
-  postHref,
 } from "./article-card";
+import { postHref } from "./post-href";
+import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
 
 /**
@@ -66,20 +66,34 @@ export function ShortCard({
   author,
   className,
   viewerUsername,
+  showLabel = true,
+  rowHref = false,
+  menu = false,
 }: {
   post: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
   className?: string;
   /** signed-in viewer — enables the inline edit / delete entries when author */
   viewerUsername?: string;
+  /** hide the content-annotation chip (home/following feeds) */
+  showLabel?: boolean;
+  /** whole row navigates to the detail page on click (X-style) */
+  rowHref?: boolean;
+  /** render the「···」quick-actions menu (home/following feeds) */
+  menu?: boolean;
 }) {
-  const href = postHref(post, author);
+  const href = postHref(post);
   const { text } = extractImages(post.content || post.summary || " ");
   const needsSummaryLink = text.trim().length > 280;
 
   return (
-    <TimelineRow author={author} className={className}>
-      <TimelineAuthorLine post={post} author={author} href={href} />
+    <TimelineRow author={author} className={className} href={rowHref ? href : undefined}>
+      {menu && (
+        <div className="absolute right-2 top-2">
+          <RowActionsMenu post={post} author={author} href={href} mine={viewerUsername === author.username} />
+        </div>
+      )}
+      <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
       <div className="mt-0.5">
         <ShortBody content={post.content || post.summary || " "} />
       </div>

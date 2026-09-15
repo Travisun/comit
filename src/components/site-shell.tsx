@@ -16,6 +16,7 @@ import {
   Settings,
   ShieldCheck,
   User as UserIcon,
+  Users,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import {
@@ -42,11 +43,9 @@ export interface ShellUser {
   unreadMessages: number;
 }
 
-/** Front-site theme experiment — flips the whole 前台 between trials without
- * touching the admin console. Visit /?theme=<name> once to switch; the
- * choice persists in localStorage across in-app navigations. Available:
- * swiss · paper · aurora · neubrutalism · oled · glass · terminal.
- * Every theme is a token/CSS block in globals.css. */
+/** 前台固定使用基础灰白配色 + 自托管思源黑体（.theme-site 只管字体，
+ * 不覆盖颜色令牌）。列表仅用于清理历史遗留的 theme-* 类与 localStorage
+ * 里的旧选择——主题实验已下线，不再切换。 */
 const SITE_THEMES = new Set([
   "swiss",
   "paper",
@@ -56,7 +55,7 @@ const SITE_THEMES = new Set([
   "glass",
   "terminal",
 ]);
-const SITE_THEME_DEFAULT = "paper";
+const SITE_THEME_DEFAULT = "site";
 const SITE_THEME_STORAGE = "site-theme";
 
 /* ======================================================== brand mark ===== */
@@ -241,7 +240,8 @@ function LeftNav({
   const login = routes.login;
 
   const items = [
-    { href: routes.home, label: "首页", icon: <Home className="size-[18px]" />, exact: true },
+    { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true },
+    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" /> },
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     {
       // unified inbox: DMs + notifications live together under /messages
@@ -255,7 +255,7 @@ function LeftNav({
     },
     {
       href: user ? routes.profile(user.username) : login,
-      label: "个人主页",
+      label: "主页",
       icon: <UserIcon className="size-[18px]" />,
     },
     {
@@ -359,7 +359,8 @@ function MobileTabBar({ user }: { user: ShellUser | null }) {
   const router = useRouter();
 
   const tabs = [
-    { href: routes.home, label: "首页", icon: <Home className="size-[18px]" />, exact: true },
+    { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true },
+    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" /> },
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     { href: user ? "#compose" : login, label: "创作", fab: true },
     {
@@ -468,25 +469,14 @@ export function SiteShell({
   const pathname = usePathname();
   const isAdmin = user?.role === "admin";
 
-  // front-site theme (E-Ink light / Swiss) is scoped via <body>: portaled
-  // surfaces inherit the tokens too, and it is removed on unmount so the
-  // admin console keeps the base Stripe palette
+  // 前台固定使用基础灰白配色（.theme-site 只覆盖字体），不再提供主题切换。
+  // 仍需清理历史遗留：localStorage 里存过的主题选择和 body 上残留的 theme-* 类。
   useEffect(() => {
-    const apply = (name: string) => {
-      for (const t of SITE_THEMES) document.body.classList.remove(`theme-${t}`);
-      document.body.classList.add(`theme-${name}`);
-    };
-    // explicit ?theme= wins and is remembered; otherwise keep the stored one
-    const param = new URLSearchParams(window.location.search).get("theme");
-    if (param && SITE_THEMES.has(param)) {
-      localStorage.setItem(SITE_THEME_STORAGE, param);
-      apply(param);
-    } else {
-      const stored = localStorage.getItem(SITE_THEME_STORAGE);
-      apply(stored && SITE_THEMES.has(stored) ? stored : SITE_THEME_DEFAULT);
-    }
+    localStorage.removeItem(SITE_THEME_STORAGE);
+    for (const t of SITE_THEMES) document.body.classList.remove(`theme-${t}`);
+    document.body.classList.add(`theme-${SITE_THEME_DEFAULT}`);
     return () => {
-      for (const t of SITE_THEMES) document.body.classList.remove(`theme-${t}`);
+      document.body.classList.remove(`theme-${SITE_THEME_DEFAULT}`);
     };
   }, []);
 
@@ -556,6 +546,8 @@ export function TimelineHeader({
   tabs,
   children,
   className,
+  paddingClass = "px-4",
+  rowClassName,
 }: {
   title?: ReactNode;
   subtitle?: ReactNode;
@@ -566,6 +558,10 @@ export function TimelineHeader({
   tabs?: ReactNode;
   children?: ReactNode;
   className?: string;
+  /** horizontal inset of the title row (时间线页传 px-5 与发现页对齐) */
+  paddingClass?: string;
+  /** extra classes for the title row (博文详情传 py-3 加高作者卡) */
+  rowClassName?: string;
 }) {
   const router = useRouter();
 
@@ -590,7 +586,7 @@ export function TimelineHeader({
         className,
       )}
     >
-      <div className="flex min-h-12 items-center gap-3 px-4 py-1.5">
+      <div className={cn("flex min-h-12 items-center gap-3 py-1.5", paddingClass, rowClassName)}>
         {back && (
           <button
             type="button"
@@ -606,9 +602,10 @@ export function TimelineHeader({
           </button>
         )}
         <div className="min-w-0 flex-1">
-          {title && <h1 className="truncate text-[19px] font-semibold leading-tight">{title}</h1>}
+          {title && <h1 className="truncate text-[19px] font-normal leading-tight">{title}</h1>}
           {subtitle && <p className="truncate text-xs text-muted-foreground">{subtitle}</p>}
         </div>
+        {right}
       </div>
       {tabs}
       {children}

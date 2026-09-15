@@ -201,7 +201,7 @@ async function TopicCloudWidget({ user }: { user: User }) {
 
 function WidgetTitle({ icon, title }: { icon: ReactNode; title: string }) {
   return (
-    <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold text-foreground/90">
+    <h2 className="mb-3 flex items-center gap-1.5 text-sm font-normal text-foreground/90">
       <span className="text-primary">{icon}</span>
       {title}
     </h2>

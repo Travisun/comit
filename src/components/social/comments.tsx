@@ -143,6 +143,67 @@ export function Comments({
     };
   }, [postId, t]);
 
+  // ---- 锚点定位：/#comment-<id> 访问时滚动到对应评论并短暂高亮 ----
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const focusAnchor = useCallback(() => {
+    const m = window.location.hash.match(/^#comment-([A-Za-z0-9-]+)$/);
+    if (!m) return;
+    const target = document.getElementById(`comment-${m[1]}`);
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    setHighlightId(m[1]);
+    if (anchorTimer.current) clearTimeout(anchorTimer.current);
+    anchorTimer.current = setTimeout(() => setHighlightId(null), 2400);
+  }, []);
+
+  // items 首次加载后尝试定位；此后监听 hash 变化（点击时间戳锚点同样生效）。
+  // rAF 延迟一帧：滚动与高亮都不在 effect 同步路径上触发 setState。
+  useEffect(() => {
+    if (items === null) return;
+    const raf = requestAnimationFrame(focusAnchor);
+    window.addEventListener("hashchange", focusAnchor);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("hashchange", focusAnchor);
+      if (anchorTimer.current) clearTimeout(anchorTimer.current);
+    };
+  }, [items, focusAnchor]);
+
+  // ---- 定时增量拉取新评论：先提示，点击后并入列表 ----
+  const [pendingNew, setPendingNew] = useState<CommentItem[]>([]);
+  const pendingRef = useRef<CommentItem[]>([]);
+  useEffect(() => {
+    if (disabled) return;
+    const timer = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const qs = new URLSearchParams({ postId, limit: "10" });
+        const r = await requestJson<CommentsResponse>(`/api/comments?${qs.toString()}`);
+        const known = new Set((items ?? []).concat(pendingRef.current).map((x) => x.id));
+        const fresh = r.items.filter((x) => !known.has(x.id));
+        if (fresh.length === 0) return;
+        pendingRef.current = [...fresh, ...pendingRef.current];
+        setPendingNew(pendingRef.current);
+      } catch {
+        /* silent — 轮询失败不打扰阅读 */
+      }
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [postId, items, disabled]);
+
+  function loadPending() {
+    setItems((prev) => {
+      const seen = new Set((prev ?? []).map((x) => x.id));
+      return [...pendingRef.current.filter((x) => !seen.has(x.id)), ...(prev ?? [])];
+    });
+    setCount((c) => c + pendingRef.current.length);
+    pendingRef.current = [];
+    setPendingNew([]);
+    requestAnimationFrame(focusAnchor);
+  }
+
   // infinite scroll
   useEffect(() => {
     const el = sentinelRef.current;
@@ -210,7 +271,7 @@ export function Comments({
 
   return (
     <section className="mt-6" aria-label={t("comments.title")}>
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-normal text-foreground">
         <MessageCircle className="size-4" />
         {t("comments.title")}
         {count > 0 && <span className="text-muted-foreground tabular-nums">({count})</span>}
@@ -231,6 +292,18 @@ export function Comments({
         </p>
       ) : null}
 
+      {/* 新评论气泡：增量拉取后先提示，点击并入 */}
+      {pendingNew.length > 0 && (
+        <button
+          type="button"
+          onClick={loadPending}
+          className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-[0_2px_10px_rgba(42,47,69,0.1)] transition-colors hover:text-foreground"
+        >
+          <MessageCircle className="size-3.5" />
+          <span className="num font-medium">{pendingNew.length}</span> 条新评论 · 点击查看
+        </button>
+      )}
+
       {/* list */}
       <div className="mt-4 space-y-1">
         {items === null ? (
@@ -249,9 +322,16 @@ export function Comments({
           <p className="py-6 text-center text-sm text-muted-foreground">{t("comments.empty")}</p>
         ) : (
           items.map((c) => (
-            <div key={c.id} className="flex gap-3 rounded-lg px-1 py-3">
+            <div
+              key={c.id}
+              id={`comment-${c.id}`}
+              className={cn(
+                "flex gap-3 rounded-lg px-2 py-2 transition-colors scroll-mt-14",
+                highlightId === c.id && "bg-[var(--selected)] ring-1 ring-primary/25",
+              )}
+            >
               <Link href={`/u/${c.user.username}`} className="shrink-0" aria-label={c.user.displayName}>
-                <Avatar className="size-9 border border-border">
+                <Avatar className="size-8 border border-border">
                   {c.user.avatarPath && (
                     <AvatarImage src={mediaUrl(c.user.avatarPath)} alt={c.user.displayName} />
                   )}
@@ -273,9 +353,18 @@ export function Comments({
                       {t("comments.replyTo")} @{c.replyToUsername}
                     </span>
                   )}
-                  <span className="text-xs text-muted-foreground">
+                  <a
+                    href={`#comment-${c.id}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      history.replaceState(null, "", `#comment-${c.id}`);
+                      focusAnchor();
+                    }}
+                    className="shrink-0 text-xs text-muted-foreground hover:text-foreground hover:underline"
+                    title="复制或跳转到此评论"
+                  >
                     {timeAgo(c.createdAt, locale)}
-                  </span>
+                  </a>
                 </div>
                 <p className="reading-serif mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
                   {c.body}
@@ -291,7 +380,7 @@ export function Comments({
                     <button
                       type="button"
                       onClick={() => startReply(c)}
-                      className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     >
                       {t("comments.reply")}
                     </button>
@@ -300,7 +389,7 @@ export function Comments({
                     <button
                       type="button"
                       onClick={() => void remove(c.id)}
-                      className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                      className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
                       aria-label={t("common.delete")}
                     >
                       <Trash2 className="size-3.5" />

@@ -113,7 +113,7 @@ export function ConsoleTopbar({
           href="/write"
           aria-label="创作"
           title="创作"
-          className="ml-1 grid size-9 place-items-center rounded-md bg-primary text-primary-foreground/90 shadow-[0_0_0_1px_var(--primary),0_2px_1px_rgba(47,61,137,0.15),0_2px_5px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-[0_0_0_1px_var(--primary),0_2px_5px_rgba(42,47,69,0.3),0_4px_9px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)]"
+          className="ml-1 grid size-9 place-items-center rounded-md bg-primary text-primary-foreground/90 shadow-[0_0_0_1px_var(--primary),0_2px_1px_rgba(28,29,33,0.15),0_2px_5px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] transition-shadow hover:shadow-[0_0_0_1px_var(--primary),0_2px_5px_rgba(42,47,69,0.3),0_4px_9px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)]"
         >
           <Plus className="size-4.5" />
         </Link>

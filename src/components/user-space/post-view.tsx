@@ -8,7 +8,6 @@ import { blogPostingJsonLd, personJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
-import { PostReactions } from "@/components/social/post-reactions";
 import { Comments } from "@/components/social/comments";
 import { FollowButton } from "@/components/social/follow-button";
 import { ReportDialog } from "@/components/social/report-dialog";
@@ -56,7 +55,7 @@ export function PostView({
   const canComment = Boolean(author.commentsEnabled && viewer);
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px]">
+    <div className="min-h-dvh w-full">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -87,6 +86,7 @@ export function PostView({
       {/* sticky author bar — identity + follow live here, no duplicate row below */}
       <TimelineHeader
         back
+        rowClassName="py-3"
         title={
           <span className="flex items-center gap-2.5 whitespace-normal">
             <span className="inline-block size-9 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
@@ -121,12 +121,12 @@ export function PostView({
             <FollowButton
               username={author.username}
               initialFollowing={viewerState.following}
-              className="h-8 shrink-0 rounded-full px-3.5 text-xs"
+              className="h-8 min-h-0 shrink-0 rounded-full px-4 text-xs font-medium"
             />
           ) : (
             <Link
               href={routes.profile(author.username)}
-              className="shrink-0 rounded-full border border-border px-3.5 py-1 text-xs font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+              className="inline-flex h-8 shrink-0 items-center rounded-full border border-border px-4 text-xs font-medium text-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)]"
             >
               主页
             </Link>
@@ -135,32 +135,28 @@ export function PostView({
       />
 
       <article className="px-4 pb-12 md:px-5">
-        {/* badges */}
-        <div className="flex flex-wrap items-center gap-2 pt-4">
-            <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="md" />
-            {post.visibility === "followers" && <Badge variant="secondary">关注者可见</Badge>}
-            {collection && (
-              <Link
-                href={routes.collection(author.username, collection.slug)}
-                className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-              >
-                合集 · {collection.name}
-              </Link>
-            )}
-          </div>
-
-          {/* title */}
-          <h1 className="reading-serif mt-3 text-[26px] font-normal leading-snug tracking-tight md:text-[30px]">
+        {/* title */}
+          <h1 className="reading-serif mt-3 text-balance text-[26px] font-normal leading-snug md:text-[30px]">
             {post.title ?? "Untitled"}
           </h1>
 
-          {/* meta line */}
+          {/* meta line — 标注/可见性/合集与日期同级排布，共用一套文字样式 */}
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1">
               <Calendar className="size-3.5" /> {formatDate(date, "zh")}
             </span>
             <span>·</span>
-            <span>{minutes} 分钟阅读</span>
+            <span className="num">{minutes} 分钟</span>
+            <AnnotationBadge label={post.label} sourceUrl={post.sourceUrl} sourceName={post.sourceName} size="sm" />
+            {post.visibility === "followers" && <Badge variant="secondary">关注者可见</Badge>}
+            {collection && (
+              <Link
+                href={routes.collection(author.username, collection.slug)}
+                className="transition-colors hover:text-foreground"
+              >
+                合集 · {collection.name}
+              </Link>
+            )}
           </div>
 
         {/* featured image */}
@@ -205,7 +201,7 @@ export function PostView({
         )}
 
         {/* detail action bar */}
-        <div className="mt-3 flex items-center gap-6 border-y border-border px-1 py-2 text-muted-foreground">
+        <div className="-mx-4 mt-3 flex items-center gap-6 border-y border-border px-4 py-2 text-muted-foreground md:-mx-5 md:px-5">
           <span className="inline-flex items-center gap-1.5 text-sm">
             <MessageCircle className="size-[18px]" />
             <span className="num tabular-nums">{post.commentCount}</span>
@@ -221,7 +217,6 @@ export function PostView({
             initialCount={post.likeCount}
             initialLiked={interactions.liked}
           />
-          {viewer && <PostReactions postId={post.id} />}
           <span className="ml-auto inline-flex items-center gap-1.5 text-sm">
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>
@@ -232,7 +227,7 @@ export function PostView({
         {/* author follow strip */}
         {!isSelf && !viewer && (
           <p className="mt-4 text-sm text-muted-foreground">
-            喜欢 <Link href={routes.profile(author.username)} className="font-semibold text-foreground hover:underline">{author.displayName}</Link>{" "}
+            喜欢 <Link href={routes.profile(author.username)} className="font-medium text-foreground hover:underline">{author.displayName}</Link>{" "}
             的文章？<Link href={routes.login} className="text-primary hover:underline">登录</Link>
             后关注获取更新。
           </p>
@@ -240,7 +235,6 @@ export function PostView({
 
         {/* comments */}
         <section className="mt-8" id="comments">
-          <h2 className="mb-2 text-[15px] font-normal">评论</h2>
           <Comments
             postId={post.id}
             disabled={!canComment}

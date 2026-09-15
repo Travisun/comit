@@ -171,7 +171,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border pl-3 pr-2">
-        <h2 className="text-[15px] font-bold">{zh ? "消息" : "Messages"}</h2>
+        <h2 className="text-[15px] font-normal">{zh ? "消息" : "Messages"}</h2>
         <div className="flex items-center gap-1">
           {unreadNotifs > 0 && (
             <button

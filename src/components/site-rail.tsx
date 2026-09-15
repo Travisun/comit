@@ -51,7 +51,8 @@ export function SiteRail({
       {/* 我的博客 console (logged-in) / sign-in CTA (logged-out) */}
       {user ? (
         <section className="rounded-lg border border-border p-3">
-          <div className="flex items-center gap-3">
+          {/* 用户名牌（头像+昵称）暂时隐藏（产品决策），仅保留快捷入口 */}
+          <div className="hidden">
             <Avatar className="size-10">
               {user.avatarPath && (
                 <AvatarImage src={`/api/media/file/${user.avatarPath}`} alt={user.displayName} />
@@ -61,14 +62,14 @@ export function SiteRail({
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <p className="truncate text-[15px] font-bold">{user.displayName}</p>
+              <p className="truncate text-[15px] font-medium">{user.displayName}</p>
               <p className="truncate text-sm text-muted-foreground">@{user.username}</p>
             </div>
           </div>
           {myStats && (
             <Link
               href={routes.profile(user.username)}
-              className="num mt-2.5 block rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)]"
+              className="num block rounded-md bg-[var(--muted)] px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-[var(--hover)]"
             >
               {myStats.posts} 篇内容 · {myStats.followers} 粉丝 · {myStats.following} 关注
             </Link>
@@ -76,7 +77,7 @@ export function SiteRail({
           <div className="mt-2 grid grid-cols-2 gap-1.5">
             <Link
               href="/write/posts"
-              className="flex items-center justify-center gap-1.5 rounded-full bg-primary py-1.5 text-center text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              className="flex items-center justify-center gap-1.5 rounded-full bg-primary py-1.5 text-center text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               <FileText className="size-3.5" aria-hidden />
               文章管理
@@ -98,14 +99,14 @@ export function SiteRail({
         </section>
       ) : (
         <section className="rounded-lg border border-border p-3">
-          <h2 className="text-sm font-bold">新到 {siteName}</h2>
+          <h2 className="text-sm font-normal">新到 {siteName}</h2>
           <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
             创建账号，记录你的科研日志与技术文章，并关注你感兴趣的作者。
           </p>
           <div className="mt-3 flex flex-col gap-2">
             <Link
               href="/auth/register"
-              className="rounded-full bg-primary py-1.5 text-center text-[13px] font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              className="rounded-full bg-primary py-1.5 text-center text-[13px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
             >
               创建账号
             </Link>
@@ -122,7 +123,7 @@ export function SiteRail({
 
       {/* what is comit.sh */}
       <section className="rounded-lg border border-border p-3">
-        <h2 className="text-sm font-bold">{siteName} 是什么</h2>
+        <h2 className="text-sm font-normal">{siteName} 是什么</h2>
         <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
           极客 · 设计师 · 科学家 · CS 学子的个人品牌社区 —— 记录科研日志、技术学习、研究发布与项目动态。
         </p>
@@ -142,7 +143,7 @@ export function SiteRail({
       {/* trending topics */}
       {topics.length > 0 && (
         <section className="overflow-hidden rounded-lg border border-border">
-          <h2 className="px-4 pb-1 pt-3 text-[15px] font-bold">话题正在发生</h2>
+          <h2 className="px-4 pb-1 pt-3 text-[15px] font-normal">话题正在发生</h2>
           <ul>
             {topics.slice(0, 5).map((tp) => (
               <li key={tp.slug}>
@@ -150,7 +151,7 @@ export function SiteRail({
                   href={routes.topic(tp.slug)}
                   className="block px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
                 >
-                  <span className="block truncate text-sm font-semibold">#{tp.name}</span>
+                  <span className="block truncate text-sm font-medium">#{tp.name}</span>
                   <span className="num block text-xs text-muted-foreground">
                     {tp.postCount ?? 0} 条内容
                   </span>
@@ -170,7 +171,7 @@ export function SiteRail({
       {/* active authors */}
       {authors.length > 0 && (
         <section className="overflow-hidden rounded-lg border border-border">
-          <h2 className="px-4 pb-1 pt-3 text-[15px] font-bold">活跃作者</h2>
+          <h2 className="px-4 pb-1 pt-3 text-[15px] font-normal">活跃作者</h2>
           <ul>
             {authors.map((a) => (
               <li key={a.username}>
@@ -185,7 +186,7 @@ export function SiteRail({
                     <AvatarFallback>{a.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
                   </Avatar>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold">{a.displayName}</span>
+                    <span className="block truncate text-sm font-medium">{a.displayName}</span>
                     <span className="block truncate text-xs text-muted-foreground">
                       @{a.username}
                     </span>

@@ -118,7 +118,7 @@ export function SiteHeader({
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
                   <DropdownMenuLabel>
-                    <div className="font-semibold text-foreground text-sm">{user.displayName}</div>
+                    <div className="font-medium text-foreground text-sm">{user.displayName}</div>
                     <div className="text-xs text-muted-foreground">@{user.username}</div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />

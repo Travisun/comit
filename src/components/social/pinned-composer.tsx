@@ -458,8 +458,8 @@ export function PinnedComposer({
             )}
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-2">
-            <Avatar className="mx-1 size-8 shrink-0">
+          <div className="flex items-center gap-2 px-3 py-2">
+            <Avatar className="ml-2 size-8 shrink-0">
               {user.avatarPath && <AvatarImage src={mediaUrl(user.avatarPath)} alt={user.displayName} />}
               <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
             </Avatar>

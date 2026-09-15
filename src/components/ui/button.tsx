@@ -4,19 +4,19 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 /*
- * comit.sh button — Stripe (Sail) button system:
- * - primary: sail blue-500 fill + 1px keyline ring + layered drop shadow;
- *   hover keeps the fill and lifts the shadow (Stripe behavior).
+ * comit.sh button — Stripe (Sail) button system on the GitHub-black primary:
+ * - primary: var(--primary) fill (#24292f) + 1px keyline ring + layered drop
+ *   shadow (neutral ink tint); hover keeps the fill and lifts the shadow.
  * - outline/secondary: white fill + keyline ring + whisper shadow.
- * - focus: cyan halo (sail focus shadow).
+ * - focus: var(--ring) halo.
  */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[box-shadow,background-color,color] outline-none focus-visible:shadow-[0_0_0_4px_var(--ring),0_0_1px_1px_rgba(7,89,150,0.36)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-[box-shadow,background-color,color] outline-none focus-visible:shadow-[0_0_0_4px_var(--ring),0_0_1px_1px_rgba(36,41,47,0.36)] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground/[0.9] shadow-[0_0_0_1px_var(--primary),0_2px_1px_rgba(47,61,137,0.15),0_2px_5px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] hover:shadow-[0_0_0_1px_var(--primary),0_2px_5px_rgba(42,47,69,0.3),0_4px_9px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] disabled:bg-[#7e82d9] disabled:shadow-[0_0_0_1px_#7e82d9]",
+          "bg-primary text-primary-foreground/[0.9] shadow-[0_0_0_1px_var(--primary),0_2px_1px_rgba(28,29,33,0.15),0_2px_5px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] hover:shadow-[0_0_0_1px_var(--primary),0_2px_5px_rgba(42,47,69,0.3),0_4px_9px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] disabled:bg-[#8b9096] disabled:shadow-[0_0_0_1px_#8b9096]",
         destructive:
           "bg-destructive text-destructive-foreground shadow-[0_0_0_1px_var(--destructive),0_2px_1px_rgba(128,20,63,0.15),0_2px_5px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)] hover:shadow-[0_0_0_1px_var(--destructive),0_2px_5px_rgba(42,47,69,0.3),0_4px_9px_rgba(42,47,69,0.1),0_1px_2px_rgba(0,0,0,0.08)]",
         outline:
