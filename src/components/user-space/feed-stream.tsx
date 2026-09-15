@@ -77,7 +77,7 @@ export function FeedStream({
     const timer = setInterval(async () => {
       if (document.visibilityState !== "visible") return;
       try {
-        const r = await fetch("/api/feed?limit=5");
+        const r = await fetch(`/api/feed?limit=5${scope === "following" ? "&scope=following" : ""}`);
         if (!r.ok) return;
         const data = (await r.json()) as { items: FeedItemDTO[] };
         const fresh = data.items.filter(
@@ -91,7 +91,7 @@ export function FeedStream({
 
   const loadNew = useCallback(async () => {
     try {
-      const r = await fetch("/api/feed?limit=20");
+      const r = await fetch(`/api/feed?limit=20${scope === "following" ? "&scope=following" : ""}`);
       if (!r.ok) return;
       const data = (await r.json()) as { items: FeedItemDTO[]; nextOffset: number | null };
       setItems((prev) => {

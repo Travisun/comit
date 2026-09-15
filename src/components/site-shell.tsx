@@ -30,6 +30,7 @@ import {
 import { ThemeToggle, LocaleToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
+import { useLocalUnread, type LocalUnread } from "@/components/user-space/use-local-unread";
 
 /* ============================================================ types ====== */
 
@@ -94,9 +95,9 @@ function ComposerTrigger({ login }: { login?: string }) {
   const pathname = usePathname();
   if (login) {
     return (
-      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 xl:w-full xl:px-3">
+      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 lg:w-full lg:px-3">
         <Feather className="size-3.5" />
-        <span className="hidden text-[13px] xl:inline">创作</span>
+        <span className="hidden text-[13px] lg:inline">创作</span>
       </Link>
     );
   }
@@ -105,9 +106,9 @@ function ComposerTrigger({ login }: { login?: string }) {
       if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
       else router.push("/?compose=1");
     }}
-      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 xl:w-full xl:px-3">
+      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 lg:w-full lg:px-3">
       <Feather className="size-3.5" />
-      <span className="hidden text-[13px] xl:inline">创作</span>
+      <span className="hidden text-[13px] lg:inline">创作</span>
     </button>
   );
 }
@@ -230,28 +231,27 @@ function LeftNav({
   isAdmin,
   siteName,
   locale,
+  unread,
 }: {
   user: ShellUser | null;
   isAdmin: boolean;
   siteName: string;
   locale: "zh" | "en";
+  unread: LocalUnread;
 }) {
   const pathname = usePathname();
   const login = routes.login;
 
   const items = [
-    { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true },
-    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" /> },
+    { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true, badge: unread.latest },
+    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" />, badge: unread.following },
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     {
       // unified inbox: DMs + notifications live together under /messages
       href: user ? routes.messages : login,
       label: "消息",
-      icon: (
-        <NavIcon badge={(user?.unreadNotifications ?? 0) + (user?.unreadMessages ?? 0)}>
-          <Mail className="size-[18px]" />
-        </NavIcon>
-      ),
+      icon: <Mail className="size-[18px]" />,
+      badge: unread.messages,
     },
     {
       href: user ? routes.profile(user.username) : login,
@@ -268,7 +268,7 @@ function LeftNav({
   return (
     <nav
       aria-label="主导航"
-      className="hidden h-full w-16 shrink-0 flex-col px-2 py-3 md:flex xl:w-[208px] xl:px-3"
+      className="hidden h-full w-16 shrink-0 flex-col px-2 py-3 md:flex lg:w-[208px] lg:px-3"
     >
       <div className="mb-2 ml-1">
         <BrandLink siteName={siteName} />
@@ -287,8 +287,8 @@ function LeftNav({
                 active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
-              {item.icon}
-              <span className="hidden text-sm xl:inline">{item.label}</span>
+              <NavIcon badge={item.badge}>{item.icon}</NavIcon>
+              <span className="hidden text-sm lg:inline">{item.label}</span>
             </Link>
           );
         })}
@@ -306,8 +306,8 @@ function LeftNav({
           href={login}
           className="flex items-center justify-center gap-2 rounded-full p-2 text-sm font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
         >
-          <UserIcon className="size-5 xl:hidden" />
-          <span className="hidden xl:inline">登录 / 注册</span>
+          <UserIcon className="size-5 lg:hidden" />
+          <span className="hidden lg:inline">登录 / 注册</span>
         </Link>
       )}
     </nav>
@@ -353,21 +353,21 @@ function MobileTopBar({
   );
 }
 
-function MobileTabBar({ user }: { user: ShellUser | null }) {
+function MobileTabBar({ user, unread }: { user: ShellUser | null; unread: LocalUnread }) {
   const pathname = usePathname();
   const login = routes.login;
   const router = useRouter();
 
   const tabs = [
-    { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true },
-    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" /> },
+    { href: routes.home, label: "最新", icon: <NavIcon badge={unread.latest}><Home className="size-[18px]" /></NavIcon>, exact: true },
+    { href: user ? routes.following : login, label: "关注", icon: <NavIcon badge={unread.following}><Users className="size-[18px]" /></NavIcon> },
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
     { href: user ? "#compose" : login, label: "创作", fab: true },
     {
       href: user ? routes.messages : login,
       label: "消息",
       icon: (
-        <NavIcon badge={(user?.unreadNotifications ?? 0) + (user?.unreadMessages ?? 0)}>
+        <NavIcon badge={unread.messages}>
           <Bell className="size-[18px]" />
         </NavIcon>
       ),
@@ -468,6 +468,7 @@ export function SiteShell({
 }) {
   const pathname = usePathname();
   const isAdmin = user?.role === "admin";
+  const localUnread = useLocalUnread(user);
 
   // 前台固定使用基础灰白配色（.theme-site 只覆盖字体），不再提供主题切换。
   // 仍需清理历史遗留：localStorage 里存过的主题选择和 body 上残留的 theme-* 类。
@@ -493,7 +494,7 @@ export function SiteShell({
       {/* two columns: icon/text nav | main zone. The main zone's panel spans
           to the container's right edge and splits into content | rail. */}
       <div className="mx-auto flex h-full w-full max-w-[1200px]">
-      <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
+            <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} unread={localUnread} />
 
       <main className="min-w-0 flex-1 pb-16 md:flex md:h-full md:pb-0">
         {/* the panel — two inner columns on xl: content | rail */}
@@ -527,7 +528,7 @@ export function SiteShell({
       </main>
       </div>
 
-      <MobileTabBar user={user} />
+      <MobileTabBar user={user} unread={localUnread} />
     </div>
   );
 }

@@ -11,6 +11,21 @@ const bodySchema = z.object({
   username: z.string().min(1).max(64),
 });
 
+/** GET /api/blocks?username= — whether the viewer blocks the target. */
+export async function GET(req: Request) {
+  return withUser(req, async (auth) => {
+    const username = new URL(req.url).searchParams.get("username") ?? "";
+    const target = await getUserByUsername(username);
+    if (target.id === auth.user.id) return ok({ blocked: false, self: true });
+    const [row] = await db
+      .select({ x: blocks.blockerId })
+      .from(blocks)
+      .where(and(eq(blocks.blockerId, auth.user.id), eq(blocks.blockedId, target.id)))
+      .limit(1);
+    return ok({ blocked: Boolean(row), self: false });
+  });
+}
+
 /** POST /api/blocks — toggle blocking a user. Blocking unfollows both ways. */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {

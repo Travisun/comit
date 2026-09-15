@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import {
   Ban,
   Bookmark,
+  UserCheck,
   Flag,
   Loader2,
   MessageCircle,
@@ -56,6 +57,7 @@ export function RowActionsMenu({
   const router = useRouter();
   const [bookmarked, setBookmarked] = useState(false);
   const [following, setFollowing] = useState<boolean | null>(null);
+  const [blocking, setBlocking] = useState<boolean | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
@@ -84,6 +86,7 @@ export function RowActionsMenu({
   async function toggleBlock() {
     try {
       const res = await postJson<{ blocked: boolean }>("/api/blocks", { username: author.username });
+      setBlocking(res.blocked);
       toast.success(res.blocked ? `已屏蔽 @${author.username}` : `已取消屏蔽 @${author.username}`);
       if (res.blocked) router.refresh();
     } catch (err) {
@@ -112,7 +115,20 @@ export function RowActionsMenu({
 
   return (
     <>
-      <DropdownMenu>
+      <DropdownMenu
+        onOpenChange={(open) => {
+          if (!open || mine) return;
+          // 打开菜单时拉取真实的关注/屏蔽状态，文案随状态切换
+          setFollowing(null);
+          setBlocking(null);
+          void postJson<{ following: boolean }>(`/api/follows?username=${encodeURIComponent(author.username)}`, {})
+            .then((r) => setFollowing(r.following))
+            .catch(() => setFollowing(null));
+          void postJson<{ blocked: boolean }>(`/api/blocks?username=${encodeURIComponent(author.username)}`, {})
+            .then((r) => setBlocking(r.blocked))
+            .catch(() => setBlocking(null));
+        }}
+      >
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -138,19 +154,15 @@ export function RowActionsMenu({
           {!mine && (
             <>
               <MenuItem
-                icon={<UserPlus className="size-4" />}
-                label={
-                  following === null
-                    ? "关注用户"
-                    : following
-                      ? "取消关注"
-                      : "关注用户"
+                icon={
+                  following ? <UserCheck className="size-4" /> : <UserPlus className="size-4" />
                 }
+                label={`${following ? "取消关注" : "关注"} @${author.username}`}
                 onClick={() => void toggleFollow()}
               />
               <MenuItem
                 icon={<Ban className="size-4" />}
-                label="屏蔽用户"
+                label={`${blocking ? "取消屏蔽" : "屏蔽"} @${author.username}`}
                 className="text-destructive focus-visible:text-destructive"
                 onClick={() => void toggleBlock()}
               />

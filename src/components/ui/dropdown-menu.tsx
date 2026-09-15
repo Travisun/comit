@@ -38,10 +38,11 @@ function DropdownMenuItem({
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-[4px] px-3 py-[5px] text-sm font-medium outline-none transition-colors",
-        "text-[#067ab8] data-[highlighted]:bg-[var(--hover)] data-[highlighted]:text-[#2a2f45] dark:text-[#58b7e3] dark:data-[highlighted]:text-[#e3e8ef]",
+        "relative flex cursor-pointer select-none items-center gap-2.5 rounded-[6px] px-3 py-[7px] text-[13px] font-normal outline-none transition-colors",
+        "text-foreground/85 data-[highlighted]:bg-[var(--hover)] data-[highlighted]:text-foreground",
+        "dark:text-foreground/80 dark:data-[highlighted]:bg-[var(--hover)] dark:data-[highlighted]:text-foreground",
         "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        "[&_svg]:size-4 [&_svg]:shrink-0",
+        "[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground data-[highlighted]:[&_svg]:text-foreground",
         className,
       )}
       {...props}
@@ -61,7 +62,7 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
 function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn("px-3 pb-0.5 pt-2 text-[11px] font-semibold uppercase tracking-wide text-[#a3acb9] dark:text-[#6b7488]", className)}
+      className={cn("px-3 pb-0.5 pt-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground", className)}
       {...props}
     />
   );
