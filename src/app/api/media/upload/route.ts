@@ -46,6 +46,15 @@ export async function POST(req: Request): Promise<Response> {
       saved = await processAndSaveImage(buffer, auth.user.id, kind, file.name || "image");
     } catch (err) {
       console.error("[media/upload] process failed:", err);
+      // sharp's prebuilt libvips cannot decode Apple's HEVC-encoded HEIC —
+      // fail with an actionable message instead of a generic processing error
+      if (/^image\/hei/.test(file.type)) {
+        throw new AppError(
+          "暂不支持 iPhone 的 HEIC 格式，请转存为 JPG/PNG 后再上传（iPhone 可在「设置 → 相机 → 格式」选兼容性最佳）",
+          400,
+          "heic_unsupported",
+        );
+      }
       throw new AppError("图片处理失败 / Failed to process image", 400, "process_failed");
     }
 

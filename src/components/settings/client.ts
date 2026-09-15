@@ -1,5 +1,7 @@
 "use client";
 
+import { uploadImage as uploadMedia } from "@/components/editor/upload";
+
 /** Small fetch/clipboard helpers shared by all settings panels. */
 
 export async function apiRequest<T = Record<string, unknown>>(
@@ -43,26 +45,18 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Upload an image to the media pipeline; returns the stored media path. */
-export async function uploadImage(file: File, kind: "avatar" | "cover"): Promise<string> {
-  const fd = new FormData();
-  fd.append("file", file);
-  fd.append("kind", kind);
-  const res = await fetch("/api/media/upload", { method: "POST", body: fd });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    throw new Error(
-      typeof data.error === "string" ? data.error : "图片上传失败 / Upload failed",
-    );
-  }
-  const media = data.media as Record<string, unknown> | undefined;
-  const path =
-    (typeof data.path === "string" && data.path) ||
-    (media && typeof media.path === "string" && media.path) ||
-    (typeof data.url === "string" && data.url.replace(/^\/api\/media\/file\//, "")) ||
-    "";
-  if (!path) throw new Error("上传响应缺少路径 / Unexpected upload response");
-  return path;
+/**
+ * Upload an image (avatar/cover) through the shared media client — it
+ * pre-shrinks and re-encodes in the browser (WebP, JPEG fallback) and
+ * reports upload progress — then return the stored media path.
+ */
+export async function uploadImage(
+  file: File,
+  kind: "avatar" | "cover",
+  onProgress?: (pct: number) => void,
+): Promise<string> {
+  const res = await uploadMedia(file, kind, onProgress);
+  return res.path;
 }
 
 export function mediaUrl(path: string | null | undefined): string | null {
