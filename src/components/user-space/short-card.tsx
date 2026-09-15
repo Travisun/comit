@@ -102,7 +102,7 @@ export function ShortCard({
           显示更多
         </a>
       )}
-      <TimelineActions post={post} href={href} mine={viewerUsername === author.username} />
+      <TimelineActions post={post} href={href} />
     </TimelineRow>
   );
 }

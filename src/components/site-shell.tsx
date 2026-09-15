@@ -95,7 +95,7 @@ function ComposerTrigger({ login }: { login?: string }) {
   const pathname = usePathname();
   if (login) {
     return (
-      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 lg:w-full lg:px-3">
+      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3">
         <Feather className="size-3.5" />
         <span className="hidden text-[13px] lg:inline">创作</span>
       </Link>
@@ -106,7 +106,7 @@ function ComposerTrigger({ login }: { login?: string }) {
       if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
       else router.push("/?compose=1");
     }}
-      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:w-9 md:px-0 lg:w-full lg:px-3">
+      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3">
       <Feather className="size-3.5" />
       <span className="hidden text-[13px] lg:inline">创作</span>
     </button>
@@ -226,7 +226,7 @@ function NavIcon({
     <span className={cn("relative shrink-0", className)}>
       {children}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -right-1.5 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums lg:hidden">
+        <span className="absolute -right-1.5 -top-1.5 grid h-4 min-w-4 place-items-center rounded-full bg-destructive px-1 text-[9px] font-semibold leading-none text-destructive-foreground tabular-nums lg:hidden">
           {badge > 99 ? "99+" : badge}
         </span>
       )}

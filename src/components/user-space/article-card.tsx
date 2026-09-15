@@ -2,9 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Eye, Heart, MessageCircle, PenLine, Pin, Repeat2, Trash2 } from "lucide-react";
-import { toast } from "sonner";
+import { Eye, Heart, MessageCircle, Pin, Repeat2 } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
@@ -131,39 +129,17 @@ export function TimelineAuthorLine({
   );
 }
 
-/** Static X-style action strip: reply / repost / like (hover blue/green/red).
- * When `mine`, inline edit / delete entries appear for the author. */
+/** Static X-style action strip: comment / like / repost / views.
+ * Edit & delete for the author live in the row's「···」menu instead. */
 export function TimelineActions({
   post,
   href,
   className,
-  mine = false,
 }: {
   post: FeedItemDTO["post"];
   href: string;
   className?: string;
-  /** the viewing user authored this post → show edit / delete */
-  mine?: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-
-  async function onDelete() {
-    if (busy) return;
-    if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
-      toast.success("已移入回收站");
-      router.refresh();
-    } catch {
-      toast.error("删除失败");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className={cn("mt-2 flex max-w-sm items-center justify-between text-muted-foreground", className)}>
       <Link
@@ -176,6 +152,15 @@ export function TimelineActions({
         </span>
         {post.commentCount > 0 && <span className="num tabular-nums">{post.commentCount}</span>}
       </Link>
+      <span
+        className="group/l inline-flex items-center gap-1 text-xs transition-colors hover:text-rose-500"
+        aria-label="喜欢"
+      >
+        <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/l:bg-rose-500/10">
+          <Heart className="size-4" />
+        </span>
+        {post.likeCount > 0 && <span className="num tabular-nums">{post.likeCount}</span>}
+      </span>
       <span
         className="group/r inline-flex items-center gap-1 text-xs transition-colors hover:text-emerald-500"
         aria-label="转推"
@@ -191,37 +176,6 @@ export function TimelineActions({
         </span>
         {post.views > 0 && <span className="num tabular-nums">{formatViews(post.views)}</span>}
       </span>
-      <span
-        className="group/l inline-flex items-center gap-1 text-xs transition-colors hover:text-rose-500"
-        aria-label="喜欢"
-      >
-        <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/l:bg-rose-500/10">
-          <Heart className="size-4" />
-        </span>
-        {post.likeCount > 0 && <span className="num tabular-nums">{post.likeCount}</span>}
-      </span>
-      {mine && (
-        <span className="inline-flex items-center gap-1">
-          <Link
-            href={`/write/${post.id}`}
-            className="group/e grid size-7 place-items-center rounded-full transition-colors hover:bg-amber-500/10 hover:text-amber-600"
-            aria-label="编辑"
-            title="编辑"
-          >
-            <PenLine className="size-4" />
-          </Link>
-          <button
-            type="button"
-            onClick={() => void onDelete()}
-            disabled={busy}
-            className="group/d grid size-7 place-items-center rounded-full transition-colors hover:bg-rose-500/10 hover:text-rose-500 disabled:opacity-50"
-            aria-label="删除"
-            title="移入回收站"
-          >
-            <Trash2 className="size-4" />
-          </button>
-        </span>
-      )}
     </div>
   );
 }
@@ -306,7 +260,7 @@ export function ArticleCard({
           <img src={cover} alt="" loading="lazy" className="aspect-[2/1] w-full object-cover" />
         </Link>
       )}
-      <TimelineActions post={post} href={href} mine={mine} />
+      <TimelineActions post={post} href={href} />
     </TimelineRow>
   );
 }

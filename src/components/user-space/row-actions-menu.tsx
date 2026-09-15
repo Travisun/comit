@@ -11,6 +11,8 @@ import {
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  PenLine,
+  Trash2,
   UserPlus,
   ExternalLink,
 } from "lucide-react";
@@ -94,6 +96,22 @@ export function RowActionsMenu({
     }
   }
 
+  async function removePost() {
+    if (busy) return;
+    if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      toast.success("已移入回收站");
+      router.refresh();
+    } catch {
+      toast.error("删除失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitReport() {
     if (!preset || busy) return;
     const extra = detail.trim();
@@ -165,6 +183,22 @@ export function RowActionsMenu({
                 label={`${blocking ? "取消屏蔽" : "屏蔽"} @${author.username}`}
                 className="text-destructive focus-visible:text-destructive"
                 onClick={() => void toggleBlock()}
+              />
+            </>
+          )}
+          {mine && (
+            <>
+              <DropdownMenuSeparator />
+              <MenuItem
+                icon={<PenLine className="size-4" />}
+                label="编辑"
+                onClick={() => router.push(`/write/${post.id}`)}
+              />
+              <MenuItem
+                icon={<Trash2 className="size-4" />}
+                label="删除"
+                className="text-destructive focus-visible:text-destructive"
+                onClick={() => void removePost()}
               />
             </>
           )}
