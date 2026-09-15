@@ -11,14 +11,15 @@ import { WebhooksPanel } from "./webhooks-panel";
 import { McpPanel, ApiTokensPanel } from "./tokens-panel";
 import { DataPanel } from "./data-panel";
 import { VerificationPanel } from "./verification-panel";
-import { SitePanel } from "./site-panel";
+import { UsernameForm } from "./username-form";
 
 /** Section manifest — rendered as the dashboard sidebar menu. */
 export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
   { id: "profile", labelKey: "settings.tab.profile" },
   { id: "security", labelKey: "settings.tab.security" },
   { id: "notifications", labelKey: "settings.tab.notifications" },
-  { id: "site", labelKey: "settings.tab.site" },
+  { id: "username", labelKey: "settings.tab.username" },
+  { id: "invites", labelKey: "settings.tab.invites" },
   { id: "verification", labelKey: "settings.tab.verification" },
   { id: "mcp", labelKey: "settings.tab.mcp" },
   { id: "api", labelKey: "settings.tab.api" },
@@ -71,8 +72,10 @@ function section(
       return <SecurityPanel data={data.security} />;
     case "notifications":
       return <NotificationsPanel channels={data.notifications.channels} initialPrefs={data.notifications.prefs} />;
-    case "site":
-      return <SitePanel username={data.username} invites={data.invites} appUrl={data.appUrl} />;
+    case "username":
+      return <UsernameForm data={data.username} />;
+    case "invites":
+      return <InvitesPanel data={data.invites} appUrl={data.appUrl} />;
     case "verification":
       return <VerificationPanel />;
     case "mcp":
