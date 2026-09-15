@@ -82,7 +82,15 @@ function section(
     case "username":
       return <UsernameForm data={data.username} />;
     case "privacy":
-      return <PrivacyPanel initial={{ hideFollowers: data.profile.hideFollowers, hideFollowing: data.profile.hideFollowing }} />;
+      return (
+        <PrivacyPanel
+          initial={{
+            followersVisibility: data.profile.followersVisibility,
+            followingVisibility: data.profile.followingVisibility,
+            bookmarksVisibility: data.profile.bookmarksVisibility,
+          }}
+        />
+      );
     case "email":
       return <EmailPanel />;
     case "connections":

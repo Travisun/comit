@@ -53,8 +53,9 @@ export async function getSettingsPageData(auth: {
     usernameUpdatedAt: Date | null;
     avatarPath: string | null;
     coverPath: string | null;
-    hideFollowers: boolean;
-    hideFollowing: boolean;
+    followersVisibility: string;
+    followingVisibility: string;
+    bookmarksVisibility: string;
     appearance: unknown;
     widgets: string[];
     notificationPrefs: Record<string, string[]> | null;
@@ -133,8 +134,9 @@ export async function getSettingsPageData(auth: {
       locale: u.locale === "en" ? "en" : "zh",
       avatarPath: u.avatarPath,
       coverPath: u.coverPath,
-      hideFollowers: u.hideFollowers,
-      hideFollowing: u.hideFollowing,
+      followersVisibility: u.followersVisibility as "public" | "followers" | "friends" | "private",
+      followingVisibility: u.followingVisibility as "public" | "followers" | "friends" | "private",
+      bookmarksVisibility: u.bookmarksVisibility as "public" | "followers" | "friends" | "private",
     },
     appearance: (u.appearance ?? {}) as SettingsData["appearance"],
     widgets: u.widgets ?? [],

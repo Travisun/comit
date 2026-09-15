@@ -16,9 +16,11 @@ import {
 import { PageHeader } from "@/components/admin/bits";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { api } from "@/components/admin/client";
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 
 type Switches = Record<string, boolean>;
+type OAuthEnv = Record<string, boolean>;
 
 interface SettingsResponse {
   entries: Record<string, unknown>;
@@ -44,6 +46,7 @@ type AdminTab = "general" | "mode" | "features" | "login";
 export default function AdminSettingsPage() {
   const { t } = useI18n();
   const [loading, setLoading] = useState(true);
+  const [oauthEnv, setOauthEnv] = useState<OAuthEnv>({});
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<AdminTab>("general");
 
@@ -58,8 +61,9 @@ export default function AdminSettingsPage() {
   const [suggestions, setSuggestions] = useState<{ username: string; displayName: string }[]>([]);
 
   useEffect(() => {
-    api<SettingsResponse>("/api/admin/settings")
-      .then(({ entries }) => {
+    api<SettingsResponse & { oauthEnv?: OAuthEnv }>("/api/admin/settings")
+      .then(({ entries, oauthEnv: env }) => {
+        if (env) setOauthEnv(env);
         setName(String(entries["site.name"] ?? ""));
         setTagline(String(entries["site.tagline"] ?? ""));
         setDescription(String(entries["site.description"] ?? ""));
@@ -248,15 +252,18 @@ export default function AdminSettingsPage() {
         <SettingsSection className="max-w-2xl">
           <SettingsSectionHeader description="第三方登录与事务邮件。开启 SSO 前需同时配置对应的环境变量密钥（client id / secret）。" />
           <div>
-            {SSO_KEYS.map((k, i) => (
-              <SwitchRow
-                key={k.key}
-                label={k.label}
-                checked={switches[k.key] ?? false}
-                onCheckedChange={(v) => setSwitches((s) => ({ ...s, [k.key]: v }))}
-                last={false}
-              />
-            ))}
+            {SSO_KEYS.map((k) => {
+              const configured = oauthEnv[k.key.replace("sso.", "")] ?? false;
+              return (
+                <SwitchRow
+                  key={k.key}
+                  label={`${k.label}（${configured ? "凭证已配置" : "未配置凭证"}）`}
+                  checked={switches[k.key] ?? false}
+                  onCheckedChange={(v) => setSwitches((s) => ({ ...s, [k.key]: v }))}
+                  last={false}
+                />
+              );
+            })}
             <SwitchRow
               label="启用邮件发送"
               description="关闭后验证码/通知邮件将不再发出（需已配置 SMTP）"

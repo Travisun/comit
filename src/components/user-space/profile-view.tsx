@@ -17,6 +17,7 @@ import {
   getActiveUserByUsername,
   getFollowState,
   getPublishedPosts,
+  listBookmarkPosts,
   getTopPosts,
   getUserCollections,
   getUserStats,
@@ -204,7 +205,7 @@ function ProfileActions({
 
 /* ------------------------------ profile view ------------------------------ */
 
-export type ProfileTab = "posts" | "short" | "collections" | "followers" | "following";
+export type ProfileTab = "posts" | "short" | "bookmarks" | "collections" | "followers" | "following";
 
 export async function UserProfileView({
   user,
@@ -230,8 +231,13 @@ export async function UserProfileView({
       <ProfileTabs username={user.username} active={tab} />
 
       <div>
-        {tab === "posts" && <PostsTab user={user} page={page} tab={tab} stats={stats} />}
-        {tab === "short" && <ShortsTab user={user} page={page} tab={tab} />}
+        {tab === "posts" && (
+          <PostsTab user={user} page={page} tab={tab} stats={stats} viewerUsername={viewer?.username} />
+        )}
+        {tab === "short" && (
+          <ShortsTab user={user} page={page} tab={tab} viewerUsername={viewer?.username} />
+        )}
+        {tab === "bookmarks" && <BookmarksTab user={user} viewer={viewer} viewerUsername={viewer?.username} />}
         {tab === "collections" && <CollectionsTab user={user} />}
         {tab === "followers" && <FollowsTab user={user} mode="followers" viewer={viewer} />}
         {tab === "following" && <FollowsTab user={user} mode="following" viewer={viewer} />}
@@ -245,6 +251,7 @@ export async function UserProfileView({
 const TABS: { id: ProfileTab; label: string }[] = [
   { id: "posts", label: "文章" },
   { id: "short", label: "动态" },
+  { id: "bookmarks", label: "收藏" },
   { id: "collections", label: "合集" },
   { id: "followers", label: "粉丝" },
   { id: "following", label: "关注中" },
@@ -313,7 +320,21 @@ function Pager({
   );
 }
 
-async function PostsTab({ user, page, tab, stats }: { user: User; page: number; tab: ProfileTab; stats: UserStats }) {
+const FEED_ROW_CLASS = "feed-row px-5 py-2.5";
+
+async function PostsTab({
+  user,
+  page,
+  tab,
+  stats,
+  viewerUsername,
+}: {
+  user: User;
+  page: number;
+  tab: ProfileTab;
+  stats: UserStats;
+  viewerUsername?: string;
+}) {
   const [{ items, nextOffset }, top] = await Promise.all([
     getPublishedPosts({
       authorId: user.id,
@@ -335,7 +356,16 @@ async function PostsTab({ user, page, tab, stats }: { user: User; page: number; 
         top.map((it) => {
           const dto = toFeedItemDTO(it);
           return (
-            <ArticleCard key={it.post.id} post={dto.post} author={dto.author} pinned />
+            <ArticleCard
+              key={it.post.id}
+              post={dto.post}
+              author={dto.author}
+              pinned
+              className={FEED_ROW_CLASS}
+              viewerUsername={viewerUsername}
+              rowHref
+              menu={Boolean(viewerUsername)}
+            />
           );
         })}
 
@@ -348,7 +378,17 @@ async function PostsTab({ user, page, tab, stats }: { user: User; page: number; 
   );
 }
 
-async function ShortsTab({ user, page, tab }: { user: User; page: number; tab: ProfileTab }) {
+async function ShortsTab({
+  user,
+  page,
+  tab,
+  viewerUsername,
+}: {
+  user: User;
+  page: number;
+  tab: ProfileTab;
+  viewerUsername?: string;
+}) {
   const { items, nextOffset } = await getPublishedPosts({
     authorId: user.id,
     type: "short",
@@ -360,9 +400,79 @@ async function ShortsTab({ user, page, tab }: { user: User; page: number; tab: P
     <div>
       {items.map((it) => {
         const dto = toFeedItemDTO(it);
-        return <ShortCard key={it.post.id} post={dto.post} author={dto.author} />;
+        return (
+          <ShortCard
+            key={it.post.id}
+            post={dto.post}
+            author={dto.author}
+            className={FEED_ROW_CLASS}
+            viewerUsername={viewerUsername}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
+        );
       })}
       <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
+    </div>
+  );
+}
+
+/** 收藏 tab — 可见性由 bookmarksVisibility 决定（公开/粉丝/好友/仅自己）。 */
+async function BookmarksTab({
+  user,
+  viewer,
+  viewerUsername,
+}: {
+  user: User;
+  viewer: User | null;
+  viewerUsername?: string;
+}) {
+  const visibility = user.bookmarksVisibility;
+  const isSelf = Boolean(viewer && viewer.id === user.id);
+  let allowed = isSelf;
+  if (!allowed) {
+    if (visibility === "public") allowed = true;
+    else if (visibility === "followers" && viewer) allowed = (await getFollowState(viewer.id, user.id)).following;
+    else if (visibility === "friends" && viewer) {
+      const state = await getFollowState(viewer.id, user.id);
+      allowed = state.following && state.followedBy;
+    }
+  }
+  if (!allowed) {
+    return <EmptyState text="由于用户的隐私设置，无法查看该列表。" />;
+  }
+
+  const items = await listBookmarkPosts(user.id);
+  if (items.length === 0) {
+    return <EmptyState text="还没有收藏内容。在信息流的「···」菜单里可以把内容加入收藏。" />;
+  }
+  return (
+    <div>
+      {items.map((it) => {
+        const dto = toFeedItemDTO(it);
+        return dto.post.type === "short" ? (
+          <ShortCard
+            key={`bm-${dto.post.id}`}
+            post={dto.post}
+            author={dto.author}
+            className={FEED_ROW_CLASS}
+            viewerUsername={viewerUsername}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
+        ) : (
+          <ArticleCard
+            key={`bm-${dto.post.id}`}
+            post={dto.post}
+            author={dto.author}
+            variant="list"
+            className={FEED_ROW_CLASS}
+            viewerUsername={viewerUsername}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -376,10 +486,18 @@ async function FollowsTab({
   mode: "followers" | "following";
   viewer: User | null;
 }) {
-  // 隐私开关：本人始终可见，其他人看到提示文案
-  const hidden = mode === "followers" ? user.hideFollowers : user.hideFollowing;
+  // 可见性规则：本人永远可见；public 公开；followers 需关注；friends 需互关；private 仅自己
+  const visibility = mode === "followers" ? user.followersVisibility : user.followingVisibility;
   const isSelf = Boolean(viewer && viewer.id === user.id);
-  if (hidden && !isSelf) {
+  let allowed = isSelf;
+  if (!allowed && viewer) {
+    const state = await getFollowState(viewer.id, user.id);
+    if (visibility === "public") allowed = true;
+    else if (visibility === "followers") allowed = state.following;
+    else if (visibility === "friends") allowed = state.following && state.followedBy;
+    else allowed = false;
+  }
+  if (!allowed) {
     return <EmptyState text="由于用户的隐私设置，无法查看该列表。" />;
   }
   const cards = mode === "followers" ? await listFollowers(user.id) : await listFollowing(user.id);

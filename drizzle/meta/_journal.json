@@ -64,6 +64,20 @@
       "when": 1789454035677,
       "tag": "0008_mighty_lorna_dane",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789455963572,
+      "tag": "0009_cheerful_luke_cage",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789456001843,
+      "tag": "0010_redundant_rachel_grey",
+      "breakpoints": true
     }
   ]
 }

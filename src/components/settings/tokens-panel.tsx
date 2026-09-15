@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { TokenView } from "./types";
 
@@ -126,38 +126,66 @@ export function ApiTokensPanel({
           {locale === "zh" ? "还没有令牌" : "No tokens yet"}
         </p>
       ) : (
-        <ul className="flex flex-col gap-y-1">
-          {tokens.map((tk) => (
-            <li key={tk.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg px-2 -mx-2 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
-              <div className="min-w-0">
-                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                  <KeyRound className="size-4 text-muted-foreground" />
-                  {tk.name}
-                  <span className="font-mono text-xs text-muted-foreground">mbt_{tk.prefix}…</span>
-                  {tk.revokedAt && <Badge variant="destructive">{locale === "zh" ? "已吊销" : "Revoked"}</Badge>}
-                </p>
-                <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                  {tk.scopes.map((s) => (
-                    <Badge key={s} variant="secondary">
-                      {s}
-                    </Badge>
-                  ))}
+        <ul className="divide-y divide-border rounded-lg border border-border">
+          {tokens.map((tk) => {
+            const revoked = Boolean(tk.revokedAt);
+            return (
+              <li
+                key={tk.id}
+                className={cn(
+                  "flex flex-wrap items-start justify-between gap-x-6 gap-y-3 px-4 py-3.5 transition-colors",
+                  revoked ? "opacity-55" : "hover:bg-[var(--hover,#f7f8f8)]",
+                )}
+              >
+                {/* 主信息列 */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span
+                      className={cn(
+                        "inline-flex size-7 shrink-0 items-center justify-center rounded-md",
+                        revoked ? "bg-[var(--muted)] text-muted-foreground" : "bg-primary/[0.06] text-foreground",
+                      )}
+                    >
+                      <KeyRound className="size-3.5" />
+                    </span>
+                    <span className="truncate text-sm font-medium text-foreground">{tk.name}</span>
+                    {revoked ? (
+                      <Badge variant="destructive">{locale === "zh" ? "已吊销" : "Revoked"}</Badge>
+                    ) : (
+                      <Badge variant="success">{locale === "zh" ? "使用中" : "Active"}</Badge>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-9 text-xs text-muted-foreground">
+                    <span className="font-mono">mbt_{tk.prefix}…</span>
+                    <span>{locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}</span>
+                    <span>
+                      {tk.lastUsedAt
+                        ? `${locale === "zh" ? "最近使用" : "Last used"} ${formatDate(tk.lastUsedAt, locale)}`
+                        : locale === "zh"
+                          ? "从未使用"
+                          : "Never used"}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1 pl-9">
+                    {tk.scopes.map((s) => (
+                      <Badge key={s} variant="secondary">
+                        {s}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {locale === "zh" ? "创建于" : "Created"} {formatDate(tk.createdAt, locale)}
-                  {tk.lastUsedAt
-                    ? ` · ${locale === "zh" ? "最近使用" : "last used"} ${formatDate(tk.lastUsedAt, locale)}`
-                    : ` · ${locale === "zh" ? "从未使用" : "never used"}`}
-                </p>
-              </div>
-              {!tk.revokedAt && (
-                <Button variant="ghost" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
-                  <Trash2 />
-                  {t("settings.tokens.revoke")}
-                </Button>
-              )}
-            </li>
-          ))}
+                {/* 操作列 */}
+                <div className="shrink-0 pt-1">
+                  {!revoked && (
+                    <Button variant="outline" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
+                      <Trash2 />
+                      {t("settings.tokens.revoke")}
+                    </Button>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 

@@ -26,8 +26,9 @@ export interface ProfileInitial {
   locale: "zh" | "en";
   avatarPath: string | null;
   coverPath: string | null;
-  hideFollowers: boolean;
-  hideFollowing: boolean;
+  followersVisibility: "public" | "followers" | "friends" | "private";
+  followingVisibility: "public" | "followers" | "friends" | "private";
+  bookmarksVisibility: "public" | "followers" | "friends" | "private";
 }
 
 export function ProfileForm({ initial }: { initial: ProfileInitial }) {

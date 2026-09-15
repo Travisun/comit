@@ -104,6 +104,13 @@ export function UsernameForm({ data }: { data: UsernameData }) {
 
   return (
     <SettingsSection>
+      <SettingsSectionHeader
+        description={
+          zh
+            ? "用户名每 30 天仅可修改一次。修改后，原地址将不再跳转到你的主页。"
+            : "Usernames can be changed once every 30 days. Your old URL will stop working after a change."
+        }
+      />
       <form onSubmit={save}>
         <div className="divide-y divide-border">
           <div className="px-4 py-4">

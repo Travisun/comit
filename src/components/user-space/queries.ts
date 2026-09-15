@@ -13,6 +13,7 @@ import {
 import { db } from "@/db";
 import {
   blocks,
+  bookmarks,
   collections,
   follows,
   likes,
@@ -381,6 +382,25 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
     g.posts.push({ title: r.title, slug: r.slug, publishedAt: d.toISOString() });
   }
   return [...groups.values()];
+}
+
+/** 用户的收藏列表（新→旧），带作者信息供卡片渲染。 */
+export async function listBookmarkPosts(
+  userId: string,
+  limit = 100,
+): Promise<FeedItem[]> {
+  const rows = await db
+    .select({
+      post: posts,
+      author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+    })
+    .from(bookmarks)
+    .innerJoin(posts, eq(posts.id, bookmarks.postId))
+    .innerJoin(users, eq(users.id, posts.authorId))
+    .where(and(eq(bookmarks.userId, userId), eq(posts.status, "published")))
+    .orderBy(desc(bookmarks.createdAt))
+    .limit(limit);
+  return rows;
 }
 
 /** Topics an author uses most (for the sidebar topic cloud). */

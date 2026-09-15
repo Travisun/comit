@@ -26,8 +26,9 @@ export async function GET(req: Request) {
       locale: user.locale === "en" ? "en" : "zh",
       avatarPath: user.avatarPath,
       coverPath: user.coverPath,
-      hideFollowers: user.hideFollowers,
-      hideFollowing: user.hideFollowing,
+      followersVisibility: user.followersVisibility,
+      followingVisibility: user.followingVisibility,
+      bookmarksVisibility: user.bookmarksVisibility,
       hasPassword: Boolean(user.passwordHash),
       createdAt: user.createdAt,
     });
@@ -43,8 +44,9 @@ const patchSchema = z.object({
   locale: localeSchema.optional(),
   avatarPath: z.string().nullable().optional(),
   coverPath: z.string().nullable().optional(),
-  hideFollowers: z.boolean().optional(),
-  hideFollowing: z.boolean().optional(),
+  followersVisibility: z.enum(["public", "followers", "friends", "private"]).optional(),
+  followingVisibility: z.enum(["public", "followers", "friends", "private"]).optional(),
+  bookmarksVisibility: z.enum(["public", "followers", "friends", "private"]).optional(),
 });
 
 /** PUT /api/me/profile — update profile fields. */
@@ -70,8 +72,9 @@ export async function PUT(req: Request) {
       if (body.coverPath) await assertOwnMedia(auth.user.id, body.coverPath);
       patch.coverPath = body.coverPath;
     }
-    if (body.hideFollowers !== undefined) patch.hideFollowers = body.hideFollowers;
-    if (body.hideFollowing !== undefined) patch.hideFollowing = body.hideFollowing;
+    if (body.followersVisibility !== undefined) patch.followersVisibility = body.followersVisibility;
+    if (body.followingVisibility !== undefined) patch.followingVisibility = body.followingVisibility;
+    if (body.bookmarksVisibility !== undefined) patch.bookmarksVisibility = body.bookmarksVisibility;
 
     await db.update(users).set(patch).where(eq(users.id, auth.user.id));
     return ok();

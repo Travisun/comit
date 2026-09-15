@@ -3,6 +3,7 @@ import { withAdmin, ok, jsonBody } from "@/lib/http";
 import { getSettings, setSettings, SETTINGS_DEFAULTS } from "@/lib/settings";
 import { AppError } from "@/core/errors";
 import { parseOrThrow, logAdmin } from "@/app/api/admin/_shared";
+import { config } from "@/core/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,16 @@ export async function GET(req: Request) {
         ? { ...llm, apiKey: undefined, hasKey: Boolean(llm.apiKey) }
         : { hasKey: false },
     };
-    return ok({ entries });
+    // OAuth 凭证仅存在于环境变量 —— 后台可查看配置状态（不可改）
+    const oauthEnv = {
+      github: Boolean(config.oauth.github.clientId),
+      google: Boolean(config.oauth.google.clientId),
+      x: Boolean(config.oauth.x.clientId),
+      linuxdo: Boolean(config.oauth.linuxdo.clientId),
+      discourse: Boolean(config.oauth.discourse.url && config.oauth.discourse.secret),
+      cfaccess: Boolean(config.oauth.cfAccess.team),
+    };
+    return ok({ entries, oauthEnv });
   });
 }
 

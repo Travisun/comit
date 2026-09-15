@@ -83,9 +83,16 @@ export const users = pgTable(
     rssEnabled: boolean("rss_enabled").default(true).notNull(),
     commentsEnabled: boolean("comments_enabled").default(true).notNull(),
     dmEnabled: boolean("dm_enabled").default(true).notNull(),
-    // privacy: hide follow lists from other viewers
-    hideFollowers: boolean("hide_followers").default(false).notNull(),
-    hideFollowing: boolean("hide_following").default(false).notNull(),
+    // privacy: 列表/收藏对外的可见范围 public | followers | friends | private
+    followersVisibility: varchar("followers_visibility", { length: 12 })
+      .default("public")
+      .notNull(),
+    followingVisibility: varchar("following_visibility", { length: 12 })
+      .default("public")
+      .notNull(),
+    bookmarksVisibility: varchar("bookmarks_visibility", { length: 12 })
+      .default("private")
+      .notNull(),
     // subdomain (deprecated — replaced by username-mode profile URLs)
     subdomain: varchar("subdomain", { length: 63 }),
     subdomainUpdatedAt: timestamp("subdomain_updated_at", { withTimezone: true }),
