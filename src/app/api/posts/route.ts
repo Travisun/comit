@@ -41,10 +41,6 @@ const createSchema = z
     ...labelFieldsSchema,
     action: z.enum(["draft", "submit"]),
   })
-  .refine((v) => v.type !== "article" || Boolean(v.title?.trim()), {
-    message: "文章必须有标题 / Articles require a title",
-    path: ["title"],
-  })
   .refine((v) => v.type !== "article" || v.content.trim().length > 0, {
     message: "文章内容不能为空 / Article content cannot be empty",
     path: ["content"],
@@ -64,7 +60,7 @@ export async function POST(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
     const body = parseWith(createSchema, await jsonBody(req));
     const type = body.type;
-    const title = type === "article" ? body.title!.trim() : body.title?.trim() || null;
+    const title = body.title?.trim() || null;
 
     // short-post images are appended to content as markdown image syntax
     const imageMarkdown = (body.mediaPaths ?? [])
@@ -83,7 +79,7 @@ export async function POST(req: Request): Promise<Response> {
       if (blocked.length) return blockedResponse(blocked);
     }
 
-    const slug = type === "article" ? await resolveArticleSlug(auth.user.id, title!, body.slug) : null;
+    const slug = type === "article" ? await resolveArticleSlug(auth.user.id, body.slug) : null;
     const summary = ensureSummary(body.summary, content || title || "");
     const labelColumns = resolveLabelFields(
       body.label ?? DEFAULT_LABEL,

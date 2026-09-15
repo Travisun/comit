@@ -75,10 +75,11 @@ export default async function PostPermalinkPage({
   const published = post.publishedAt ?? post.createdAt;
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px]">
+    <div className="min-h-dvh w-full">
       {/* sticky author bar — identity + date live here, no duplicate row below */}
       <TimelineHeader
         back
+        rowClassName="py-3"
         title={
           <span className="flex items-center gap-2.5 whitespace-normal">
             <Avatar className="size-9 shrink-0 border border-border">
@@ -90,7 +91,7 @@ export default async function PostPermalinkPage({
             <span className="min-w-0 leading-tight">
               <Link
                 href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-bold text-foreground hover:underline"
+                className="block truncate text-[15px] font-medium text-foreground hover:underline"
               >
                 {author.displayName}
               </Link>
@@ -119,7 +120,7 @@ export default async function PostPermalinkPage({
       </div>
 
         {/* action row */}
-        <div className="mt-4 flex flex-wrap items-center gap-1 border-y border-border py-2">
+        <div className="-mx-4 mt-4 flex flex-wrap items-center gap-1 border-y border-border px-4 py-2 md:-mx-5 md:px-5">
           <LikeButton
             targetType="post"
             targetId={post.id}

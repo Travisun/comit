@@ -83,7 +83,13 @@ function BrandLink({ siteName }: { siteName: string }) {
       className="inline-flex items-center rounded-[10px] p-2"
       aria-label={siteName}
     >
-      <BrandMark className="h-[22px]" />
+      {/* 收起态（<lg）用 favicon 方标；展开态用完整字标 */}
+      <img
+        src="/icons/favicon@32w.png"
+        alt={siteName}
+        className="size-8 select-none rounded-md dark:invert"
+      />
+      <BrandMark className="hidden h-[22px] lg:block" />
     </Link>
   );
 }

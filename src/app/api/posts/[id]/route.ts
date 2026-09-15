@@ -113,7 +113,7 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     const title = body.title?.trim() ?? post.title;
     const slug =
       body.slug !== undefined && post.type === "article" && body.slug.trim() !== ""
-        ? await resolveArticleSlug(auth.user.id, title ?? "", body.slug, post.id)
+        ? await resolveArticleSlug(body.slug, post.id)
         : post.slug;
     const summary =
       body.summary === undefined ? post.summary : ensureSummary(body.summary, nextContent || title || "");

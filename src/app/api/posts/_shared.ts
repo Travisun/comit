@@ -183,13 +183,9 @@ export async function assertCollectionOwned(collectionId: string, userId: string
  * /post/{id} URL. Client-provided slugs are ignored by design.
  */
 export async function resolveArticleSlug(
-  userId: string,
-  title: string,
   provided?: string,
   excludePostId?: string,
 ): Promise<string> {
-  void userId;
-  void title;
   void provided;
   void excludePostId;
   for (let attempt = 0; attempt < 5; attempt++) {

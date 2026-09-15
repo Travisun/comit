@@ -233,7 +233,7 @@ export function ArticleCard({
           )}
           <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline">
-              {post.title ?? "Untitled"}
+              {post.title ?? post.summary?.slice(0, 40) ?? "无题"}
             </Link>
           </h3>
           {post.summary && (

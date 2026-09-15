@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!data || data === "blocked") return { title: "文章不存在" };
   const { post, author, topics } = data;
   return {
-    title: post.title ?? "Untitled",
+    title: post.title ?? post.summary?.slice(0, 40) ?? "无题",
     description: post.summary || undefined,
     alternates: { canonical: routes.article(post.slug ?? "") },
     robots: { index: true, follow: true },

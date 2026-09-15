@@ -137,7 +137,10 @@ export function PostView({
       <article className="px-4 pb-12 md:px-5">
         {/* title */}
           <h1 className="reading-serif mt-3 text-balance text-[26px] font-normal leading-snug md:text-[30px]">
-            {post.title ?? "Untitled"}
+            {post.title ??
+              post.summary?.slice(0, 40) ??
+              post.content.replace(/[#>*`\[\]]/g, "").slice(0, 40) ??
+              "无题"}
           </h1>
 
           {/* meta line — 标注/可见性/合集与日期同级排布，共用一套文字样式 */}

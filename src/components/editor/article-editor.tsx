@@ -164,10 +164,6 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
   }, [title, content, settings, initial]);
 
   const validate = (): boolean => {
-    if (!title.trim()) {
-      toast.error("请输入标题 / Title required");
-      return false;
-    }
     if (!content.trim()) {
       toast.error("正文不能为空 / Content required");
       return false;
@@ -283,7 +279,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
 
   /** 发布 click → open the settings dialog (validated already) */
   function requestPublish() {
-    if (!title.trim() || !content.trim()) {
+    if (!content.trim()) {
       validate();
       return;
     }
