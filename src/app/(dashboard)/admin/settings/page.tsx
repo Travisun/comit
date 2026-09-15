@@ -36,6 +36,7 @@ const SSO_KEYS: { key: string; label: string }[] = [
   { key: "sso.x", label: "X (Twitter)" },
   { key: "sso.discourse", label: "Discourse" },
   { key: "sso.cfaccess", label: "Cloudflare Access" },
+  { key: "sso.linuxdo", label: "Linux.do" },
 ];
 
 type AdminTab = "general" | "mode" | "features" | "login";

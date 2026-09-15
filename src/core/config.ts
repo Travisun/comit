@@ -70,6 +70,14 @@ export const config = {
         return process.env.GOOGLE_CLIENT_SECRET ?? "";
       },
     },
+    linuxdo: {
+      get clientId() {
+        return process.env.LINUXDO_CLIENT_ID ?? "";
+      },
+      get clientSecret() {
+        return process.env.LINUXDO_CLIENT_SECRET ?? "";
+      },
+    },
     x: {
       get clientId() {
         return process.env.X_CLIENT_ID ?? "";

@@ -12,7 +12,7 @@ import { findOrCreateFederatedUser } from "../../../_lib/federated";
 
 export const runtime = "nodejs";
 
-const PROVIDERS = new Set(["github", "google", "x"]);
+const PROVIDERS = new Set(["github", "google", "x", "linuxdo"]);
 const STATE_COOKIE = "mb_oauth_state";
 const LINK_COOKIE = "mb_oauth_link";
 const VERIFIER_COOKIE = "mb_oauth_verifier";

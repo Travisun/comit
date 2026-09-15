@@ -11,7 +11,7 @@ import { apiRequest } from "./client";
 import { useI18n } from "@/lib/i18n/client";
 
 interface Connection {
-  provider: "github" | "google";
+  provider: "github" | "google" | "linuxdo";
   label: string;
   desc: string;
   enabled: boolean;
@@ -21,6 +21,7 @@ interface Connection {
 const PROVIDER_META: Record<string, { label: string; desc: { zh: string; en: string } }> = {
   github: { label: "GitHub", desc: { zh: "使用 GitHub 账号登录", en: "Sign in with GitHub" } },
   google: { label: "Google", desc: { zh: "使用 Google 账号登录", en: "Sign in with Google" } },
+  linuxdo: { label: "Linux.do", desc: { zh: "使用 Linux.do 账号登录（L 站社区账号）", en: "Sign in with your Linux.do account" } },
 };
 
 /** 账号绑定 — 把 GitHub / Google 等第三方账号绑定到当前账户，或解除绑定。 */

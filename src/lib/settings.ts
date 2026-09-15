@@ -25,6 +25,7 @@ export const SETTINGS_DEFAULTS = {
   "sso.x": false,
   "sso.discourse": false,
   "sso.cfaccess": false,
+  "sso.linuxdo": false,
   "moderation.reviewMode": "off" as "off" | "llm" | "manual",
   "moderation.keywordsEnabled": true,
   "moderation.llmFailMode": "open" as "open" | "closed",

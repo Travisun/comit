@@ -9,13 +9,14 @@ import { createOAuthUrl, oauthEnabled } from "@/lib/auth/oauth";
 export const runtime = "nodejs";
 
 /** Only pure OAuth2 providers use this start route. */
-const PROVIDERS = ["github", "google", "x"] as const;
+const PROVIDERS = ["github", "google", "x", "linuxdo"] as const;
 type Provider = (typeof PROVIDERS)[number];
 
 const SSO_KEY: Record<Provider, SettingsKey> = {
   github: "sso.github",
   google: "sso.google",
   x: "sso.x",
+  linuxdo: "sso.linuxdo",
 };
 
 const STATE_COOKIE = "mb_oauth_state";
