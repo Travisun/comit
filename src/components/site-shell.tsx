@@ -226,7 +226,7 @@ function NavIcon({
     <span className={cn("relative shrink-0", className)}>
       {children}
       {badge !== undefined && badge > 0 && (
-        <span className="absolute -right-1.5 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums">
+        <span className="absolute -right-1.5 -top-1 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground tabular-nums lg:hidden">
           {badge > 99 ? "99+" : badge}
         </span>
       )}
@@ -295,9 +295,7 @@ function LeftNav({
                 active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
-              <NavIcon badge={item.badge} className="lg:hidden">
-                {item.icon}
-              </NavIcon>
+              <NavIcon badge={item.badge}>{item.icon}</NavIcon>
               <span className="relative hidden text-sm lg:inline">
                 {item.label}
                 {item.badge ? (
