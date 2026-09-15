@@ -82,7 +82,7 @@ function SettingField({
   children,
   className,
 }: {
-  label: React.ReactNode;
+  label?: React.ReactNode;
   htmlFor?: string;
   hint?: React.ReactNode;
   /** 字段说明，显示在输入框下方（弱化文字） */

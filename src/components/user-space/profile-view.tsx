@@ -249,8 +249,8 @@ export async function UserProfileView({
 /* ---------------------------------- tabs ---------------------------------- */
 
 const TABS: { id: ProfileTab; label: string }[] = [
-  { id: "posts", label: "文章" },
   { id: "short", label: "动态" },
+  { id: "posts", label: "文章" },
   { id: "bookmarks", label: "收藏" },
   { id: "collections", label: "合集" },
   { id: "followers", label: "粉丝" },

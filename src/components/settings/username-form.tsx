@@ -113,14 +113,15 @@ export function UsernameForm({ data }: { data: UsernameData }) {
       />
       <form onSubmit={save}>
         <div className="divide-y divide-border">
-          <div className="px-4 py-4">
-            <SettingField label={zh ? "用户名" : "Username"} htmlFor="username">
-              <div className="flex max-w-md items-center gap-0 overflow-hidden rounded-md border border-input bg-transparent focus-within:border-primary/50">
+          <div className="py-4">
+            <SettingField htmlFor="username">
+              <div className="relative flex max-w-md items-center gap-0 overflow-hidden rounded-md border border-input bg-transparent focus-within:border-primary/50">
                 <span className="shrink-0 whitespace-nowrap border-r border-border bg-[var(--muted)] px-2.5 py-2 font-mono text-xs text-muted-foreground">
                   {origin ? `${origin}/` : "…/"}
                 </span>
                 <Input
                   id="username"
+                  aria-label={zh ? "用户名" : "Username"}
                   value={value}
                   onChange={(e) => setValue(e.target.value.toLowerCase())}
                   maxLength={data.max + 1}

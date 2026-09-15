@@ -11,29 +11,99 @@ import { slugifyTitle, randomSuffix } from "@/lib/utils";
  *  - 命中保留字列表即不可用（系统路由冲突 + 官方/权威冒充 + 易混淆词）。
  */
 export const USERNAME_COOLDOWN_DAYS = 30;
-export const USERNAME_MIN = 3;
-export const USERNAME_MAX = 30;
+export const USERNAME_MIN = 5;
+export const USERNAME_MAX = 35;
 export const USERNAME_RE = /^[a-z](?:[a-z0-9_]*[a-z0-9])?$/;
 
-export const RESERVED_USERNAMES = new Set([
-  // 系统顶级路由（与 app 路径冲突）
+const RESERVED_SYSTEM_NAMES = new Set([
   "www", "app", "api", "admin", "mail", "smtp", "ftp", "ns1", "ns2",
   "feed", "blog", "help", "support", "about", "login", "logout", "register",
   "signup", "signin", "settings", "notifications", "messages", "write",
   "explore", "topics", "archive", "u", "p", "auth", "legal", "static",
   "assets", "cdn", "status", "docs", "rss", "sitemap", "me", "my", "user",
   "users", "post", "posts", "following", "followers", "collections",
-  "account", "profile", "dashboard", "search", "upload", "media", "media2",
+  "account", "profile", "dashboard", "search", "upload", "media",
   "icons", "images", "img", "robots", "manifest", "favicon", "home",
   "index", "main", "new", "edit", "delete", "create", "verify", "reset",
   "forgot", "password", "2fa", "privacy", "terms", "copyright", "abuse",
   "dmca", "security", "report", "reports", "inbox", "console",
-  // 官方 / 权威冒充与易混淆词
   "comit", "comitsh", "comit_sh", "official", "official_account", "staff",
   "team", "mod", "moderator", "sysadmin", "root", "administrator",
-  "administrator2", "ceo", "cto", "founder", "owner", "null", "undefined",
-  "none", "true", "false",
+  "ceo", "cto", "founder", "owner", "null", "undefined", "none",
+  "true", "false",
 ]);
+
+/** 国家与地区名：英文常用名 + 主要拼音 */
+const RESERVED_COUNTRY_NAMES = new Set([
+  "china", "prc", "taiwan", "hongkong", "macau", "macao", "taiwan_region",
+  "japan", "korea", "southkorea", "northkorea", "vietnam", "thailand",
+  "myanmar", "burma", "cambodia", "laos", "malaysia", "singapore",
+  "indonesia", "philippines", "india", "pakistan", "bangladesh",
+  "srilanka", "nepal", "mongolia", "kazakhstan", "afghanistan",
+  "iran", "iraq", "syria", "jordan", "lebanon", "israel", "palestine",
+  "saudi", "saudiarabia", "uae", "qatar", "kuwait", "oman", "yemen",
+  "turkey", "turkiye", "russia", "ukraine", "belarus", "poland",
+  "germany", "france", "spain", "portugal", "italy", "greece",
+  "netherlands", "holland", "belgium", "switzerland", "austria",
+  "sweden", "norway", "denmark", "finland", "iceland", "ireland",
+  "uk", "britain", "greatbritain", "england", "scotland", "wales",
+  "usa", "america", "mexico", "cuba", "canada", "brazil", "argentina",
+  "chile", "peru", "colombia", "venezuela", "bolivia", "ecuador",
+  "egypt", "libya", "tunisia", "morocco", "algeria", "nigeria",
+  "kenya", "ethiopia", "southafrica", "ghana", "sudan",
+  "australia", "newzealand", "fiji",
+  // 拼音
+  "zhongguo", "meiguo", "yingguo", "faguo", "deguo", "eluosi", "eguo",
+  "riben", "hanguo", "chaoxian", "yuenan", "taiguo", "miandian",
+  "laowo", "xinjiapo", "malaixiya", "yinni", "feilvbin", "yindu",
+  "bajisitan", "yilang", "yilake", "xuliya", "tuerqi", "bolan",
+  "xibanya", "putaoya", "yidali", "xila", "helan", "bilishi",
+  "ruidian", "nuowei", "danmai", "fenlan", "bingdao", "aodili",
+  "ruishi", "jianada", "moxige", "guba", "baxi", "agenting", "zhili",
+  "bilu", "gelunbiya", "weineiruila", "aiji", "nanfei", "keniya",
+  "aodaliya", "xinxilan",
+]);
+
+/** 中国省市与行政区划（拼音） */
+const RESERVED_CN_REGION_NAMES = new Set([
+  "beijing", "shanghai", "tianjin", "chongqing",
+  "guangzhou", "shenzhen", "zhuhai", "shantou", "foshan", "dongguan",
+  "hangzhou", "ningbo", "wenzhou", "nanjing", "suzhou", "wuxi",
+  "wuhan", "changsha", "chengdu", "xian", "xianyang", "zhengzhou",
+  "jinan", "qingdao", "yantai", "shenyang", "dalian", "harbin",
+  "changchun", "shijiazhuang", "taiyuan", "hefei", "fuzhou", "xiamen",
+  "nanchang", "haikou", "kunming", "guiyang", "nanning", "lanzhou",
+  "xining", "yinchuan", "urumqi", "lhasa", "hohhot",
+  "guangdong", "jiangsu", "zhejiang", "sichuan", "hubei", "hunan",
+  "henan", "hebei", "shandong", "shanxi", "shaanxi", "yunnan",
+  "guizhou", "gansu", "qinghai", "hainan", "liaoning", "jilin",
+  "heilongjiang", "anhui", "fujian", "jiangxi", "guangxi",
+  "neimenggu", "ningxia", "xinjiang", "xizang", "xianggang", "aomen",
+  "guowuyuan", "waijiaobu", "gonganbu", "minzhengbu", "caizhengbu",
+  "jiaoyubu", "kejibu", "junwei", "fayuan", "jianchayuan",
+]);
+
+/** 知名企业名 */
+const RESERVED_COMPANY_NAMES = new Set([
+  "google", "apple", "microsoft", "meta", "facebook", "amazon", "netflix",
+  "twitter", "xcorp", "openai", "anthropic", "deepmind", "spacex",
+  "tesla", "nvidia", "intel", "amd", "ibm", "oracle", "sap",
+  "salesforce", "adobe", "samsung", "sony", "huawei", "xiaomi",
+  "tencent", "alibaba", "baidu", "bytedance", "toutiao", "douyin",
+  "tiktok", "wechat", "weixin", "alipay", "taobao", "tmall", "jd",
+  "jingdong", "meituan", "didi", "netease", "wangyi", "bilibili",
+  "zhihu", "weibo", "kuaishou", "pinduoduo", "pdd", "linuxdo",
+  "antgroup", "shein", "temu", "lenovo", "dji",
+]);
+
+export const RESERVED_USERNAMES = new Set([
+  ...RESERVED_SYSTEM_NAMES,
+  ...RESERVED_COUNTRY_NAMES,
+  ...RESERVED_CN_REGION_NAMES,
+  ...RESERVED_COMPANY_NAMES,
+]);
+
+/** 系统路由与官方/权威冒充词 */
 
 export interface UsernameCheck {
   ok: boolean;
