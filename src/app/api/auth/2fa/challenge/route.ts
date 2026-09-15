@@ -3,7 +3,7 @@ import { AppError, unauthorized } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
-import { hasConfirmedTotp, useRecoveryCode, verifyTotpCode } from "@/lib/auth/totp";
+import { consumeRecoveryCode, hasConfirmedTotp, verifyTotpCode } from "@/lib/auth/totp";
 import { parseJsonBody } from "../../_lib/validate";
 
 export const runtime = "nodejs";
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
       }
       passed = (await verifyTotpCode(auth.user.id, body.code)).ok;
     } else if (body.recoveryCode) {
-      passed = await useRecoveryCode(auth.user.id, body.recoveryCode);
+      passed = await consumeRecoveryCode(auth.user.id, body.recoveryCode);
     }
     if (!passed) {
       throw new AppError("验证码错误，请重试 / Invalid code, try again", 400, "bad_totp");

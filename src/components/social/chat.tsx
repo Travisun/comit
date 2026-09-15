@@ -3,12 +3,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, ImagePlus, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
@@ -17,26 +19,15 @@ import { Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import {
+  apiGet,
+  apiUpload,
   isAuthError,
   mediaPathFromUrl,
   mediaUrl,
   postJson,
-  requestJson,
 } from "@/lib/client/api";
-
-interface MessageItem {
-  id: string;
-  body: string | null;
-  mediaPath: string | null;
-  mine: boolean;
-  readAt: string | null;
-  createdAt: string;
-}
-
-interface MessagesResponse {
-  items: MessageItem[];
-  nextCursor: string | null;
-}
+import { queryKeys } from "@/lib/query/keys";
+import { messagesPageSchema, type MessagesPage, type MessageItem } from "@/lib/models/messages";
 
 export interface ChatPartner {
   id: string;
@@ -48,8 +39,27 @@ export interface ChatPartner {
 export function ChatClient({ other }: { other: ChatPartner }) {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const [items, setItems] = useState<MessageItem[]>([]);
-  const [olderCursor, setOlderCursor] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  // 会话消息：首屏 + 30s 轮询由 TanStack Query 托管（后台标签页自动暂停）
+  const threadQ = useQuery({
+    queryKey: queryKeys.messages(other.id),
+    queryFn: async () =>
+      messagesPageSchema.parse(await apiGet<unknown>(`/api/messages/${other.id}`)),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  // 更早的消息（反向游标翻页）——服务端只给首页游标，本地累积合并。
+  // 携带 userId：换会话时在渲染期重置（React 官方「props 变化调整状态」模式）
+  const [older, setOlder] = useState<{ userId: string; pages: MessagesPage[] }>({
+    userId: other.id,
+    pages: [],
+  });
+  if (older.userId !== other.id) setOlder({ userId: other.id, pages: [] });
+  const olderCursor =
+    older.pages.length > 0
+      ? (older.pages[older.pages.length - 1]?.nextCursor ?? null)
+      : (threadQ.data?.nextCursor ?? null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -58,52 +68,36 @@ export function ChatClient({ other }: { other: ChatPartner }) {
   const atBottomRef = useRef(true);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const bottomAnchor = useRef<HTMLDivElement | null>(null);
+  const scrolledRef = useRef(false);
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "auto") => {
     bottomAnchor.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
-  const mergeItems = useCallback((incoming: MessageItem[]) => {
-    setItems((prev) => {
-      const map = new Map(prev.map((m) => [m.id, m]));
-      for (const m of incoming) map.set(m.id, m);
-      return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    });
-  }, []);
+  // 合并：首页（查询缓存）+ 本地累积的更早消息，按时间排序去重
+  const items = useMemo(() => {
+    const map = new Map<string, MessageItem>();
+    for (const m of threadQ.data?.items ?? []) map.set(m.id, m);
+    for (const page of older.pages) {
+      for (const m of page.items) if (!map.has(m.id)) map.set(m.id, m);
+    }
+    return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }, [threadQ.data, older]);
 
-  // initial load
+  // 首次加载数据后滚到底部
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const r = await requestJson<MessagesResponse>(`/api/messages/${other.id}`);
-        if (cancelled) return;
-        setItems(r.items);
-        setOlderCursor(r.nextCursor);
-        requestAnimationFrame(() => scrollToBottom());
-      } catch {
-        // keep empty state
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [other.id, scrollToBottom]);
+    if (threadQ.data && !scrolledRef.current) {
+      scrolledRef.current = true;
+      requestAnimationFrame(() => scrollToBottom());
+    }
+  }, [threadQ.data, scrollToBottom]);
 
-  // 30s polling for new messages
+  // 新消息到达（轮询/发送）且视口在底部时跟随滚动
   useEffect(() => {
-    const id = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const r = await requestJson<MessagesResponse>(`/api/messages/${other.id}`);
-        mergeItems(r.items);
-        if (atBottomRef.current) requestAnimationFrame(() => scrollToBottom("smooth"));
-      } catch {
-        // ignore polling failures
-      }
-    }, 30_000);
-    return () => clearInterval(id);
-  }, [other.id, mergeItems, scrollToBottom]);
+    if (items.length > 0 && atBottomRef.current) {
+      requestAnimationFrame(() => scrollToBottom("smooth"));
+    }
+  }, [items, scrollToBottom]);
 
   function onScroll() {
     const el = containerRef.current;
@@ -117,11 +111,10 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     const prevHeight = el?.scrollHeight ?? 0;
     setLoadingOlder(true);
     try {
-      const r = await requestJson<MessagesResponse>(
-        `/api/messages/${other.id}?cursor=${encodeURIComponent(olderCursor)}`,
+      const r = await messagesPageSchema.parse(
+        await apiGet<unknown>(`/api/messages/${other.id}?cursor=${encodeURIComponent(olderCursor)}`),
       );
-      mergeItems(r.items);
-      setOlderCursor(r.nextCursor);
+      setOlder((o) => ({ ...o, pages: [...o.pages, r] }));
       requestAnimationFrame(() => {
         const el2 = containerRef.current;
         if (el2) el2.scrollTop += el2.scrollHeight - prevHeight;
@@ -138,7 +131,10 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     setSending(true);
     try {
       const created = await postJson<MessageItem>(`/api/messages/${other.id}`, payload);
-      setItems((prev) => [...prev, created]);
+      // 写入查询缓存 → items 派生更新 → 底部跟随滚动
+      queryClient.setQueryData(queryKeys.messages(other.id), (prev: typeof threadQ.data) =>
+        prev ? { ...prev, items: [...prev.items, created] } : prev,
+      );
       atBottomRef.current = true;
       requestAnimationFrame(() => scrollToBottom("smooth"));
     } catch (err) {
@@ -170,17 +166,13 @@ export function ChatClient({ other }: { other: ChatPartner }) {
       const fd = new FormData();
       fd.append("file", file);
       fd.append("kind", "inline");
-      const r = await requestJson<{ url: string }>("/api/media/upload", {
-        method: "POST",
-        body: fd,
-      });
-      await send({ mediaPath: mediaPathFromUrl(r.url) });
-    } catch (err) {
-      if (isAuthError(err)) {
-        toast.error(err instanceof Error ? err.message : t("common.error"));
-      } else {
-        toast.error(t("editor.uploadFail"));
+      const r = await apiUpload<{ url: string }>("/api/media/upload", fd);
+      if (!r.ok) {
+        if (r.status === 401 || r.status === 403) toast.error(r.error ?? t("common.error"));
+        else toast.error(t("editor.uploadFail"));
+        return;
       }
+      await send({ mediaPath: mediaPathFromUrl(r.data.url) });
     } finally {
       setUploading(false);
     }

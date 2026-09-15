@@ -38,9 +38,12 @@ import { CONTENT_LABELS, type ContentLabelId } from "@/lib/content-labels";
 import { validatePollEndsAt, validatePollOptions } from "@/lib/poll";
 import {
   SHORT_DRAFT_KEY,
+  apiGet,
   isAuthError,
   mediaUrl,
+  postJson,
   postJsonSafe,
+  requestSafe,
   requestJson,
 } from "@/lib/client/api";
 import { BlockedDialog } from "../editor/blocked-dialog";
@@ -249,9 +252,8 @@ export function PinnedComposer({
   useEffect(() => {
     if (!expanded || collectionsRequestedRef.current) return;
     collectionsRequestedRef.current = true;
-    fetch("/api/posts/collections")
-      .then((r) => (r.ok ? r.json() : { items: [] }))
-      .then((d: { items?: { id: string; name: string }[] }) => setCollections(d.items ?? []))
+    requestSafe<{ items?: { id: string; name: string }[] }>("/api/posts/collections")
+      .then((r) => setCollections(r.ok ? (r.data.items ?? []) : []))
       .catch(() => undefined);
   }, [expanded]);
 
@@ -260,14 +262,9 @@ export function PinnedComposer({
     if (!preview || !content.trim()) return;
     let dead = false;
     const timer = setTimeout(() => {
-      fetch("/api/markdown/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: { html?: string } | null) => {
-          if (!dead) setPreviewHtml(d?.html ?? "");
+      postJson<{ html?: string }>("/api/markdown/preview", { content })
+        .then((d) => {
+          if (!dead) setPreviewHtml(d.html ?? "");
         })
         .catch(() => undefined);
     }, 350);
@@ -470,14 +467,14 @@ export function PinnedComposer({
     if (!name || creatingCollectionBusy) return;
     setCreatingCollectionBusy(true);
     try {
-      const res = await fetch("/api/posts/collections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      const data = (await res.json()) as { id?: string; name?: string; error?: string };
-      if (!res.ok || !data.id) throw new Error(data.error ?? t("common.error"));
-      const item = { id: data.id, name: data.name ?? name };
+      const r = await postJsonSafe<{ id?: string; name?: string; error?: string }>(
+        "/api/posts/collections",
+        { name },
+      );
+      if (!r.ok) throw new Error(r.error ?? t("common.error"));
+      const id = r.data.id;
+      if (!id) throw new Error(t("common.error"));
+      const item = { id, name: r.data.name ?? name };
       setCollections((prev) => [item, ...prev.filter((c) => c.id !== item.id)]);
       setCollectionId(item.id);
       setCreatingCollection(false);

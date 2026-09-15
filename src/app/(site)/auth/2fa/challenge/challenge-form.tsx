@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { routes } from "@/core/routes";
+import { postJsonSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -23,14 +24,9 @@ export function ChallengeForm() {
     setLoading(true);
     try {
       const body = mode === "totp" ? { code } : { recoveryCode: code };
-      const res = await fetch("/api/auth/2fa/challenge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(data.error ?? t("common.error"));
+      const r = await postJsonSafe("/api/auth/2fa/challenge", body);
+      if (!r.ok) {
+        setError(r.error ?? t("common.error"));
         return;
       }
       router.push(routes.home);

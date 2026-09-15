@@ -34,7 +34,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { postJson } from "@/lib/client/api";
+import { deleteJson, postJson } from "@/lib/client/api";
 import { REPORT_REASONS } from "@/components/social/report-dialog";
 import type { FeedItemDTO } from "./types";
 
@@ -101,12 +101,11 @@ export function RowActionsMenu({
     if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/posts/${post.id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      await deleteJson(`/api/posts/${post.id}`);
       toast.success("已移入回收站");
       router.refresh();
-    } catch {
-      toast.error("删除失败");
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "删除失败");
     } finally {
       setBusy(false);
     }

@@ -2,7 +2,8 @@
 
 import { useTheme } from "next-themes";
 import { Sun, Moon, Languages } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { subscribeNoop } from "@/lib/utils";
+import { useSyncExternalStore, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,8 +15,8 @@ import {
 
 export function ThemeToggle() {
   const { setTheme, resolvedTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // 客户端挂载前渲染占位（主题图标依赖 resolvedTheme，SSR 不可知）
+  const mounted = useSyncExternalStore(subscribeNoop, () => true, () => false);
   if (!mounted) return <Button variant="ghost" size="icon" aria-hidden />;
   return (
     <Button

@@ -44,11 +44,13 @@
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-三条铁律：
+三条铁律（第 1 条由 ESLint `no-restricted-globals` 在浏览器侧强制执行，
+`eslint.config.mjs`；服务端出站调用——OAuth/webhooks/LLM——不在其列）：
 
 1. **组件里禁止直接 `fetch`。** 读数据用 `useQuery(apiQueryOptions(…))`，
    提交用 `@/lib/client/api` 的 post/put/patch/delete 系列（需要按状态码
-   分支时用 `requestSafe`/`postJsonSafe`），UI 状态用 Zustand store。
+   分支时用 `requestSafe`/`postJsonSafe` 系列），UI 状态用 Zustand store。
+   multipart 上传用 `apiUpload(url, formData)`（不要手设 Content-Type）。
 2. **服务端数据只在服务端查。** 首屏数据在 `page.tsx` 里 await `queries.ts`
    的函数，以 props 下发；客户端增量读取一律走 TanStack Query。
    新查询加进 `queries.ts` 并返回 DTO（绝不出 db 行对象、绝不出 Date）。
@@ -92,6 +94,10 @@ const { data } = useQuery(apiQueryOptions({
 | `keys.ts` | `queryKeys` 工厂：`feed(scope)` / `poll(postId)` / `unread(seen)`… **键只能从这里造**，失效才可按前缀批量命中 |
 | `options.ts` | `apiQueryOptions({ queryKey, url, schema, ...opts })`：fetch → `safeParse` → 缓存；模型不匹配抛带 URL 上下文的 `ApiError` |
 | `mutation.ts` | `useApiMutation(fn, opts)`：pending + 错误 toast + `successToast` + 成功后 `invalidate` 指定键 + `router.refresh()`（可关） |
+
+领域客户端模式：大型域（settings、admin）保留自己的 `client.ts`（`apiRequest` /
+`api`），但内部一律委托 `@/lib/client/api` 的传输函数 —— 域语义入口 + 统一
+传输，两全。新域优先直接用传输层，确有共享逻辑再建域客户端。
 
 典型片段：
 
@@ -175,35 +181,48 @@ src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after�
   `SlotRenderer`。
 - 规划槽位：`composer:tools`、`composer:panel`、`settings:tabs`、`admin:nav`。
 
-## 8. 存量迁移清单
+## 8. 迁移完成度
 
-组件仍直接 `fetch` 的文件（用 `grep -rl "fetch(" $(grep -rl "use client" ) ` 盘点），
-按 recipe 逐个替换；改一个少一个：
+**浏览器侧直接 `fetch` 已清零**（ESLint 守卫防止回潮）。分层落位：
 
-| 文件 | 迁移方式 |
+- 读数据：`poll-card` / `feed-stream`(useInfiniteQuery) / `use-local-unread` /
+  `console-topbar` / `post-tree` / `settings/connections-panel` / `email-panel` →
+  `useQuery`（或 `useInfiniteQuery`）
+- 提交：动作类按钮（like/follow/block/report…）走 `postJson` + 局部状态，
+  发布/审核流（article-editor、short-post-editor、pinned-composer）走
+  `postJsonSafe`/`putJsonSafe`（422 blocked 分支），删除/恢复走
+  `deleteJsonSafe`/`postJson`
+- 上传：`settings/verification-panel` → `apiUpload`（进度上传仍走
+  `editor/upload.ts` 的 XHR，是唯一底层传输例外）
+- auth 表单 ×7：`postJsonSafe`（错误/2FA 分支）
+- 按状态码分支的判别联合用法见 `SafeResult`：**先 `if (!r.ok)` 收窄取
+  `r.error`，再校验 `r.data` 字段**（属性收窄不能跨 const 别名传递）。
+
+**手写 loading state 已全部升级**（原 §8 遗留清单清零）：
+
+| 组件 | 现架构 |
 | --- | --- |
-| `social/poll-card.tsx`、`user-space/feed-stream.tsx`、`user-space/use-local-unread.ts`、`shell/user-menu.tsx` | ✅ 已迁移（useQuery / useInfiniteQuery / Zustand+useQuery / postJson） |
-| `site-header.tsx`、`dashboard/console-topbar.tsx` | 未读/上下文轮询 → `useQuery({ refetchInterval, refetchIntervalInBackground: false })` |
-| `dashboard/my-posts-manager.tsx`、`user-space/row-actions-menu.tsx` | 动作 → `useApiMutation` + `invalidate` |
-| `social/like-button.tsx`、`repost-button.tsx`、`follow-button.tsx`、`block-button.tsx` | 乐观更新模板（§3） |
-| `social/comments.tsx`、`chat.tsx`、`inbox-list.tsx` | 列表 → `useQuery`；发送 → `postJson` |
-| `social/pinned-composer.tsx`、`composer-panels.tsx`、`preview-banner.tsx` | 发布流 → `postJsonSafe`（422 blocked 分支） |
-| `editor/*` | 同上；草稿键已在新层 |
-| `settings/verification-panel.tsx` | → `useApiMutation` |
-| `app/(site)/auth/**` 表单 | 需按状态码分支 → `postJsonSafe`，其余 `useApiMutation` |
+| `social/comments.tsx` | `useInfiniteQuery`（游标分页）+ `commentsCheck` 轮询 query（30s，后台暂停）+ 提交/删除经 `setQueryData` 局部更新 |
+| `social/chat.tsx` | 会话 `useQuery(refetchInterval: 30s)`；更早消息为渲染期重置的本地分页累积（携带 userId，换会话自动清空）；上传走 `apiUpload` |
+| `social/inbox-list.tsx` | 会话/通知双 `useQuery` + 乐观已读（`setQueryData`）+ 新私信人选 `enabled: composeOpen` 条件查询 |
+| `dashboard/my-posts-manager.tsx` | `useQuery(myPostList(status, q))` + 搜索防抖进 key + `placeholderData: keepPreviousData` 平滑切页签；增删后按 `["posts","mine-list"]` 前缀失效 |
+| `dashboard/console-topbar.tsx` | 未读角标 `useQuery(notificationBadge)`，键挂在 `["notifications"]` 前缀下与收件箱联动 |
+| `social/like-button.tsx` 等 | 本地乐观翻转 + 服务器确认 + 失败回滚（模板本体，无需改动） |
 
-通用 recipe：
+当前仅存的**警告**均为改动前就有的风格类提示（`<img>`、个别未用变量），不阻塞。
 
-```diff
-- const res = await fetch(url, { method: "POST", … });
-- if (!res.ok) throw new Error("failed");
-- const data = await res.json() as X;
-+ const { mutate, pending } = useApiMutation((p) => postJson<X>(url, p), { … });
-+ // 或列表读取：
-+ const { data } = useQuery(apiQueryOptions({ queryKey: queryKeys.x, url, schema: xSchema }));
-```
+## 9. 框架健壮性
 
-## 9. 已知问题与说明
+- **错误边界**：`src/app/error.tsx`（路由段兜底，含 digest + 重试）与
+  `src/app/global-error.tsx`（根布局兜底，自带 html/body）。
+- **守卫**：`eslint.config.mjs` 禁止浏览器侧 `fetch`；`react-hooks` 新规则
+  （set-state-in-effect / refs）保持开启，effect 内同步派生状态的合法场景
+  用显式 `eslint-disable-next-line` + 注释豁免（如 post-tree 文件夹展开态）。
+- **客户端专值**（window.location 等）：用
+  `useSyncExternalStore(subscribeNoop, getter, () => fallback)` 惯用法
+  （`subscribeNoop` 在 `@/lib/utils`），不要 useEffect + setState。
+
+## 10. 已知问题与说明
 
 - **`enqueueModel` / flight 竞态**：Next 16 dev 下快速切换动态路由时
   React Flight 客户端缓存竞态（上游问题）。已在 `next.config.ts` 用

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { apiGet, postJsonSafe } from "@/lib/client/api";
 import { Check, FolderPlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
@@ -33,10 +34,9 @@ export function CollectionSelect({
 
   useEffect(() => {
     let alive = true;
-    fetch("/api/posts/collections")
-      .then(async (res) => (res.ok ? ((await res.json()) as { items: CollectionItem[] }) : null))
+    apiGet<{ items?: CollectionItem[] }>("/api/posts/collections")
       .then((data) => {
-        if (alive) setItems(data?.items ?? []);
+        if (alive) setItems(data.items ?? []);
       })
       .catch(() => undefined)
       .finally(() => alive && setLoading(false));
@@ -50,13 +50,10 @@ export function CollectionSelect({
     if (!trimmed) return;
     setSaving(true);
     try {
-      const res = await fetch("/api/posts/collections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      const data = (await res.json()) as CollectionItem & { error?: string };
-      if (!res.ok || !data?.id) throw new Error(data?.error ?? t("common.error"));
+      const r = await postJsonSafe<CollectionItem>("/api/posts/collections", { name: trimmed });
+      if (!r.ok) throw new Error(r.error ?? t("common.error"));
+      if (!r.data?.id) throw new Error(t("common.error"));
+      const data = r.data;
       setItems((prev) => [data, ...prev.filter((c) => c.id !== data.id)]);
       onChange(data.id);
       setCreating(false);

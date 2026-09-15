@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/primitives";
+import { deleteJson, postJson } from "@/lib/client/api";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
@@ -41,16 +42,15 @@ export function PreviewBanner({
     if (action === "purge" && !window.confirm("彻底删除？此操作不可恢复。")) return;
     setBusy(true);
     try {
-      const res = await fetch(
-        action === "purge" ? `/api/posts/${postId}?purge=true` : `/api/posts/${postId}/restore`,
-        { method: action === "purge" ? "DELETE" : "POST" },
-      );
-      if (!res.ok) throw new Error();
+      const message = action === "purge"
+        ? await deleteJson(`/api/posts/${postId}?purge=true`)
+        : await postJson(`/api/posts/${postId}/restore`, {});
       toast.success(action === "purge" ? "已彻底删除" : "已恢复");
       router.push("/write/posts?tab=trash");
       router.refresh();
-    } catch {
-      toast.error("操作失败");
+      return message;
+    } catch (err) {
+      toast.error(err instanceof Error && err.message ? err.message : "操作失败");
     } finally {
       setBusy(false);
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { apiGet } from "@/lib/client/api";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/primitives";
@@ -36,9 +37,8 @@ export function TopicInput({
         setSuggestions([]);
         return;
       }
-      fetch(`/api/posts/topics?q=${encodeURIComponent(q)}`)
-        .then(async (res) => (res.ok ? ((await res.json()) as { items: { name: string; count: number }[] }) : null))
-        .then((data) => setSuggestions(data?.items ?? []))
+      apiGet<{ items?: { name: string; count: number }[] }>(`/api/posts/topics?q=${encodeURIComponent(q)}`)
+        .then((data) => setSuggestions(data.items ?? []))
         .catch(() => setSuggestions([]));
     }, 250);
     return () => window.clearTimeout(timer);

@@ -1,6 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
+import { apiGet, deleteJsonSafe, patchJsonSafe, postJsonSafe } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -44,11 +48,34 @@ const STATUS_DOT: Record<TreePost["status"], string> = {
   rejected: "bg-[var(--destructive)]",
 };
 
+const collectionItemSchema = z.object({ id: z.string(), name: z.string() });
+const treePostSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  status: z.enum(["draft", "pending_review", "published", "rejected"]),
+  collectionId: z.string().nullable(),
+});
+
 export function PostTree({ activeId }: { activeId?: string | null }) {
   const router = useRouter();
-  const [collections, setCollections] = useState<CollectionItem[]>([]);
-  const [posts, setPosts] = useState<TreePost[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const collectionsQ = useQuery({
+    queryKey: queryKeys.collections(),
+    queryFn: async () =>
+      z
+        .object({ items: z.array(collectionItemSchema) })
+        .parse(await apiGet<unknown>("/api/posts/collections")).items,
+  });
+  const postsQ = useQuery({
+    queryKey: queryKeys.myPosts("article"),
+    queryFn: async () =>
+      z
+        .object({ items: z.array(treePostSchema) })
+        .parse(await apiGet<unknown>("/api/posts/mine?type=article&limit=200")).items,
+  });
+  const collections = useMemo(() => collectionsQ.data ?? [], [collectionsQ.data]);
+  const posts = useMemo(() => postsQ.data ?? [], [postsQ.data]);
+  const loading = collectionsQ.isLoading || postsQ.isLoading;
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -56,52 +83,36 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
   const [renameValue, setRenameValue] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = useCallback(async () => {
-    try {
-      const [cols, mine] = await Promise.all([
-        fetch("/api/posts/collections").then((r) => (r.ok ? r.json() : { items: [] })),
-        fetch("/api/posts/mine?type=article&limit=200").then((r) => (r.ok ? r.json() : { items: [] })),
-      ]);
-      setCollections(cols.items ?? []);
-      setPosts(mine.items ?? []);
-    } catch {
-      toast.error("目录加载失败");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   // collapse folders without the active post; open the one containing it
+  // （打开态是用户可改的本地状态，这里做「props → 派生 UI 状态」同步，
+  // 属于 effect 的合法用途；新 lint 规则不识别该模式，显式豁免）
   useEffect(() => {
     if (!activeId || !posts.length) return;
     const active = posts.find((p) => p.id === activeId);
-    if (active) setOpenFolders((f) => ({ ...f, [active.collectionId ?? "none"]: true }));
+    if (active)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOpenFolders((f) => ({ ...f, [active.collectionId ?? "none"]: true }));
   }, [activeId, posts]);
 
   async function createPost(collectionId: string | null) {
     setBusy(true);
     try {
-      const res = await fetch("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "article",
-          title: "无标题",
-          content: "",
-          action: "draft",
-          collectionId,
-        }),
+      const r = await postJsonSafe<{ id?: string; error?: string }>("/api/posts", {
+        type: "article",
+        title: "无标题",
+        content: "",
+        action: "draft",
+        collectionId,
       });
-      const data = await res.json();
-      if (!res.ok || !data.id) {
-        toast.error(data.error ?? "创建失败");
+      if (!r.ok) {
+        toast.error(r.error ?? "创建失败");
         return;
       }
-      router.push(routes.editorEdit(data.id));
+      if (!r.data.id) {
+        toast.error("创建失败");
+        return;
+      }
+      router.push(routes.editorEdit(r.data.id));
     } catch {
       toast.error("创建失败");
     } finally {
@@ -113,17 +124,19 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
     if (!newName.trim()) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/posts/collections", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName.trim() }),
+      const r = await postJsonSafe<CollectionItem & { error?: string }>("/api/posts/collections", {
+        name: newName.trim(),
       });
-      const col = await res.json();
-      if (!res.ok || !col?.id) {
-        toast.error(col?.error ?? "创建目录失败");
+      if (!r.ok) {
+        toast.error(r.error ?? "创建目录失败");
         return;
       }
-      setCollections((prev) => [col, ...prev]);
+      const col = r.data;
+      if (!col?.id) {
+        toast.error("创建目录失败");
+        return;
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
       setOpenFolders((f) => ({ ...f, [col.id]: true }));
       setNewName("");
       setCreating(false);
@@ -136,17 +149,19 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
     if (!renameValue.trim()) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/posts/collections/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: renameValue.trim() }),
+      const r = await patchJsonSafe<CollectionItem & { error?: string }>(`/api/posts/collections/${id}`, {
+        name: renameValue.trim(),
       });
-      const col = await res.json();
-      if (!res.ok || !col?.id) {
+      if (!r.ok) {
+        toast.error(r.error ?? "重命名失败");
+        return;
+      }
+      const col = r.data;
+      if (!col?.id) {
         toast.error("重命名失败");
         return;
       }
-      setCollections((prev) => prev.map((c) => (c.id === id ? col : c)));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
       setRenamingId(null);
     } finally {
       setBusy(false);
@@ -157,12 +172,12 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
     if (!window.confirm("删除目录？目录内文章将移至「未分类」。")) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/posts/collections/${id}`, { method: "DELETE" });
-      if (!res.ok) {
+      const r = await deleteJsonSafe(`/api/posts/collections/${id}`);
+      if (!r.ok) {
         toast.error("删除失败");
         return;
       }
-      setCollections((prev) => prev.filter((c) => c.id !== id));
+      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
     } finally {
       setBusy(false);
     }

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { routes } from "@/core/routes";
+import { postJsonSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -39,23 +40,19 @@ export function RegisterForm({ inviteRequired }: { inviteRequired: boolean }) {
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          username: username.toLowerCase(),
-          displayName: displayName || undefined,
-          password,
-          inviteCode: inviteCode ? inviteCode : undefined,
-          agree: true,
-        }),
+      const r = await postJsonSafe<{ message?: string }>("/api/auth/register", {
+        email,
+        username: username.toLowerCase(),
+        displayName: displayName || undefined,
+        password,
+        inviteCode: inviteCode ? inviteCode : undefined,
+        agree: true,
       });
-      const data = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? t("common.error"));
+      if (!r.ok) {
+        setError(r.error ?? t("common.error"));
         return;
       }
+      const data = r.data;
       setSuccess(data.message ?? t("auth.verifyEmail.sent"));
     } catch {
       setError(t("common.error"));

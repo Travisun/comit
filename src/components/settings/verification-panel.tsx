@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { apiUpload } from "@/lib/client/api";
 import {
   Briefcase,
   Building2,
@@ -306,14 +307,16 @@ function ApplyCard({
         const fd = new FormData();
         fd.append("file", file);
         fd.append("kind", "inline");
-        const res = await fetch("/api/media/upload", { method: "POST", body: fd });
-        const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-        if (!res.ok) {
-          throw new Error(typeof body.error === "string" ? body.error : "图片上传失败 / Upload failed");
+        const r = await apiUpload<{ path?: string; url?: string; error?: string }>(
+          "/api/media/upload",
+          fd,
+        );
+        if (!r.ok) {
+          throw new Error(r.error ?? "图片上传失败 / Upload failed");
         }
         const path =
-          (typeof body.path === "string" && body.path) ||
-          (typeof body.url === "string" && body.url.replace(/^\/api\/media\/file\//, "")) ||
+          (typeof r.data.path === "string" && r.data.path) ||
+          (typeof r.data.url === "string" && r.data.url.replace(/^\/api\/media\/file\//, "")) ||
           "";
         if (!path) throw new Error("上传响应缺少路径 / Unexpected upload response");
         setAttachments((prev) => (prev.length >= MAX_ATTACHMENTS ? prev : [...prev, path]));

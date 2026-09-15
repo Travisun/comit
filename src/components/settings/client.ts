@@ -1,26 +1,28 @@
 "use client";
 
+import { deleteJson, patchJson, postJson, putJson, requestJson } from "@/lib/client/api";
 import { uploadImage as uploadMedia } from "@/components/editor/upload";
 
-/** Small fetch/clipboard helpers shared by all settings panels. */
+/** Settings 域客户端 — 各设置面板共享的 API/剪贴板助手。
+ * 传输统一委托 lib/client/api，本文件只保留域语义入口。 */
 
 export async function apiRequest<T = Record<string, unknown>>(
   url: string,
   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
   body?: unknown,
 ): Promise<T> {
-  const res = await fetch(url, {
-    method,
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    throw new Error(
-      typeof data.error === "string" ? data.error : `请求失败 / HTTP ${res.status}`,
-    );
+  switch (method) {
+    case "GET":
+      return requestJson<T>(url);
+    case "POST":
+      return postJson<T>(url, body);
+    case "PUT":
+      return putJson<T>(url, body);
+    case "PATCH":
+      return patchJson<T>(url, body);
+    case "DELETE":
+      return deleteJson<T>(url, body);
   }
-  return data as T;
 }
 
 export async function copyText(text: string): Promise<boolean> {

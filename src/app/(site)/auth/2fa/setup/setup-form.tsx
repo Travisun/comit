@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { routes } from "@/core/routes";
+import { apiGet, postJsonSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -38,17 +39,20 @@ export function SetupForm() {
     startedRef.current = true;
     (async () => {
       try {
-        fetch("/api/me/profile")
-          .then((r) => (r.ok ? r.json() : null))
+        apiGet<{ hasPassword?: boolean }>("/api/me/profile")
           .then((d) => setNeedsPassword(Boolean(d?.hasPassword === false)))
           .catch(() => {});
-        const res = await fetch("/api/auth/2fa/setup", { method: "POST" });
-        const data = (await res.json().catch(() => ({}))) as Partial<SetupResponse> & { error?: string };
-        if (!res.ok || !data.uri || !data.qrDataUrl || !data.secret) {
-          setSetupError(data.error ?? t("common.error"));
+        const r = await postJsonSafe<Partial<SetupResponse>>("/api/auth/2fa/setup", {});
+        if (!r.ok) {
+          setSetupError(r.error ?? t("common.error"));
           return;
         }
-        setSetup({ uri: data.uri, qrDataUrl: data.qrDataUrl, secret: data.secret });
+        const { uri, qrDataUrl, secret } = r.data;
+        if (!uri || !qrDataUrl || !secret) {
+          setSetupError(t("common.error"));
+          return;
+        }
+        setSetup({ uri, qrDataUrl, secret });
       } catch {
         setSetupError(t("common.error"));
       }
@@ -79,14 +83,9 @@ export function SetupForm() {
     }
     setPwBusy(true);
     try {
-      const res = await fetch("/api/auth/setup-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { error?: string };
-        setPwError(d.error ?? t("common.error"));
+      const r = await postJsonSafe("/api/auth/setup-password", { password });
+      if (!r.ok) {
+        setPwError(r.error ?? t("common.error"));
         return;
       }
       setPwDone(true);
@@ -102,17 +101,17 @@ export function SetupForm() {
     setConfirmError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/auth/2fa/confirm", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { recoveryCodes?: string[]; error?: string };
-      if (!res.ok || !data.recoveryCodes) {
-        setConfirmError(data.error ?? t("common.error"));
+      const r = await postJsonSafe<{ recoveryCodes?: string[] }>("/api/auth/2fa/confirm", { code });
+      if (!r.ok) {
+        setConfirmError(r.error ?? t("common.error"));
         return;
       }
-      setRecoveryCodes(data.recoveryCodes);
+      const { recoveryCodes } = r.data;
+      if (!recoveryCodes) {
+        setConfirmError(t("common.error"));
+        return;
+      }
+      setRecoveryCodes(recoveryCodes);
     } catch {
       setConfirmError(t("common.error"));
     } finally {

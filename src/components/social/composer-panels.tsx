@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarClock, ListPlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
+import { apiGet } from "@/lib/client/api";
 import { cn } from "@/lib/utils";
 import {
   POLL_OPTIONS_MAX,
@@ -133,8 +134,7 @@ export function TopicPopover({
     if (!open) return;
     let dead = false;
     const timer = setTimeout(() => {
-      fetch(`/api/posts/topics?q=${encodeURIComponent(q.trim())}`)
-        .then((r) => r.json() as Promise<{ items?: TopicItem[] }>)
+      apiGet<{ items?: TopicItem[] }>(`/api/posts/topics?q=${encodeURIComponent(q.trim())}`)
         .then((d) => {
           if (!dead) setItems(d.items ?? []);
         })

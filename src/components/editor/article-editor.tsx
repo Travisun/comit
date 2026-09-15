@@ -28,7 +28,7 @@ import { ImageUploader } from "./image-uploader";
 import { TopicInput } from "./topic-input";
 import { CollectionSelect } from "./collection-select";
 import { BlockedDialog } from "./blocked-dialog";
-import { ARTICLE_DRAFT_KEY } from "@/lib/client/api";
+import { ARTICLE_DRAFT_KEY, postJsonSafe, putJsonSafe } from "@/lib/client/api";
 
 /**
  * Full-page article editor:
@@ -201,31 +201,26 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
         ...repost,
         ...(action === "update" ? {} : { action }),
       };
-      const res = id
-        ? await fetch(`/api/posts/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          })
-        : await fetch("/api/posts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-      const data = (await res.json()) as {
+      type SaveResponse = {
         id?: string;
         slug?: string | null;
         status?: EditorPost["status"];
-        error?: string;
-        blocked?: string[];
       };
+      const r = id
+        ? await putJsonSafe<SaveResponse>(`/api/posts/${id}`, payload)
+        : await postJsonSafe<SaveResponse>("/api/posts", payload);
 
-      if (res.status === 422 && Array.isArray(data.blocked)) {
-        setBlocked(data.blocked);
+      if (!r.ok) {
+        if (r.status === 422 && Array.isArray(r.blocked)) {
+          setBlocked(r.blocked);
+          return;
+        }
+        toast.error(r.error ?? t("common.error"));
         return;
       }
-      if (!res.ok || !data.id) {
-        toast.error(data.error ?? t("common.error"));
+      const data = r.data;
+      if (!data.id) {
+        toast.error(t("common.error"));
         return;
       }
 

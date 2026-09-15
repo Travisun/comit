@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Check, Link2, Loader2, Unlink } from "lucide-react";
@@ -13,6 +14,7 @@ import {
 } from "@/components/ui/settings";
 import { cn } from "@/lib/utils";
 import { apiRequest } from "./client";
+import { queryKeys } from "@/lib/query/keys";
 import { useI18n } from "@/lib/i18n/client";
 
 interface Connection {
@@ -34,20 +36,17 @@ export function ConnectionsPanel() {
   const router = useRouter();
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const [connections, setConnections] = useState<Connection[] | null>(null);
+  const queryClient = useQueryClient();
   const [busy, setBusy] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      const res = await apiRequest<{ connections: Connection[] }>("/api/me/connections", "GET");
-      setConnections(res.connections);
-    } catch {
-      setConnections([]);
-    }
-  }, []);
+  const connectionsQ = useQuery({
+    queryKey: queryKeys.connections(),
+    queryFn: async () =>
+      (await apiRequest<{ connections: Connection[] }>("/api/me/connections", "GET")).connections,
+  });
+  const connections = connectionsQ.data;
 
   useEffect(() => {
-    void reload();
     const params = new URLSearchParams(window.location.search);
     const linked = params.get("linked");
     if (linked) toast.success(zh ? `已绑定 ${linked}` : `Linked ${linked}`);
@@ -55,7 +54,7 @@ export function ConnectionsPanel() {
       toast.error(zh ? "该第三方账号已绑定到其他账户" : "Already linked to another account");
     if (params.get("error") === "session")
       toast.error(zh ? "会话已过期，请重新登录后绑定" : "Session expired — sign in again");
-  }, [reload, zh]);
+  }, [zh]);
 
   async function unbind(provider: string) {
     if (busy) return;
@@ -63,7 +62,7 @@ export function ConnectionsPanel() {
     setBusy(provider);
     try {
       await apiRequest(`/api/me/connections?provider=${provider}`, "DELETE");
-      await reload();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.connections() });
       toast.success(zh ? "已解除绑定" : "Unlinked");
     } catch (err) {
       toast.error((err as Error).message);

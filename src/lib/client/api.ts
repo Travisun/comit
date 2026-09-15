@@ -115,6 +115,27 @@ export function postJsonSafe<T>(url: string, body: unknown): Promise<SafeResult<
   return requestSafe<T>(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });
 }
 
+export function putJsonSafe<T>(url: string, body: unknown): Promise<SafeResult<T>> {
+  return requestSafe<T>(url, { method: "PUT", headers: JSON_HEADERS, body: JSON.stringify(body) });
+}
+
+export function patchJsonSafe<T>(url: string, body: unknown): Promise<SafeResult<T>> {
+  return requestSafe<T>(url, { method: "PATCH", headers: JSON_HEADERS, body: JSON.stringify(body) });
+}
+
+/** DELETE 通常无请求体；需要 body 的场景直接用 requestSafe + init。 */
+export function deleteJsonSafe<T = void>(url: string): Promise<SafeResult<T>> {
+  return requestSafe<T>(url, { method: "DELETE" });
+}
+
+/**
+ * multipart 文件上传（FormData）— 不要手动设置 Content-Type，浏览器会
+ * 自动带 boundary。响应契约与 requestSafe 一致。
+ */
+export async function apiUpload<T>(url: string, formData: FormData): Promise<SafeResult<T>> {
+  return requestSafe<T>(url, { method: "POST", body: formData });
+}
+
 /* ------------------------------ 媒体路径工具 ------------------------------ */
 
 /** Extract the storage path from a media upload response url. */

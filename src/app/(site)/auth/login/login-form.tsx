@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { routes } from "@/core/routes";
+import { postJsonSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -22,16 +23,12 @@ export function LoginForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { status?: string; error?: string };
-      if (!res.ok) {
-        setError(data.error ?? t("common.error"));
+      const r = await postJsonSafe<{ status?: string }>("/api/auth/login", { email, password });
+      if (!r.ok) {
+        setError(r.error ?? t("common.error"));
         return;
       }
+      const data = r.data;
       // mandatory 2FA: every login lands on the TOTP flow
       router.push(data.status === "2fa_setup" ? routes.twofaSetup : routes.twofaChallenge);
     } catch {

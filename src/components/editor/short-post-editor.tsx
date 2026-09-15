@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { routes } from "@/core/routes";
 import { cn, readingMinutes } from "@/lib/utils";
+import { postJsonSafe } from "@/lib/client/api";
 import { isHttpUrl } from "@/lib/content-labels";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
 import { Input } from "@/components/ui/input";
@@ -45,24 +46,19 @@ export function ShortPostEditor() {
     }
     setPublishing(true);
     try {
-      const res = await fetch("/api/posts", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "short",
-          content,
-          label,
-          ...(label === "repost" ? { sourceUrl: sourceUrl.trim() } : {}),
-          action: "submit",
-        }),
+      const r = await postJsonSafe<{ error?: string; blocked?: string[] }>("/api/posts", {
+        type: "short",
+        content,
+        label,
+        ...(label === "repost" ? { sourceUrl: sourceUrl.trim() } : {}),
+        action: "submit",
       });
-      const data = (await res.json()) as { error?: string; blocked?: string[] };
-      if (res.status === 422 && Array.isArray(data.blocked)) {
-        setBlocked(data.blocked);
-        return;
-      }
-      if (!res.ok) {
-        toast.error(data.error ?? t("common.error"));
+      if (!r.ok) {
+        if (r.status === 422 && Array.isArray(r.blocked)) {
+          setBlocked(r.blocked);
+          return;
+        }
+        toast.error(r.error ?? t("common.error"));
         return;
       }
       toast.success(t("editor.publish"));

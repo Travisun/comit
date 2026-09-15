@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { postJson } from "@/lib/client/api";
 import {
   Bold,
   Code,
@@ -339,14 +340,9 @@ export function MarkdownEditor({
         setPreviewHtml("");
         return;
       }
-      fetch("/api/markdown/preview", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
-      })
-        .then(async (res) => (res.ok ? ((await res.json()) as { html: string }) : null))
+      postJson<{ html?: string }>("/api/markdown/preview", { content })
         .then((data) => {
-          if (data && typeof data.html === "string") setPreviewHtml(data.html);
+          if (typeof data.html === "string") setPreviewHtml(data.html);
         })
         .catch(() => {
           /* preview is best-effort */

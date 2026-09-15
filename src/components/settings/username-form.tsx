@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
-import { cn } from "@/lib/utils";
+import { cn, subscribeNoop } from "@/lib/utils";
 import { apiRequest } from "./client";
 import type { SettingsData } from "./types";
 
@@ -35,10 +35,7 @@ export function UsernameForm({ data }: { data: UsernameData }) {
   const [current, setCurrent] = useState(data.username);
   const [saving, setSaving] = useState(false);
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
-  const [origin, setOrigin] = useState("");
-  useEffect(() => {
-    setOrigin(window.location.host);
-  }, []);
+  const origin = useSyncExternalStore(subscribeNoop, () => window.location.host, () => "");
   /** which input value the availability result describes (stale-result guard) */
   const [checkedValue, setCheckedValue] = useState<string | null>(current);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);

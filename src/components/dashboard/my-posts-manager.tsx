@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { FilterChips } from "@/components/admin/bits";
 import { timeAgo } from "@/lib/utils";
+import { apiGet, deleteJson, postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 
 /**
  * "我的文章" — rich-list management for the signed-in author: every item shows
@@ -76,31 +79,37 @@ export function MyPostsManager() {
       ? "deleted"
       : "all",
   );
+  const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<MyPost[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<MyPost | null>(null);
   const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(async (opts?: { silent?: boolean }) => {
-    if (!opts?.silent) setLoading(true);
-    try {
-      const res = await fetch(`/api/posts/mine?status=${status}&q=${encodeURIComponent(q)}`);
-      const json = await res.json();
-      setItems(json.items ?? []);
-      setTotal(json.total ?? 0);
-    } catch {
-      toast.error("加载失败，请重试");
-    } finally {
-      setLoading(false);
-    }
-  }, [status, q]);
+  // 列表查询 — key 随筛选/搜索变化；placeholderData 让切换页签时保留上一页数据
+  const postsQ = useQuery({
+    queryKey: queryKeys.myPostList(status, q),
+    queryFn: async () => {
+      const json = await apiGet<{ items?: MyPost[]; total?: number }>(
+        `/api/posts/mine?status=${status}&q=${encodeURIComponent(q)}`,
+      );
+      return { items: json.items ?? [], total: json.total ?? 0 };
+    },
+    placeholderData: keepPreviousData,
+  });
+  const items = postsQ.data?.items ?? [];
+  const total = postsQ.data?.total ?? 0;
+  const loading = postsQ.isLoading;
 
+  // 搜索防抖：输入先入 qInput，300ms 后同步到 q（驱动 queryKey 重新查询）
   useEffect(() => {
-    const timer = setTimeout(() => void load(), q ? 300 : 0);
+    const timer = setTimeout(() => setQ(qInput), qInput ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [load, q]);
+  }, [qInput]);
+
+  /** 增删后刷新当前列表家族（所有筛选页签的缓存一起失效） */
+  function refreshList() {
+    void queryClient.invalidateQueries({ queryKey: ["posts", "mine-list"] });
+  }
 
   async function confirmDelete() {
     if (!deleting) return;
@@ -108,11 +117,10 @@ export function MyPostsManager() {
     try {
       // normal delete → recycle bin (soft); purge → permanent removal
       const qs = deleting.status === "deleted" ? "?purge=true" : "";
-      const res = await fetch(`/api/posts/${deleting.id}${qs}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+      await deleteJson(`/api/posts/${deleting.id}${qs}`);
       toast.success(deleting.status === "deleted" ? "已彻底删除" : "已移入回收站");
       setDeleting(null);
-      void load({ silent: true });
+      refreshList();
     } catch {
       toast.error("删除失败");
     } finally {
@@ -124,10 +132,9 @@ export function MyPostsManager() {
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/posts/${post.id}/restore`, { method: "POST" });
-      if (!res.ok) throw new Error();
+      await postJson(`/api/posts/${post.id}/restore`, {});
       toast.success("已恢复为草稿");
-      void load({ silent: true });
+      refreshList();
     } catch {
       toast.error("恢复失败");
     } finally {
@@ -218,7 +225,7 @@ export function MyPostsManager() {
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => setQInput(e.target.value)}
             placeholder="搜索标题或正文…"
             className="pl-8"
           />

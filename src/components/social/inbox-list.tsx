@@ -1,13 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { z } from "zod";
 import { Bell, Loader2, SquarePen } from "lucide-react";
+import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
-import { mediaUrl, postJson, requestJson } from "@/lib/client/api";
+import { apiGet, mediaUrl, postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
+import {
+  conversationSchema,
+  notificationSchema,
+  allowedUserSchema,
+  type NotificationItem,
+} from "@/lib/models/messages";
 
 /**
  * Unified message stream — the left pane of the inbox. DM conversations and
@@ -15,32 +25,6 @@ import { mediaUrl, postJson, requestJson } from "@/lib/client/api";
  * time-sorted stream. The header carries the 新私信 people picker (mutual
  * follows with DMs enabled) and 全部已读 for notifications.
  */
-
-interface Conversation {
-  userId: string;
-  username: string;
-  displayName: string;
-  avatarPath: string | null;
-  lastMessage: { body: string; createdAt: string; mine: boolean } | null;
-  unread: number;
-}
-
-interface NotificationItem {
-  id: string;
-  title: string;
-  body: string | null;
-  url: string | null;
-  readAt: string | null;
-  createdAt: string;
-  actor: { username: string; displayName: string; avatarPath: string | null } | null;
-}
-
-interface AllowedUser {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarPath: string | null;
-}
 
 interface InboxRow {
   key: string;
@@ -59,40 +43,39 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
   const router = useRouter();
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const [convs, setConvs] = useState<Conversation[] | null>(null);
-  const [notifs, setNotifs] = useState<NotificationItem[] | null>(null);
-  const [loaded, setLoaded] = useState(false);
+  const queryClient = useQueryClient();
   const [composeOpen, setComposeOpen] = useState(false);
-  const [allowed, setAllowed] = useState<AllowedUser[] | null>(null);
-  const [allowedLoading, setAllowedLoading] = useState(false);
 
-  const fetchAll = useCallback(async () => {
-    try {
-      const [c, n] = await Promise.all([
-        requestJson<Conversation[]>("/api/messages/conversations"),
-        requestJson<{ items: NotificationItem[] }>("/api/notifications"),
-      ]);
-      setConvs(c);
-      setNotifs(n.items ?? []);
-    } catch {
-      // transient failures keep the previous lists
-    } finally {
-      setLoaded(true);
-    }
-  }, []);
+  const conversationsQ = useQuery({
+    queryKey: queryKeys.conversations(),
+    queryFn: async () =>
+      conversationSchema.array().parse(await apiGet<unknown>("/api/messages/conversations")),
+  });
+  const notificationsQ = useQuery({
+    queryKey: queryKeys.notifications(),
+    queryFn: async () =>
+      z
+        .object({ items: z.array(notificationSchema) })
+        .parse(await apiGet<unknown>("/api/notifications")).items,
+  });
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!cancelled) await fetchAll();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [fetchAll]);
+  const convs = conversationsQ.data ?? [];
+  const notifs = notificationsQ.data ?? [];
+  const loaded = !conversationsQ.isLoading && !notificationsQ.isLoading;
+
+  // 新私信 people picker — 打开时才拉取（enabled 条件查询）
+  const allowedQ = useQuery({
+    queryKey: queryKeys.allowedDmUsers(),
+    queryFn: async () =>
+      z
+        .object({ items: allowedUserSchema.array() })
+        .parse(await apiGet<unknown>("/api/messages/allowed")).items,
+    enabled: composeOpen,
+    staleTime: 60_000,
+  });
+  const allowed = allowedQ.data;
 
   const rows = useMemo<InboxRow[]>(() => {
-    if (convs === null || notifs === null) return [];
     const out: InboxRow[] = [];
     for (const c of convs) {
       out.push({
@@ -125,10 +108,13 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
     return out.sort((a, b) => (b.time ?? "").localeCompare(a.time ?? ""));
   }, [convs, notifs, zh]);
 
-  const unreadNotifs = (notifs ?? []).filter((n) => !n.readAt).length;
+  const unreadNotifs = notifs.filter((n) => !n.readAt).length;
 
   async function markAllRead() {
-    setNotifs((prev) => (prev ?? []).map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })));
+    // 乐观置已读 + 后台提交（失败不打扰，下次轮询纠正）
+    queryClient.setQueryData(queryKeys.notifications(), (prev: NotificationItem[] | undefined) =>
+      (prev ?? []).map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })),
+    );
     try {
       await postJson("/api/notifications/read-all", {});
     } catch {
@@ -139,26 +125,12 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
   /** system rows: mark read, then navigate to the notification's target */
   function openSystem(n: NotificationItem) {
     if (!n.readAt) {
-      setNotifs((prev) => (prev ?? []).map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)));
+      queryClient.setQueryData(queryKeys.notifications(), (prev: NotificationItem[] | undefined) =>
+        (prev ?? []).map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)),
+      );
       void postJson("/api/notifications/read", { id: n.id }).catch(() => undefined);
     }
     if (n.url) router.push(n.url);
-  }
-
-  async function togglePicker() {
-    const next = !composeOpen;
-    setComposeOpen(next);
-    if (next && allowed === null) {
-      setAllowedLoading(true);
-      try {
-        const r = await requestJson<{ items: AllowedUser[] }>("/api/messages/allowed");
-        setAllowed(r.items);
-      } catch {
-        setAllowed([]);
-      } finally {
-        setAllowedLoading(false);
-      }
-    }
   }
 
   function pick(uid: string) {
@@ -186,7 +158,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
             type="button"
             aria-label={zh ? "新私信" : "New DM"}
             title={zh ? "新私信（互相关注的人）" : "New DM (mutual follows)"}
-            onClick={togglePicker}
+            onClick={() => setComposeOpen((v) => !v)}
             className={cn(
               "grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground",
               composeOpen && "bg-[var(--selected)] text-foreground",
@@ -200,11 +172,11 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
       {/* 新私信 people picker */}
       {composeOpen && (
         <div className="shrink-0 border-b border-border">
-          {allowedLoading ? (
+          {allowedQ.isPending ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden />
             </div>
-          ) : allowed !== null && allowed.length > 0 ? (
+          ) : allowed !== undefined && allowed.length > 0 ? (
             <ul className="max-h-56 overflow-y-auto py-1">
               {allowed.map((u) => (
                 <li key={u.id}>

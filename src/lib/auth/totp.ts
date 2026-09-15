@@ -64,7 +64,7 @@ export async function regenerateRecoveryCodes(userId: string): Promise<string[]>
   return codes;
 }
 
-export async function useRecoveryCode(userId: string, code: string): Promise<boolean> {
+export async function consumeRecoveryCode(userId: string, code: string): Promise<boolean> {
   const [row] = await db.select().from(totpSecrets).where(eq(totpSecrets.userId, userId)).limit(1);
   if (!row) return false;
   const hash = sha256(code.trim());

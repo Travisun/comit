@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, MailCheck, MailQuestion } from "lucide-react";
@@ -14,6 +15,7 @@ import {
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { apiRequest } from "./client";
+import { queryKeys } from "@/lib/query/keys";
 
 interface EmailState {
   email: string | null;
@@ -26,26 +28,23 @@ export function EmailPanel() {
   const { locale } = useI18n();
   const zh = locale === "zh";
   const router = useRouter();
-  const [state, setState] = useState<EmailState | null>(null);
+  const queryClient = useQueryClient();
   const [newEmail, setNewEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const reload = useCallback(async () => {
-    try {
-      setState(await apiRequest<EmailState>("/api/me/email", "GET"));
-    } catch {
-      setState({ email: null, pendingEmail: null, hasPassword: false });
-    }
-  }, []);
+  const emailQ = useQuery({
+    queryKey: queryKeys.emailStatus(),
+    queryFn: async () => apiRequest<EmailState>("/api/me/email", "GET"),
+  });
+  const state: EmailState = emailQ.data ?? { email: null, pendingEmail: null, hasPassword: false };
 
   useEffect(() => {
-    void reload();
     // 换绑确认后返回时带 ?updated=1
     const params = new URLSearchParams(window.location.search);
     if (params.get("updated")) toast.success(zh ? "邮箱已更新" : "Email updated");
     if (params.get("error")) toast.error(zh ? "确认链接无效或已过期" : "Invalid or expired link");
-  }, [reload, zh]);
+  }, [zh]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -59,7 +58,8 @@ export function EmailPanel() {
       toast.success(res.message ?? (zh ? "确认邮件已发送" : "Confirmation email sent"));
       setNewEmail("");
       setPassword("");
-      await reload();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.emailStatus() });
+      setBusy(false);
     } catch (err) {
       toast.error((err as Error).message);
       setBusy(false);

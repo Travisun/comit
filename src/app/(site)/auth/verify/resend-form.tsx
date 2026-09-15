@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
+import { postJsonSafe } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { AuthBanner } from "../_components/auth-card";
@@ -18,14 +19,9 @@ export function ResendForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/resend-verification", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) {
-        setError(data.error ?? t("common.error"));
+      const r = await postJsonSafe("/api/auth/resend-verification", { email });
+      if (!r.ok) {
+        setError(r.error ?? t("common.error"));
         return;
       }
       setSent(true);

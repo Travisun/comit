@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
@@ -13,6 +15,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { apiGet, postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 
 /**
  * Console header — belongs to the RIGHT content area only (the sidebar is a
@@ -44,24 +48,20 @@ export function ConsoleTopbar({
   onMenuClick,
 }: ConsoleTopbarProps) {
   const router = useRouter();
-  const [unread, setUnread] = useState(0);
 
   // Best-effort unread count for the bell; stays silent on failure.
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/notifications?limit=1")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { unread?: number } | null) => {
-        if (!cancelled && data && typeof data.unread === "number") setUnread(data.unread);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // 键挂在 ["notifications"] 前缀下 —— 收件箱置已读会连带刷新角标。
+  const unreadQ = useQuery({
+    queryKey: queryKeys.notificationBadge(),
+    queryFn: async () =>
+      z
+        .object({ unread: z.number().optional() })
+        .parse(await apiGet<unknown>("/api/notifications?limit=1")),
+  });
+  const unread = unreadQ.data?.unread ?? 0;
 
   async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+    await postJson("/api/auth/logout", {}).catch(() => undefined);
     // replace：登出后浏览器回退不应回到已登录页面
     router.replace("/");
     router.refresh();

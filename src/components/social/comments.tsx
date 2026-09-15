@@ -3,12 +3,14 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { Loader2, MessageCircle, Send, Smile, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
@@ -16,28 +18,25 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
-import { isAuthError, mediaUrl, postJson, requestJson } from "@/lib/client/api";
+import { apiGet, deleteJson, isAuthError, mediaUrl, postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
+import {
+  commentsPageSchema,
+  type CommentItem,
+  type CommentsPage,
+} from "@/lib/models/comments";
 import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
 import { EmojiPopover, insertAtCursor } from "./composer-panels";
 
-export interface CommentItem {
-  id: string;
-  body: string;
-  createdAt: string;
-  likeCount: number;
-  liked?: boolean;
-  mine?: boolean;
-  canDelete?: boolean;
-  user: { username: string; displayName: string; avatarPath: string | null };
-  replyToCommentId: string | null;
-  replyToUsername: string | null;
-}
+export type { CommentItem };
 
-interface CommentsResponse {
-  items: CommentItem[];
-  nextCursor: string | null;
-  viewerId: string | null;
+const PAGE_LIMIT = "10";
+
+function commentsUrl(postId: string, cursor?: string | null) {
+  const qs = new URLSearchParams({ postId, limit: PAGE_LIMIT });
+  if (cursor) qs.set("cursor", cursor);
+  return `/api/comments?${qs.toString()}`;
 }
 
 export function Comments({
@@ -51,18 +50,41 @@ export function Comments({
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const [items, setItems] = useState<CommentItem[] | null>(null);
+  const queryClient = useQueryClient();
   const [count, setCount] = useState(initialCount);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  /** undefined = unknown (initial load), null = anonymous, string = signed in */
-  const [viewerId, setViewerId] = useState<string | null | undefined>(undefined);
+  /** 提交成功后本地兜底（首个页面返回前即可显示回复框） */
+  const [viewerOverride, setViewerOverride] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadingRef = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // ---- 评论流：无限分页（TanStack Query 托管缓存与翻页状态） ----
+  const commentsQ = useInfiniteQuery({
+    queryKey: queryKeys.comments(postId),
+    queryFn: async ({ pageParam }) =>
+      commentsPageSchema.parse(await apiGet<unknown>(commentsUrl(postId, pageParam))),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+
+  const items = useMemo(() => {
+    const seen = new Set<string>();
+    const out: CommentItem[] = [];
+    for (const page of commentsQ.data?.pages ?? []) {
+      for (const c of page.items) {
+        if (!seen.has(c.id)) {
+          seen.add(c.id);
+          out.push(c);
+        }
+      }
+    }
+    return out;
+  }, [commentsQ.data]);
+
+  const viewerId = viewerOverride ?? commentsQ.data?.pages[0]?.viewerId;
+  const initialLoaded = commentsQ.data !== undefined;
 
   // auto-grow the reply bar's textarea (capped, then it scrolls)
   useEffect(() => {
@@ -95,54 +117,6 @@ export function Comments({
     requestAnimationFrame(() => inputRef.current?.focus());
   }
 
-  const load = useCallback(
-    async (cursor?: string | null) => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-      setLoading(true);
-      try {
-        const qs = new URLSearchParams({ postId, limit: "10" });
-        if (cursor) qs.set("cursor", cursor);
-        const r = await requestJson<CommentsResponse>(`/api/comments?${qs.toString()}`);
-        setItems((prev) => {
-          if (cursor) {
-            const seen = new Set((prev ?? []).map((c) => c.id));
-            return [...(prev ?? []), ...r.items.filter((c) => !seen.has(c.id))];
-          }
-          return r.items;
-        });
-        setNextCursor(r.nextCursor);
-        setViewerId(r.viewerId);
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : t("common.error"));
-      } finally {
-        loadingRef.current = false;
-        setLoading(false);
-      }
-    },
-    [postId, t],
-  );
-
-  // initial page — async IIFE so no setState happens synchronously in the effect
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const qs = new URLSearchParams({ postId, limit: "10" });
-        const r = await requestJson<CommentsResponse>(`/api/comments?${qs.toString()}`);
-        if (cancelled) return;
-        setItems(r.items);
-        setNextCursor(r.nextCursor);
-        setViewerId(r.viewerId);
-      } catch (err) {
-        if (!cancelled) toast.error(err instanceof Error ? err.message : t("common.error"));
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [postId, t]);
-
   // ---- 锚点定位：/#comment-<id> 访问时滚动到对应评论并短暂高亮 ----
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,10 +132,10 @@ export function Comments({
     anchorTimer.current = setTimeout(() => setHighlightId(null), 2400);
   }, []);
 
-  // items 首次加载后尝试定位；此后监听 hash 变化（点击时间戳锚点同样生效）。
+  // 首页数据到达后尝试定位；此后监听 hash 变化（点击时间戳锚点同样生效）。
   // rAF 延迟一帧：滚动与高亮都不在 effect 同步路径上触发 setState。
   useEffect(() => {
-    if (items === null) return;
+    if (!initialLoaded) return;
     const raf = requestAnimationFrame(focusAnchor);
     window.addEventListener("hashchange", focusAnchor);
     return () => {
@@ -169,56 +143,59 @@ export function Comments({
       window.removeEventListener("hashchange", focusAnchor);
       if (anchorTimer.current) clearTimeout(anchorTimer.current);
     };
-  }, [items, focusAnchor]);
+  }, [initialLoaded, focusAnchor]);
 
   // ---- 定时增量拉取新评论：先提示，点击后并入列表 ----
-  const [pendingNew, setPendingNew] = useState<CommentItem[]>([]);
-  const pendingRef = useRef<CommentItem[]>([]);
-  useEffect(() => {
-    if (disabled) return;
-    const timer = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const qs = new URLSearchParams({ postId, limit: "10" });
-        const r = await requestJson<CommentsResponse>(`/api/comments?${qs.toString()}`);
-        const known = new Set((items ?? []).concat(pendingRef.current).map((x) => x.id));
-        const fresh = r.items.filter((x) => !known.has(x.id));
-        if (fresh.length === 0) return;
-        pendingRef.current = [...fresh, ...pendingRef.current];
-        setPendingNew(pendingRef.current);
-      } catch {
-        /* silent — 轮询失败不打扰阅读 */
-      }
-    }, 30_000);
-    return () => clearInterval(timer);
-  }, [postId, items, disabled]);
+  const checkQ = useQuery({
+    queryKey: queryKeys.commentsCheck(postId),
+    queryFn: async () =>
+      commentsPageSchema.parse(await apiGet<unknown>(commentsUrl(postId))),
+    enabled: !disabled,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
+  });
+
+  const pendingNew = useMemo(() => {
+    const page = checkQ.data;
+    if (!page) return [];
+    const known = new Set(items.map((x) => x.id));
+    return page.items.filter((x) => !known.has(x.id));
+  }, [checkQ.data, items]);
 
   function loadPending() {
-    setItems((prev) => {
-      const seen = new Set((prev ?? []).map((x) => x.id));
-      return [...pendingRef.current.filter((x) => !seen.has(x.id)), ...(prev ?? [])];
-    });
-    setCount((c) => c + pendingRef.current.length);
-    pendingRef.current = [];
-    setPendingNew([]);
+    queryClient.setQueryData<InfiniteData<CommentsPage>>(
+      queryKeys.comments(postId),
+      (prev) =>
+        prev
+          ? {
+              ...prev,
+              pages: prev.pages.map((p, i) =>
+                i === 0 ? { ...p, items: [...pendingNew, ...p.items] } : p,
+              ),
+            }
+          : prev,
+    );
+    setCount((c) => c + pendingNew.length);
     requestAnimationFrame(focusAnchor);
   }
 
   // infinite scroll
+  const fetchNextPage = commentsQ.fetchNextPage;
   useEffect(() => {
     const el = sentinelRef.current;
-    if (!el || !nextCursor) return;
+    if (!el || !commentsQ.hasNextPage) return;
     const io = new IntersectionObserver(
       (entries) => {
-        if (entries.some((e) => e.isIntersecting) && !loadingRef.current) {
-          void load(nextCursor);
+        if (entries.some((e) => e.isIntersecting) && !commentsQ.isFetchingNextPage) {
+          void fetchNextPage();
         }
       },
       { rootMargin: "300px" },
     );
     io.observe(el);
     return () => io.disconnect();
-  }, [nextCursor, load]);
+  }, [commentsQ.hasNextPage, commentsQ.isFetchingNextPage, fetchNextPage]);
 
   async function submit() {
     const text = body.trim();
@@ -230,11 +207,22 @@ export function Comments({
         body: text,
         replyToCommentId: replyTo?.id,
       });
-      setItems((prev) => [created, ...(prev ?? [])]);
+      queryClient.setQueryData<InfiniteData<CommentsPage>>(
+        queryKeys.comments(postId),
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                pages: prev.pages.map((p, i) =>
+                  i === 0 ? { ...p, items: [created, ...p.items] } : p,
+                ),
+              }
+            : prev,
+      );
       setCount((c) => c + 1);
       setBody("");
       setReplyTo(null);
-      setViewerId((v) => v ?? "signed-in");
+      setViewerOverride((v) => v ?? "signed-in");
       inputRef.current?.focus();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.error"));
@@ -261,8 +249,20 @@ export function Comments({
   async function remove(id: string) {
     if (!window.confirm(t("post.deleteConfirm"))) return;
     try {
-      await requestJson(`/api/comments?id=${encodeURIComponent(id)}`, { method: "DELETE" });
-      setItems((prev) => (prev ?? []).filter((c) => c.id !== id));
+      await deleteJson(`/api/comments?id=${encodeURIComponent(id)}`);
+      queryClient.setQueryData<InfiniteData<CommentsPage>>(
+        queryKeys.comments(postId),
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                pages: prev.pages.map((p) => ({
+                  ...p,
+                  items: p.items.filter((c) => c.id !== id),
+                })),
+              }
+            : prev,
+      );
       setCount((c) => Math.max(0, c - 1));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.error"));
@@ -306,7 +306,7 @@ export function Comments({
 
       {/* list */}
       <div className="mt-4 space-y-1">
-        {items === null ? (
+        {!initialLoaded ? (
           <div className="space-y-4 py-2">
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex gap-3">
@@ -404,7 +404,7 @@ export function Comments({
 
       {/* infinite scroll sentinel */}
       <div ref={sentinelRef} />
-      {loading && items !== null && (
+      {commentsQ.isFetchingNextPage && (
         <div className="flex justify-center py-3">
           <Loader2 className={cn("size-4 animate-spin text-muted-foreground")} />
         </div>
