@@ -17,8 +17,11 @@ export async function GET(req: Request) {
     const status = url.searchParams.get("status") ?? "all";
     const type = url.searchParams.get("type") ?? "all";
     const q = (url.searchParams.get("q") ?? "").trim();
-    const limit = Math.min(Number(url.searchParams.get("limit") ?? 20), 200);
-    const offset = Number(url.searchParams.get("offset") ?? 0);
+    // 显式 Number.isFinite 校验：Number("abc") 是 NaN，?? 拦不住，非法值回落默认
+    const limitRaw = Number(url.searchParams.get("limit") ?? 20);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(Math.floor(limitRaw), 1), 200) : 20;
+    const offsetRaw = Number(url.searchParams.get("offset") ?? 0);
+    const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
 
     const conds = [eq(posts.authorId, auth.user.id)];
     if (status === "all") {

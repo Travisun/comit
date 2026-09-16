@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
-import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+
+/** 组件本地乐观状态（缓存承载）；无对应服务端列表键，故不入 queryKeys 工厂 */
+interface LikeState {
+  liked: boolean;
+  count: number;
+}
 
 export function LikeButton({
   targetType,
@@ -22,38 +29,51 @@ export function LikeButton({
   className?: string;
 }) {
   const { t } = useI18n();
-  const [liked, setLiked] = useState(initialLiked);
-  const [count, setCount] = useState(initialCount);
-  const [busy, setBusy] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function toggle() {
-    if (busy) return;
-    setBusy(true);
-    const next = !liked;
-    // optimistic
-    setLiked(next);
-    setCount((c) => c + (next ? 1 : -1));
-    try {
-      const r = await postJson<{ liked: boolean; count: number }>("/api/likes", {
-        targetType,
-        targetId,
-      });
-      setLiked(r.liked);
-      setCount(r.count);
-    } catch (err) {
-      setLiked(!next);
-      setCount((c) => c + (next ? -1 : 1));
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setBusy(false);
-    }
+  // 点赞状态放查询缓存：useApiMutation 的 optimistic 直接翻转缓存值、
+  // 失败自动回滚快照。staleTime Infinity → queryFn 只作首渲种子，不会重发。
+  const stateKey = useMemo(
+    () => ["like", targetType, targetId] as const,
+    [targetType, targetId],
+  );
+  const { data } = useQuery({
+    queryKey: stateKey,
+    queryFn: (): LikeState => ({ liked: initialLiked, count: initialCount }),
+    initialData: { liked: initialLiked, count: initialCount },
+    staleTime: Infinity,
+  });
+  const liked = data.liked;
+  const count = data.count;
+
+  const toggleMutation = useApiMutation(
+    () => postJson<LikeState>("/api/likes", { targetType, targetId }),
+    {
+      // 无关系查询键可失效 → 保留默认 RSC refresh 兜底页面上的服务端计数
+      optimistic: {
+        queryKey: stateKey,
+        apply: (prev) => {
+          const p = (prev ?? { liked: initialLiked, count: initialCount }) as LikeState;
+          return { liked: !p.liked, count: Math.max(0, p.count + (p.liked ? -1 : 1)) };
+        },
+      },
+      onSuccess: (r) => {
+        // 服务端权威值覆盖乐观值（快速连点时以响应为准）
+        queryClient.setQueryData<LikeState>(stateKey, { liked: r.liked, count: r.count });
+      },
+    },
+  );
+
+  function toggle() {
+    if (toggleMutation.pending) return;
+    void toggleMutation.mutate(undefined);
   }
 
   return (
     <button
       type="button"
       onClick={toggle}
-      disabled={busy}
+      disabled={toggleMutation.pending}
       aria-pressed={liked}
       title={liked ? t("post.unlike") : t("post.like")}
       className={cn(

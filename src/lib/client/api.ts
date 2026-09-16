@@ -1,5 +1,7 @@
 "use client";
 
+import { routes } from "@/core/routes";
+
 /**
  * 全局客户端 fetch 层 — 所有浏览器端数据访问的唯一入口。
  *
@@ -41,6 +43,37 @@ export function isAuthError(err: unknown): boolean {
   return isApiError(err) && (err.status === 401 || err.status === 403);
 }
 
+/* ------------------------------ 全局 401 处理 ------------------------------ */
+
+/**
+ * 会话过期的全局兜底：核心请求拿到 401 时跳转登录页（?error=session），
+ * 用户不再被困在「请求全部静默失败」的页面里。错误仍照常抛出 / 返回，
+ * 组件级 catch 不受影响 —— 重定向只是额外动作。
+ *
+ * 排除清单（这些端点用 401 做业务语义，重定向会让坏凭据变成死循环）：
+ *  - /api/auth/login    登录失败 → 表单内提示，不该跳回登录页
+ *  - /api/auth/logout   登出本就不持有有效会话
+ *  - /api/auth/register 注册流程按状态码分支
+ *  - /api/auth/2fa/*    2FA 质询按状态码分支
+ * 另：当前页面本身在 /auth 下（登录/注册/2FA 页）时不重定向。
+ */
+const SESSION_REDIRECT_EXCLUDED = [
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/register",
+] as const;
+
+export function redirectIfSessionExpired(status: number, url: string): void {
+  if (status !== 401 || typeof window === "undefined") return;
+  if (window.location.pathname.startsWith("/auth")) return;
+  if (url.startsWith("/api/auth/2fa/")) return;
+  if (SESSION_REDIRECT_EXCLUDED.some((p) => url.startsWith(p))) return;
+  // 故意整页跳转：会话过期后需要硬刷新以丢弃 RSC payload 与客户端缓存
+  // （router.push 会保留陈旧的已认证视图）；本条 lint 建议不适用于此场景。
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload is intentional (see above)
+  window.location.assign(`${routes.login}?error=session`);
+}
+
 async function parseBody(res: Response): Promise<unknown> {
   try {
     return await res.json();
@@ -53,6 +86,7 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
   const body = await parseBody(res);
   if (!res.ok) {
+    redirectIfSessionExpired(res.status, url);
     throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
   }
   return body as T;
@@ -103,6 +137,7 @@ export async function requestSafe<T>(url: string, init?: RequestInit): Promise<S
     const res = await fetch(url, init);
     const body = await parseBody(res);
     if (res.ok) return { ok: true, data: body as T };
+    redirectIfSessionExpired(res.status, url);
     const d = (body ?? {}) as ApiErrorBody;
     return { ok: false, status: res.status, error: d.error, blocked: d.blocked };
   } catch {

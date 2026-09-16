@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, likes, posts } from "@/db/schema";
 import { notFound } from "@/core/errors";
@@ -68,19 +68,32 @@ export const toggleLike = defineAction({
       liked = true;
     }
 
-    // recount from source of truth
-    const [{ n }] = await db
-      .select({ n: count() })
-      .from(likes)
-      .where(and(eq(likes.targetType, targetType), eq(likes.targetId, targetId)));
-
+    // recount from source of truth — 单条原子 SQL：
+    // UPDATE … SET like_count = (SELECT COUNT(*) FROM likes WHERE …)，
+    // 消除 select→update 读改写竞态（并发 toggle 互相覆盖计数）。
+    // camelCase 映射由 drizzle 查询构建器保持，RETURNING 取回最新计数。
+    let n: number;
     if (targetType === "post") {
-      await db.update(posts).set({ likeCount: n }).where(eq(posts.id, targetId));
+      const [row] = await db
+        .update(posts)
+        .set({
+          likeCount: sql`(SELECT COUNT(*) FROM ${likes} WHERE ${likes.targetType} = ${targetType} AND ${likes.targetId} = ${targetId})`,
+        })
+        .where(eq(posts.id, targetId))
+        .returning({ likeCount: posts.likeCount });
+      n = row?.likeCount ?? 0;
       if (liked) {
         void emit("post:liked", { postId: targetId, actorId: userId, authorId });
       }
     } else {
-      await db.update(comments).set({ likeCount: n }).where(eq(comments.id, targetId));
+      const [row] = await db
+        .update(comments)
+        .set({
+          likeCount: sql`(SELECT COUNT(*) FROM ${likes} WHERE ${likes.targetType} = ${targetType} AND ${likes.targetId} = ${targetId})`,
+        })
+        .where(eq(comments.id, targetId))
+        .returning({ likeCount: comments.likeCount });
+      n = row?.likeCount ?? 0;
       if (liked) {
         void emit("comment:liked", {
           commentId: targetId,

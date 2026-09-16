@@ -27,6 +27,8 @@ import {
   postJson,
 } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
+import { useApiMutation } from "@/lib/query/mutation";
+import { useRealtime } from "@/lib/client/realtime";
 import { messagesPageSchema, type MessagesPage, type MessageItem } from "@/lib/models/messages";
 
 export interface ChatPartner {
@@ -40,13 +42,37 @@ export function ChatClient({ other }: { other: ChatPartner }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
-  // 会话消息：首屏 + 30s 轮询由 TanStack Query 托管（后台标签页自动暂停）
+  // 会话消息：SSE 实时推送为主（见下方 useRealtime），60s 轮询仅作兜底
+  // （SSE 断线/不可用时保底收新消息），由 TanStack Query 托管（后台标签页自动暂停）
   const threadQ = useQuery({
     queryKey: queryKeys.messages(other.id),
     queryFn: async () =>
       messagesPageSchema.parse(await apiGet<unknown>(`/api/messages/${other.id}`)),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
+  });
+
+  // 实时接入（单例 SSE 总线）：message.created 的 payload 只有
+  // `{ from: senderId, messageId }` —— `from` 等于当前会话对端 id 才是本
+  // 线程消息，重拉 thread（GET 会顺带把对方消息标已读）；会话列表预览/未读
+  // 则任何消息事件都要失效。realtime.reconnected 补偿断线窗口内的丢失推送。
+  useRealtime((event) => {
+    if (event.type === "message.created") {
+      const p = (event.payload ?? {}) as { from?: string };
+      if (p.from === other.id) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages(other.id) });
+      }
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
+    } else if (event.type === "message.read") {
+      // 已读回执（bus payload 形状 { userId: 读者, peerId }，只读参考）
+      const p = (event.payload ?? {}) as { userId?: string; peerId?: string };
+      if (p.userId === other.id || p.peerId === other.id) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.messages(other.id) });
+      }
+    } else if (event.type === "realtime.reconnected") {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.messages(other.id) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
+    }
   });
 
   // 更早的消息（反向游标翻页）——服务端只给首页游标，本地累积合并。
@@ -62,7 +88,6 @@ export function ChatClient({ other }: { other: ChatPartner }) {
       : (threadQ.data?.nextCursor ?? null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [input, setInput] = useState("");
-  const [sending, setSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const atBottomRef = useRef(true);
@@ -126,28 +151,39 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     }
   }
 
+  // 发消息（mutation 收编）：静默失败（onError 自行 toast + 登录跳转），
+  // 成功后 setQueryData 把新消息增量插入 thread 缓存（对齐 comments.tsx
+  // 的提交模式）→ items 派生更新 → 底部跟随滚动；refresh 关闭（本页无
+  // RSC 关系数据），仅失效会话列表让预览/未读同步推进。
+  const sendMutation = useApiMutation(
+    (payload: { body?: string; mediaPath?: string }) =>
+      postJson<MessageItem>(`/api/messages/${other.id}`, payload),
+    {
+      silent: true,
+      refresh: false,
+      invalidate: [queryKeys.conversations()],
+      onSuccess: (created) => {
+        queryClient.setQueryData<MessagesPage>(queryKeys.messages(other.id), (prev) =>
+          prev ? { ...prev, items: [...prev.items, created] } : prev,
+        );
+        atBottomRef.current = true;
+        requestAnimationFrame(() => scrollToBottom("smooth"));
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : t("common.error"));
+        if (isAuthError(err)) router.push("/auth/login");
+      },
+    },
+  );
+
   async function send(payload: { body?: string; mediaPath?: string }) {
-    if (sending) return;
-    setSending(true);
-    try {
-      const created = await postJson<MessageItem>(`/api/messages/${other.id}`, payload);
-      // 写入查询缓存 → items 派生更新 → 底部跟随滚动
-      queryClient.setQueryData(queryKeys.messages(other.id), (prev: typeof threadQ.data) =>
-        prev ? { ...prev, items: [...prev.items, created] } : prev,
-      );
-      atBottomRef.current = true;
-      requestAnimationFrame(() => scrollToBottom("smooth"));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-      if (isAuthError(err)) router.push("/auth/login");
-    } finally {
-      setSending(false);
-    }
+    if (sendMutation.pending) return;
+    await sendMutation.mutate(payload);
   }
 
   async function sendText() {
     const text = input.trim();
-    if (!text || sending) return;
+    if (!text || sendMutation.pending) return;
     setInput("");
     await send({ body: text });
   }
@@ -296,7 +332,7 @@ export function ChatClient({ other }: { other: ChatPartner }) {
           size="icon-sm"
           className="mb-1 shrink-0 rounded-full"
           aria-label={t("editor.cover")}
-          disabled={uploading || sending}
+          disabled={uploading || sendMutation.pending}
           onClick={() => fileRef.current?.click()}
         >
           {uploading ? <Loader2 className="size-4 animate-spin" /> : <ImagePlus className="size-4" />}
@@ -314,10 +350,10 @@ export function ChatClient({ other }: { other: ChatPartner }) {
           size="icon-sm"
           className="mb-1 shrink-0 rounded-full"
           aria-label={t("messages.send")}
-          disabled={!input.trim() || sending || uploading}
+          disabled={!input.trim() || sendMutation.pending || uploading}
           onClick={() => void sendText()}
         >
-          {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          {sendMutation.pending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
         </Button>
       </div>
     </div>

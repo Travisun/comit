@@ -1,9 +1,9 @@
-import { forbidden, toErrorResponse, AppError, notFound } from "@/core/errors";
+import { forbidden, toErrorResponse, AppError, notFound, unauthorized } from "@/core/errors";
 import { apiUser } from "@/lib/auth/guards";
 import type { AuthContext } from "@/lib/auth/session";
 
 // Convenience re-exports so route handlers can import everything from one place.
-export { AppError, notFound, forbidden, toErrorResponse };
+export { AppError, notFound, forbidden, unauthorized, toErrorResponse };
 export type { AuthContext };
 
 /**
@@ -40,7 +40,8 @@ export async function withUser(
   try {
     assertSameOrigin(req);
     const user = await apiUser();
-    if (!user) throw forbidden("请先登录 / Sign in required");
+    // 契约约定：无会话/会话无效 → 401 unauthorized；已登录但无权限 → 403 forbidden
+    if (!user) throw unauthorized("请先登录 / Sign in required");
     return await handler(user);
   } catch (err) {
     return toErrorResponse(err);
@@ -54,7 +55,8 @@ export async function withAdmin(
   try {
     assertSameOrigin(req);
     const user = await apiUser();
-    if (!user) throw forbidden("请先登录 / Sign in required");
+    // 契约约定：未认证 → 401；已认证但角色不足 → 403
+    if (!user) throw unauthorized("请先登录 / Sign in required");
     if (user.user.role !== "admin") throw forbidden("需要管理员权限 / Admin required");
     return await handler(user);
   } catch (err) {

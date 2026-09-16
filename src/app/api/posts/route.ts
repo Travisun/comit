@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { db } from "@/db";
-import { polls, posts } from "@/db/schema";
+import { polls, posts, type Post } from "@/db/schema";
 import { jsonBody, ok, withUser } from "@/lib/http";
-import { AppError } from "@/core/errors";
+import { AppError, conflict } from "@/core/errors";
 import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
 import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
-import { postRepo } from "@/lib/post-repo";
+import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import { POLL_MAX_DURATION_DAYS, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, validatePollOptions } from "@/lib/poll";
 import {
@@ -70,6 +70,11 @@ const createSchema = z
     },
   );
 
+/** Postgres unique_violation 检测（slug 唯一约束兜底用）。 */
+function isUniqueViolation(err: unknown): boolean {
+  return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "23505";
+}
+
 export async function POST(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
     const body = parseWith(createSchema, await jsonBody(req));
@@ -111,7 +116,7 @@ export async function POST(req: Request): Promise<Response> {
       if (blocked.length) return blockedResponse(blocked);
     }
 
-    const slug = type === "article" ? await resolveArticleSlug(auth.user.id, body.slug) : null;
+    const slug = type === "article" ? await resolveArticleSlug({ authorId: auth.user.id }) : null;
     const summary = ensureSummary(body.summary, content || title || "");
     const labelColumns = resolveLabelFields(
       body.label ?? DEFAULT_LABEL,
@@ -119,34 +124,69 @@ export async function POST(req: Request): Promise<Response> {
       body.sourceName,
     );
 
-    // 写入统一走仓储层：post:saving / post:saved 钩子在仓储内触发（C1）
-    const post = await postRepo.create(
-      {
-        authorId: auth.user.id,
-        type,
-        slug,
-        title,
-        summary,
-        content,
-        coverPath: body.coverPath ?? null,
-        collectionId: body.collectionId ?? null,
-        status: body.action === "submit" ? "pending_review" : "draft",
-        visibility: body.visibility ?? "public",
-        ...labelColumns,
-      },
-      { id: auth.user.id, username: auth.user.username, role: auth.user.role },
-    );
+    /**
+     * 单事务覆盖 post + topics + poll 的全部写入，任一失败整体回滚
+     * （原先 postRepo.create 与 topics/poll 是两个独立事务，中途失败会留下
+     * 缺 topics/poll 的半成品文章）。post:saving / post:saved 钩子仍经
+     * @/core/capabilities/post-lifecycle 触发，与仓储层同款上下文；
+     * post:saved 移到提交后触发，保证监听方经连接池读取时行已可见。
+     */
+    let post: Post;
+    try {
+      post = await db.transaction(async (tx): Promise<Post> => {
+        const payload: Record<string, unknown> = {
+          authorId: auth.user.id,
+          type,
+          slug,
+          title,
+          summary,
+          content,
+          coverPath: body.coverPath ?? null,
+          collectionId: body.collectionId ?? null,
+          status: body.action === "submit" ? "pending_review" : "draft",
+          visibility: body.visibility ?? "public",
+          ...labelColumns,
+        };
+        // post:saving 钩子（扩展可改写载荷或拒绝保存）
+        const savingCtx = {
+          action: "create" as const,
+          payload,
+          author: { id: auth.user.id, username: auth.user.username, role: auth.user.role },
+          rejection: null as string | null,
+          reject(reason: string) {
+            savingCtx.rejection = reason;
+          },
+        };
+        await runPostSaving(savingCtx);
+        if (savingCtx.rejection) {
+          throw new AppError(savingCtx.rejection, 422, "extension_rejected");
+        }
 
-    await db.transaction(async (tx) => {
-      if (body.topicNames?.length) await syncPostTopics(tx, post.id, body.topicNames);
-      if (pollRow) {
-        await tx.insert(polls).values({
-          postId: post.id,
-          mode: pollRow.mode,
-          options: pollRow.options,
-          endsAt: pollRow.endsAt,
-        });
+        const [row] = await tx.insert(posts).values(payload as typeof posts.$inferInsert).returning();
+
+        if (body.topicNames?.length) await syncPostTopics(tx, row.id, body.topicNames);
+        if (pollRow) {
+          await tx.insert(polls).values({
+            postId: row.id,
+            mode: pollRow.mode,
+            options: pollRow.options,
+            endsAt: pollRow.endsAt,
+          });
+        }
+        return row;
+      });
+    } catch (err) {
+      // slug 最终兜底：唯一约束 posts_author_slug_key 的 23505 → 409
+      if (isUniqueViolation(err)) {
+        throw conflict("slug 已被占用 / Slug already exists");
       }
+      throw err;
+    }
+
+    await runPostSaved({
+      action: "create",
+      post: { id: post.id, type: post.type, status: post.status, title: post.title },
+      author: { id: auth.user.id },
     });
 
     // 投票结束任务：到点拉取计票并给作者与投票用户发结果通知；

@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { routes } from "@/core/routes";
-import { apiGet, postJsonSafe } from "@/lib/client/api";
+import { apiGet, postJsonSafe, requestSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,10 +15,12 @@ interface SetupResponse {
   secret: string;
 }
 
+const JSON_HEADERS = { "Content-Type": "application/json" } as const;
+
 export function SetupForm() {
   const { t } = useI18n();
-  const router = useRouter();
   const [setup, setSetup] = useState<SetupResponse | null>(null);
+  const [setupLoading, setSetupLoading] = useState(true);
   const [setupError, setSetupError] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -32,17 +33,27 @@ export function SetupForm() {
   const [pwBusy, setPwBusy] = useState(false);
   const [pwDone, setPwDone] = useState(false);
   const [copied, setCopied] = useState(false);
+  // startedRef 防 StrictMode 双跑：/2fa/setup 每次调用都会签发新 TOTP 密钥
   const startedRef = useRef(false);
+  // StrictMode 首挂载的 effect 会被 cleanup abort，二次挂载需据此重启首跑
+  const abortedRef = useRef(false);
 
-  useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-    (async () => {
+  /**
+   * 拉取 2FA 初始化材料（挂载自动跑一次；失败后可经重试按钮重跑）。
+   * 传入 signal 时：卸载 abort 会取消在途请求，且 abort 后不再 setState。
+   */
+  const runSetup = useCallback(
+    async (signal?: AbortSignal) => {
+      setSetupError(null);
+      setSetupLoading(true);
       try {
-        apiGet<{ hasPassword?: boolean }>("/api/me/profile")
-          .then((d) => setNeedsPassword(Boolean(d?.hasPassword === false)))
-          .catch(() => {});
-        const r = await postJsonSafe<Partial<SetupResponse>>("/api/auth/2fa/setup", {});
+        const r = await requestSafe<Partial<SetupResponse>>("/api/auth/2fa/setup", {
+          method: "POST",
+          headers: JSON_HEADERS,
+          body: JSON.stringify({}),
+          signal,
+        });
+        if (signal?.aborted) return;
         if (!r.ok) {
           setSetupError(r.error ?? t("common.error"));
           return;
@@ -54,10 +65,37 @@ export function SetupForm() {
         }
         setSetup({ uri, qrDataUrl, secret });
       } catch {
+        // abort 在 requestSafe 里归一为 status 0 失败——静默丢弃即可
+        if (signal?.aborted) return;
         setSetupError(t("common.error"));
+      } finally {
+        if (!signal?.aborted) setSetupLoading(false);
       }
-    })();
-  }, [t]);
+    },
+    [t],
+  );
+
+  useEffect(() => {
+    if (startedRef.current) {
+      // 二次挂载（StrictMode）：首跑已被 cleanup abort，重启；真实重复渲染不重跑
+      if (!abortedRef.current) return;
+      abortedRef.current = false;
+    } else {
+      startedRef.current = true;
+    }
+    const ac = new AbortController();
+    apiGet<{ hasPassword?: boolean }>("/api/me/profile")
+      .then((d) => {
+        if (!ac.signal.aborted) setNeedsPassword(Boolean(d?.hasPassword === false));
+      })
+      .catch(() => {});
+    void runSetup(ac.signal);
+    // 卸载取消在途请求并丢弃结果，避免卸载后 setState
+    return () => {
+      ac.abort();
+      abortedRef.current = true;
+    };
+  }, [runSetup]);
 
   const copyAll = useCallback(async () => {
     if (!recoveryCodes) return;
@@ -136,8 +174,8 @@ export function SetupForm() {
           <Button
             className="flex-1"
             onClick={() => {
-              router.push(routes.home);
-              router.refresh();
+              // 整页跳转：安全设置边界不做 SPA 导航（push+refresh 双 RSC 竞态）
+              window.location.replace(routes.home);
             }}
           >
             {t("common.confirm")}
@@ -148,7 +186,15 @@ export function SetupForm() {
   }
 
   if (setupError) {
-    return <AuthBanner tone="error">{setupError}</AuthBanner>;
+    return (
+      <div className="flex flex-col gap-3">
+        <AuthBanner tone="error">{setupError}</AuthBanner>
+        {/* 初始化失败（网络/会话等）可手动重跑，重试期间禁用防复点 */}
+        <Button variant="outline" onClick={() => void runSetup()} disabled={setupLoading}>
+          {setupLoading ? t("common.loading") : t("common.retry")}
+        </Button>
+      </div>
+    );
   }
 
   if (!setup) {

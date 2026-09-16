@@ -29,6 +29,14 @@ const UV_THREADS = process.env.UV_THREADPOOL_SIZE || "8";
 
 if (cluster.isPrimary) {
   console.log(`[cluster] master pid=${process.pid} forking ${WORKERS} workers (uv threads=${UV_THREADS})`);
+  if (WORKERS > 1) {
+    // 多进程语义告警（不改变行为）：rate-limit 等组件是进程内存态，
+    // 每 worker 各自独立计数 → 有效阈值按 worker 数放大；需要精确全局限流时换 Redis。
+    console.warn(
+      `[cluster] WEB_CONCURRENCY=${WORKERS}: in-process rate limiting / caches are per-worker memory — ` +
+        `effective limits scale by worker count; use Redis for exact global limits`,
+    );
+  }
   for (let i = 0; i < WORKERS; i++) {
     cluster.fork({ WORKER_ID: String(i + 1), UV_THREADPOOL_SIZE: UV_THREADS });
   }

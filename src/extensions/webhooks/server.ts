@@ -5,7 +5,6 @@ import { createHmac, randomBytes } from "crypto";
 import { queue } from "@/core/queue";
 import type { AppEventPayloads } from "@/core/events";
 import {
-  registerChannel,
   type NotificationChannel,
   type NotificationMessage,
   type Plugin,
@@ -43,12 +42,24 @@ async function enqueueDelivery(hook: typeof webhooks.$inferSelect, event: string
     .insert(webhookDeliveries)
     .values({ webhookId: hook.id, event, payload })
     .returning({ id: webhookDeliveries.id });
-  await queue.send("webhook.deliver", {
-    webhookId: hook.id,
-    event,
-    payloadJson: JSON.stringify({ event, data: payload, deliveryId: delivery.id }),
-    deliveryId: delivery.id,
-  });
+  // queue.send 返回 null（或抛错）= 队列不可用 → 直接置 failed，避免 delivery 永久 pending
+  const jobId = await queue
+    .send("webhook.deliver", {
+      webhookId: hook.id,
+      event,
+      payloadJson: JSON.stringify({ event, data: payload, deliveryId: delivery.id }),
+      deliveryId: delivery.id,
+    })
+    .catch((err: unknown) => {
+      console.error("[webhooks] queue.send failed:", err);
+      return null;
+    });
+  if (jobId === null) {
+    await db
+      .update(webhookDeliveries)
+      .set({ status: "failed", error: "queue unavailable: enqueue failed" })
+      .where(eq(webhookDeliveries.id, delivery.id));
+  }
 }
 
 /** Fan a domain event out to every subscribed, active webhook. */

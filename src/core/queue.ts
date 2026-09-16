@@ -37,9 +37,12 @@ export interface JobPayloads {
 type JobName = keyof JobPayloads;
 
 let bossPromise: Promise<PgBoss> | null = null;
+/** 上次 start 失败时间（退避冷却用） */
+let bossFailedAt = 0;
+const BOSS_RETRY_BACKOFF_MS = 5_000;
 
 declare global {
-  // eslint-disable-next-line no-var
+  // TS 声明合并仅允许 var（ambient context，eslint no-var 不适用）
   var __mbBoss: PgBoss | undefined;
 }
 
@@ -54,16 +57,30 @@ function createBoss(): PgBoss {
 }
 
 export async function getBoss(): Promise<PgBoss> {
-  if (!globalThis.__mbBoss) {
-    if (!bossPromise) {
-      bossPromise = createBoss().start().then((b) => {
-        globalThis.__mbBoss = b;
-        return b;
-      });
-    }
-    await bossPromise;
+  const cached = globalThis.__mbBoss;
+  if (cached) return cached;
+  const pending = bossPromise;
+  if (pending) return pending;
+  // 失败退避：start 失败后清空缓存的 promise（下次调用重新初始化），
+  // 冷却期内的调用直接快速失败，避免每次请求都去重连拖垮 DB。
+  if (Date.now() - bossFailedAt < BOSS_RETRY_BACKOFF_MS) {
+    throw new Error("[queue] pg-boss unavailable (recent start failure, backing off)");
   }
-  return globalThis.__mbBoss!;
+  const p = createBoss()
+    .start()
+    .then((b) => {
+      globalThis.__mbBoss = b;
+      return b;
+    });
+  bossPromise = p;
+  // 预挂 catch：start 失败 → 清空缓存 promise 与 __mbBoss，记录冷却起点
+  p.catch((err) => {
+    console.error("[queue] pg-boss start failed, will retry after backoff:", err);
+    bossPromise = null;
+    globalThis.__mbBoss = undefined;
+    bossFailedAt = Date.now();
+  });
+  return p;
 }
 
 export const queue = {
@@ -95,7 +112,9 @@ export const queue = {
         try {
           await handler();
         } catch (err) {
-          console.error(`[cron:${def.name}] tick failed:`, err);
+          // 必须rethrow：吞掉错误会让 pg-boss 视为成功 → 失败即丢，重试策略失效
+          console.error(`[cron:${def.name}] job ${job.id} tick failed:`, err);
+          throw err;
         }
       }
     });

@@ -1,0 +1,114 @@
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.development.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.development.js
+index 5d664220c00ab44ea46267508ffd757c6749f6e5..49a88d35d5efb9ad0fa35a3c881a0e817e14560a 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.development.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.development.js
+@@ -1714,7 +1714,7 @@
+       );
+     }
+     function resolveModelChunk(response, chunk, value) {
+-      if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++      if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+       else {
+         releasePendingChunk(response, chunk);
+         var resolveListeners = chunk.value,
+@@ -3424,8 +3424,9 @@
+       innerCall
+     ) {
+       for (var i = 0; i < stack.length; i++) {
+-        var frame = stack[i],
+-          frameKey =
++        var frame = stack[i];
++        if (!frame || "function" !== typeof frame.join) continue;
++        var frameKey =
+             frame.join("-") +
+             "-" +
+             environmentName +
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js
+index 1d0d66f5cc65f197e596ecb76b2d5ce2ce663420..4ab196d14ac5de6443e2a52fd684abb1f1ac4903 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.browser.production.js
+@@ -702,7 +702,7 @@ function resolveIteratorResultChunk(response, chunk, value, done) {
+   );
+ }
+ function resolveModelChunk(response, chunk, value) {
+-  if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++  if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+   else {
+     var resolveListeners = chunk.value,
+       rejectListeners = chunk.reason;
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.development.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.development.js
+index 66102ed8a0077e9552598f19df59e592d586b551..a125081ba8d9679e43a9cd1180e7e13da719c40e 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.development.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.development.js
+@@ -1927,7 +1927,7 @@
+       );
+     }
+     function resolveModelChunk(response, chunk, value) {
+-      if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++      if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+       else {
+         releasePendingChunk(response, chunk);
+         var resolveListeners = chunk.value,
+@@ -3565,8 +3565,9 @@
+       innerCall
+     ) {
+       for (var i = 0; i < stack.length; i++) {
+-        var frame = stack[i],
+-          frameKey =
++        var frame = stack[i];
++        if (!frame || "function" !== typeof frame.join) continue;
++        var frameKey =
+             frame.join("-") +
+             "-" +
+             environmentName +
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js
+index 9fdb45b8aec544bd5ac1704189bcfc6daebbe65b..c74b826e83b9ccad8e3b6b2cac55ecd2d530d850 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.edge.production.js
+@@ -882,7 +882,7 @@ function resolveIteratorResultChunk(response, chunk, value, done) {
+   );
+ }
+ function resolveModelChunk(response, chunk, value) {
+-  if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++  if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+   else {
+     var resolveListeners = chunk.value,
+       rejectListeners = chunk.reason;
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.development.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.development.js
+index 35a80e0ba30b4f1bac32ea5320542eb2871a4e49..b9170fe56870d506287cd057665bf1e4f678c435 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.development.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.development.js
+@@ -1930,7 +1930,7 @@
+       );
+     }
+     function resolveModelChunk(response, chunk, value) {
+-      if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++      if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+       else {
+         releasePendingChunk(response, chunk);
+         var resolveListeners = chunk.value,
+@@ -3623,8 +3623,9 @@
+       innerCall
+     ) {
+       for (var i = 0; i < stack.length; i++) {
+-        var frame = stack[i],
+-          frameKey =
++        var frame = stack[i];
++        if (!frame || "function" !== typeof frame.join) continue;
++        var frameKey =
+             frame.join("-") +
+             "-" +
+             environmentName +
+diff --git a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js
+index a7686b26561003614a6a087db8694b228dfd6b55..9c940bac5988d4247b85b60b6ec4d899a37a5660 100644
+--- a/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js
++++ b/dist/compiled/react-server-dom-turbopack/cjs/react-server-dom-turbopack-client.node.production.js
+@@ -883,7 +883,7 @@ function resolveIteratorResultChunk(response, chunk, value, done) {
+   );
+ }
+ function resolveModelChunk(response, chunk, value) {
+-  if ("pending" !== chunk.status) chunk.reason.enqueueModel(value);
++  if ("pending" !== chunk.status) { var r = chunk.reason; null != r && "function" == typeof r.enqueueModel   ? r.enqueueModel(value)   : console.error("[flight-fix] duplicate model resolution on settled chunk ignored"); }
+   else {
+     var resolveListeners = chunk.value,
+       rejectListeners = chunk.reason;

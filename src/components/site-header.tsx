@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
   PenLine,
@@ -40,7 +40,6 @@ export interface HeaderUser {
 export function SiteHeader({
   user,
   locale,
-  siteName,
   isAdmin,
 }: {
   user: HeaderUser | null;
@@ -49,7 +48,6 @@ export function SiteHeader({
   isAdmin: boolean;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const nav = [
@@ -60,9 +58,9 @@ export function SiteHeader({
 
   async function logout() {
     await postJson("/api/auth/logout", {}).catch(() => undefined);
-    // replace：登出后浏览器回退不应回到已登录页面
-    router.replace("/");
-    router.refresh();
+    // 整页跳转：会话边界不做 SPA 导航（replace+refresh 双 RSC 请求会触发
+    // flight 客户端竞态 enqueueModel 崩溃），同时确保客户端缓存全部清空
+    window.location.replace("/");
   }
 
   return (

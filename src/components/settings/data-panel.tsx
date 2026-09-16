@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Download, FileDown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
@@ -16,9 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { formatBytes, timeAgo } from "@/lib/utils";
 import { apiRequest } from "./client";
 import type { ExportJobView } from "./types";
+
+/** 导出任务列表键 — keys.ts 冻结期内就地定义，后续可提升进 queryKeys */
+const EXPORT_JOBS_KEY = ["me", "export-jobs"] as const;
 
 function statusBadge(status: string, locale: "zh" | "en") {
   const labels: Record<string, { zh: string; en: string }> = {
@@ -35,47 +38,38 @@ function statusBadge(status: string, locale: "zh" | "en") {
 
 function ExportCard({ initial }: { initial: ExportJobView[] }) {
   const { t, locale } = useI18n();
-  const [jobs, setJobs] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 任务列表 — 有 queued/building 任务时每 3s 轮询，全部收尾后停表
+  // （refetchInterval 以最新 data 判定；后台标签页不轮询）
+  const jobsQ = useQuery({
+    queryKey: EXPORT_JOBS_KEY,
+    queryFn: async () => (await apiRequest<{ jobs: ExportJobView[] }>("/api/export", "GET")).jobs,
+    // 服务端首屏任务作为初始缓存，挂载不空转
+    initialData: initial,
+    refetchInterval: (q) =>
+      q.state.data?.some((j) => j.status === "queued" || j.status === "building") ? 3000 : false,
+    refetchIntervalInBackground: false,
+  });
+  const jobs = jobsQ.data ?? initial;
   const hasPending = jobs.some((j) => j.status === "queued" || j.status === "building");
 
-  useEffect(() => {
-    if (!hasPending) return;
-    pollRef.current = setInterval(async () => {
-      try {
-        const res = await apiRequest<{ jobs: ExportJobView[] }>("/api/export", "GET");
-        setJobs(res.jobs);
-      } catch {
-        /* keep polling */
-      }
-    }, 3000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [hasPending]);
-
-  async function start() {
-    setBusy(true);
-    try {
-      await apiRequest("/api/export", "POST", {});
-      const res = await apiRequest<{ jobs: ExportJobView[] }>("/api/export", "GET");
-      setJobs(res.jobs);
-      toast.success(locale === "zh" ? "导出任务已创建" : "Export job created");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 创建导出任务 — 成功后失效任务列表键，轮询由上面的 refetchInterval 自然接管
+  const startMutation = useApiMutation(() => apiRequest("/api/export", "POST", {}), {
+    refresh: false,
+    invalidate: [EXPORT_JOBS_KEY],
+    successToast: locale === "zh" ? "导出任务已创建" : "Export job created",
+  });
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
         <p className="text-sm text-muted-foreground">{t("settings.data.exportDesc")}</p>
-        <Button size="sm" onClick={start} disabled={busy || hasPending}>
-          {busy || hasPending ? <Loader2 className="animate-spin" /> : <FileDown />}
+        <Button
+          size="sm"
+          onClick={() => void startMutation.mutate(undefined)}
+          disabled={startMutation.pending || hasPending}
+        >
+          {startMutation.pending || hasPending ? <Loader2 className="animate-spin" /> : <FileDown />}
           {t("settings.data.exportStart")}
         </Button>
       </div>
@@ -120,29 +114,33 @@ function ExportCard({ initial }: { initial: ExportJobView[] }) {
 
 function DangerZone({ hasPassword }: { hasPassword: boolean }) {
   const { t, locale } = useI18n();
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [deleteContent, setDeleteContent] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
-  const [busy, setBusy] = useState(false);
 
   const confirmWord = locale === "zh" ? "删除" : "DELETE";
 
-  async function destroy() {
-    setBusy(true);
-    try {
-      await apiRequest("/api/me", "DELETE", {
-        password: hasPassword && password ? password : undefined,
-        deleteContent,
-      });
-      toast.success(locale === "zh" ? "账户已删除" : "Account deleted");
-      router.push("/");
-      router.refresh();
-    } catch (err) {
-      toast.error((err as Error).message);
-      setBusy(false);
-    }
+  // 注销账户 — pending 驱动确认按钮禁用；成功 toast 后整页跳转（见 onSuccess）
+  const destroyMutation = useApiMutation(
+    (input: { password?: string; deleteContent: boolean }) => apiRequest("/api/me", "DELETE", input),
+    {
+      // 会话已销毁，RSC 回流无意义；跳转由 onSuccess 接管
+      refresh: false,
+      successToast: locale === "zh" ? "账户已删除" : "Account deleted",
+      onSuccess: () => {
+        // 整页跳转：会话已销毁，避免 push+refresh 双 RSC 竞态并清空全部客户端缓存
+        window.location.replace("/");
+      },
+    },
+  );
+
+  function destroy() {
+    if (destroyMutation.pending) return;
+    void destroyMutation.mutate({
+      password: hasPassword && password ? password : undefined,
+      deleteContent,
+    });
   }
 
   return (
@@ -214,10 +212,10 @@ function DangerZone({ hasPassword }: { hasPassword: boolean }) {
             </Button>
             <Button
               variant="destructive"
-              disabled={confirmText.trim() !== confirmWord || busy}
+              disabled={confirmText.trim() !== confirmWord || destroyMutation.pending}
               onClick={destroy}
             >
-              {busy && <Loader2 className="animate-spin" />}
+              {destroyMutation.pending && <Loader2 className="animate-spin" />}
               {t("settings.data.delete")}
             </Button>
           </DialogFooter>

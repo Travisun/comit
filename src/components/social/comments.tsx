@@ -20,6 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/p
 import { cn, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, isAuthError, mediaUrl, postJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
+import { useApiMutation } from "@/lib/query/mutation";
 import {
   commentsPageSchema,
   type CommentItem,
@@ -54,7 +55,6 @@ export function Comments({
   const [count, setCount] = useState(initialCount);
   const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   /** 提交成功后本地兜底（首个页面返回前即可显示回复框） */
   const [viewerOverride, setViewerOverride] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -197,39 +197,71 @@ export function Comments({
     return () => io.disconnect();
   }, [commentsQ.hasNextPage, commentsQ.isFetchingNextPage, fetchNextPage]);
 
+  // ---- 提交/删除（mutation 收编）：手写 busy 由 pending 承担；成功后保持
+  // 原有的 setQueryData 增量插入/移除模式；静默失败自行 toast + 登录跳转 ----
+  const submitMutation = useApiMutation(
+    (input: { body: string; replyToCommentId?: string }) =>
+      postJson<CommentItem>("/api/comments", input),
+    {
+      silent: true,
+      refresh: false, // 评论区全量走查询缓存，无需 RSC 重验
+      onSuccess: (created) => {
+        queryClient.setQueryData<InfiniteData<CommentsPage>>(
+          queryKeys.comments(postId),
+          (prev) =>
+            prev
+              ? {
+                  ...prev,
+                  pages: prev.pages.map((p, i) =>
+                    i === 0 ? { ...p, items: [created, ...p.items] } : p,
+                  ),
+                }
+              : prev,
+        );
+        setCount((c) => c + 1);
+        setBody("");
+        setReplyTo(null);
+        setViewerOverride((v) => v ?? "signed-in");
+        inputRef.current?.focus();
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : t("common.error"));
+        if (isAuthError(err)) router.push("/auth/login");
+      },
+    },
+  );
+
+  const removeMutation = useApiMutation(
+    (id: string) => deleteJson(`/api/comments?id=${encodeURIComponent(id)}`),
+    {
+      silent: true,
+      refresh: false,
+      onSuccess: (_data, id) => {
+        queryClient.setQueryData<InfiniteData<CommentsPage>>(
+          queryKeys.comments(postId),
+          (prev) =>
+            prev
+              ? {
+                  ...prev,
+                  pages: prev.pages.map((p) => ({
+                    ...p,
+                    items: p.items.filter((c) => c.id !== id),
+                  })),
+                }
+              : prev,
+        );
+        setCount((c) => Math.max(0, c - 1));
+      },
+      onError: (err) => {
+        toast.error(err instanceof Error ? err.message : t("common.error"));
+      },
+    },
+  );
+
   async function submit() {
     const text = body.trim();
-    if (!text || submitting) return;
-    setSubmitting(true);
-    try {
-      const created = await postJson<CommentItem>("/api/comments", {
-        postId,
-        body: text,
-        replyToCommentId: replyTo?.id,
-      });
-      queryClient.setQueryData<InfiniteData<CommentsPage>>(
-        queryKeys.comments(postId),
-        (prev) =>
-          prev
-            ? {
-                ...prev,
-                pages: prev.pages.map((p, i) =>
-                  i === 0 ? { ...p, items: [created, ...p.items] } : p,
-                ),
-              }
-            : prev,
-      );
-      setCount((c) => c + 1);
-      setBody("");
-      setReplyTo(null);
-      setViewerOverride((v) => v ?? "signed-in");
-      inputRef.current?.focus();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-      if (isAuthError(err)) router.push("/auth/login");
-    } finally {
-      setSubmitting(false);
-    }
+    if (!text || submitMutation.pending) return;
+    submitMutation.mutate({ body: text, replyToCommentId: replyTo?.id });
   }
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -246,27 +278,9 @@ export function Comments({
     void submit();
   }
 
-  async function remove(id: string) {
+  function remove(id: string) {
     if (!window.confirm(t("post.deleteConfirm"))) return;
-    try {
-      await deleteJson(`/api/comments?id=${encodeURIComponent(id)}`);
-      queryClient.setQueryData<InfiniteData<CommentsPage>>(
-        queryKeys.comments(postId),
-        (prev) =>
-          prev
-            ? {
-                ...prev,
-                pages: prev.pages.map((p) => ({
-                  ...p,
-                  items: p.items.filter((c) => c.id !== id),
-                })),
-              }
-            : prev,
-      );
-      setCount((c) => Math.max(0, c - 1));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    }
+    removeMutation.mutate(id);
   }
 
   return (
@@ -454,10 +468,14 @@ export function Comments({
                 aria-label={t("comments.submit")}
                 title="Enter 发送 · Shift/Ctrl+Enter 换行"
                 className="mb-0.5 shrink-0 rounded-full"
-                disabled={!body.trim() || submitting}
+                disabled={!body.trim() || submitMutation.pending}
                 onClick={() => void submit()}
               >
-                {submitting ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                {submitMutation.pending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
               </Button>
             </div>
           </div>

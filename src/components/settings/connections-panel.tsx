@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Check, Link2, Loader2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,9 +11,9 @@ import {
   SettingsSection,
   SettingsSectionHeader,
 } from "@/components/ui/settings";
-import { cn } from "@/lib/utils";
-import { apiRequest } from "./client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
+import { apiRequest } from "./client";
 import { useI18n } from "@/lib/i18n/client";
 
 interface Connection {
@@ -33,11 +32,9 @@ const PROVIDER_META: Record<string, { label: string; desc: { zh: string; en: str
 
 /** 账号绑定 — 把 GitHub / Google 等第三方账号绑定到当前账户，或解除绑定。 */
 export function ConnectionsPanel() {
-  const router = useRouter();
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const queryClient = useQueryClient();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busyProvider, setBusyProvider] = useState<string | null>(null);
 
   const connectionsQ = useQuery({
     queryKey: queryKeys.connections(),
@@ -45,6 +42,18 @@ export function ConnectionsPanel() {
       (await apiRequest<{ connections: Connection[] }>("/api/me/connections", "GET")).connections,
   });
   const connections = connectionsQ.data;
+
+  // 解绑 — pending 驱动禁用态；busyProvider 仅用于定位是哪一行在转圈
+  const unbindMutation = useApiMutation(
+    (provider: string) => apiRequest(`/api/me/connections?provider=${provider}`, "DELETE"),
+    {
+      // 保持原行为等价：只失效连接列表查询，不整页 refresh
+      refresh: false,
+      invalidate: [queryKeys.connections()],
+      successToast: zh ? "已解除绑定" : "Unlinked",
+    },
+  );
+  const unbinding = unbindMutation.pending ? busyProvider : null;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -57,18 +66,10 @@ export function ConnectionsPanel() {
   }, [zh]);
 
   async function unbind(provider: string) {
-    if (busy) return;
+    if (unbindMutation.pending) return;
     if (!window.confirm(zh ? `确定解除 ${provider} 的绑定？解除后需保留其他登录方式。` : `Unlink ${provider}?`)) return;
-    setBusy(provider);
-    try {
-      await apiRequest(`/api/me/connections?provider=${provider}`, "DELETE");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.connections() });
-      toast.success(zh ? "已解除绑定" : "Unlinked");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(null);
-    }
+    setBusyProvider(provider);
+    await unbindMutation.mutate(provider);
   }
 
   if (!connections) {
@@ -109,10 +110,10 @@ export function ConnectionsPanel() {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={busy === conn.provider}
+                  disabled={unbinding === conn.provider}
                   onClick={() => void unbind(conn.provider)}
                 >
-                  {busy === conn.provider ? <Loader2 className="animate-spin" /> : <Unlink />}
+                  {unbinding === conn.provider ? <Loader2 className="animate-spin" /> : <Unlink />}
                   {zh ? "解除绑定" : "Unlink"}
                 </Button>
               ) : (

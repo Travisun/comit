@@ -14,9 +14,9 @@ import {
   SettingsPanelList,
   SettingsPanelRow,
   SettingsSection,
-  SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { timeAgo } from "@/lib/utils";
 import { apiRequest, copyText, deviceLabel } from "./client";
 import type { SessionView } from "./types";
@@ -33,26 +33,29 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [show, setShow] = useState(false);
-  const [saving, setSaving] = useState(false);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await apiRequest("/api/me/password", "POST", {
-        currentPassword: hasPassword && current ? current : undefined,
-        newPassword: next,
-      });
-      toast.success(
+  const saveMutation = useApiMutation(
+    (input: { currentPassword?: string; newPassword: string }) =>
+      apiRequest("/api/me/password", "POST", input),
+    {
+      // 保持原行为等价：成功只清空表单，不触发 RSC 回流
+      refresh: false,
+      successToast:
         locale === "zh" ? "密码已更新，其他设备已下线" : "Password updated; other devices signed out",
-      );
-      setCurrent("");
-      setNext("");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+      onSuccess: () => {
+        setCurrent("");
+        setNext("");
+      },
+    },
+  );
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (saveMutation.pending) return;
+    void saveMutation.mutate({
+      currentPassword: hasPassword && current ? current : undefined,
+      newPassword: next,
+    });
   }
 
   return (
@@ -112,9 +115,9 @@ function PasswordCard({ hasPassword }: { hasPassword: boolean }) {
           </div>
         </SettingField>
         <SettingsFooter>
-          <Button type="submit" disabled={saving || next.length === 0}>
-            {saving && <Loader2 className="animate-spin" />}
-            {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+          <Button type="submit" disabled={saveMutation.pending || next.length === 0}>
+            {saveMutation.pending && <Loader2 className="animate-spin" />}
+            {saveMutation.pending ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
           </Button>
         </SettingsFooter>
       </form>
@@ -126,20 +129,18 @@ function TwoFactorCard({ data }: { data: SecurityData }) {
   const { t, locale } = useI18n();
   const [codes, setCodes] = useState<string[] | null>(null);
   const [remaining, setRemaining] = useState(data.recoveryCodesCount);
-  const [busy, setBusy] = useState(false);
 
-  async function regen() {
-    setBusy(true);
-    try {
-      const res = await apiRequest<{ codes: string[] }>("/api/me/recovery-codes", "POST");
-      setCodes(res.codes);
-      setRemaining(res.codes.length);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const regenMutation = useApiMutation(
+    () => apiRequest<{ codes: string[] }>("/api/me/recovery-codes", "POST"),
+    {
+      // 保持原行为等价：成功只更新本地恢复代码展示，不触发 RSC 回流
+      refresh: false,
+      onSuccess: (res) => {
+        setCodes(res.codes);
+        setRemaining(res.codes.length);
+      },
+    },
+  );
 
   return (
     <SettingsSection>
@@ -169,8 +170,13 @@ function TwoFactorCard({ data }: { data: SecurityData }) {
             locale === "zh" ? `剩余 ${remaining} 个` : `${remaining} code(s) left`
           }
           control={
-            <Button variant="outline" size="sm" onClick={regen} disabled={busy || !data.twoFactorConfirmed}>
-              {busy ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void regenMutation.mutate(undefined)}
+              disabled={regenMutation.pending || !data.twoFactorConfirmed}
+            >
+              {regenMutation.pending ? <Loader2 className="animate-spin" /> : <RefreshCw />}
               {t("settings.security.regenRecovery")}
             </Button>
           }
@@ -203,20 +209,16 @@ function TwoFactorCard({ data }: { data: SecurityData }) {
 function SessionsCard({ sessions }: { sessions: SessionView[] }) {
   const { t, locale } = useI18n();
   const [list, setList] = useState(sessions);
-  const [busy, setBusy] = useState(false);
 
-  async function revokeOthers() {
-    setBusy(true);
-    try {
-      await apiRequest("/api/me/sessions?keepCurrent=1", "DELETE");
-      setList((prev) => prev.filter((s) => s.current));
-      toast.success(locale === "zh" ? "已下线其他设备" : "Other devices signed out");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  const revokeMutation = useApiMutation(
+    () => apiRequest("/api/me/sessions?keepCurrent=1", "DELETE"),
+    {
+      // 保持原行为等价：成功只收缩本地列表，不触发 RSC 回流
+      refresh: false,
+      successToast: locale === "zh" ? "已下线其他设备" : "Other devices signed out",
+      onSuccess: () => setList((prev) => prev.filter((s) => s.current)),
+    },
+  );
 
   return (
     <SettingsSection>
@@ -226,8 +228,13 @@ function SessionsCard({ sessions }: { sessions: SessionView[] }) {
             ? `${list.length} 个活跃会话。下线不认识的设备以保护账号。`
             : `${list.length} active session(s). Sign out devices you don't recognize.`}
         </p>
-        <Button variant="outline" size="sm" onClick={revokeOthers} disabled={busy}>
-          {busy ? <Loader2 className="animate-spin" /> : <LogOut />}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void revokeMutation.mutate(undefined)}
+          disabled={revokeMutation.pending}
+        >
+          {revokeMutation.pending ? <Loader2 className="animate-spin" /> : <LogOut />}
           {t("settings.security.revokeAll")}
         </Button>
       </div>

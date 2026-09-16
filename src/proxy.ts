@@ -6,7 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
  *     single path segment that is not a reserved top-level route or a file
  *     (contains a dot). Multi-segment paths never match, so /explore,
  *     /u/alice, /post/[slug]… keep their canonical handlers.
- *  2. Security headers.
+ *  2. Security headers (X-Frame-Options / X-Content-Type-Options /
+ *     Referrer-Policy) 已收敛到 next.config.ts 的 headers() —— 该处覆盖面含
+ *     /api 与静态资源（本 matcher 排除的路径也覆盖），此处不再双源重复。
  */
 const RESERVED_TOP_LEVEL = new Set([
   // app pages & routers（与 /{username} 冲突的顶级路径一律保留）
@@ -32,9 +34,6 @@ export function proxy(req: NextRequest) {
     res = NextResponse.next();
   }
 
-  res.headers.set("X-Frame-Options", "SAMEORIGIN");
-  res.headers.set("X-Content-Type-Options", "nosniff");
-  res.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   return res;
 }
 

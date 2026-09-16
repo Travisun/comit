@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { toast } from "sonner";
 import { CircleCheck, CircleX, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +11,7 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { cn, subscribeNoop } from "@/lib/utils";
 import { apiRequest } from "./client";
 import type { SettingsData } from "./types";
@@ -33,7 +33,6 @@ export function UsernameForm({ data }: { data: UsernameData }) {
   const zh = locale === "zh";
   const [value, setValue] = useState(data.username);
   const [current, setCurrent] = useState(data.username);
-  const [saving, setSaving] = useState(false);
   const [availability, setAvailability] = useState<Availability>({ state: "idle" });
   const origin = useSyncExternalStore(subscribeNoop, () => window.location.host, () => "");
   /** which input value the availability result describes (stale-result guard) */
@@ -73,21 +72,25 @@ export function UsernameForm({ data }: { data: UsernameData }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalized, current]);
 
+  // 保存用户名 — pending 驱动按钮禁用（原手写 saving + try/catch/finally 收编）
+  const saveMutation = useApiMutation(
+    (username: string) => apiRequest<{ username: string }>("/api/me/username", "PUT", { username }),
+    {
+      // 保持原行为等价：成功只更新本地当前值，不触发 RSC 回流
+      refresh: false,
+      successToast: (res) =>
+        zh ? `用户名已更新：${res.username}` : `Username updated: ${res.username}`,
+      onSuccess: (res) => {
+        setCurrent(res.username);
+        setValue(res.username);
+      },
+    },
+  );
+
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true);
-    try {
-      const res = await apiRequest<{ username: string }>("/api/me/username", "PUT", {
-        username: normalized,
-      });
-      setCurrent(res.username);
-      setValue(res.username);
-      toast.success(zh ? `用户名已更新：${res.username}` : `Username updated: ${res.username}`);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+    if (saveMutation.pending) return;
+    await saveMutation.mutate(normalized);
   }
 
   const inCooldown = data.daysUntilChangeAllowed > 0;
@@ -169,10 +172,10 @@ export function UsernameForm({ data }: { data: UsernameData }) {
           <Button
             type="submit"
             size="sm"
-            disabled={saving || !canSave || inCooldown}
+            disabled={saveMutation.pending || !canSave || inCooldown}
             className={cn(inCooldown && "hidden")}
           >
-            {saving && <Loader2 className="animate-spin" />}
+            {saveMutation.pending && <Loader2 className="animate-spin" />}
             {zh ? "保存用户名" : "Save username"}
           </Button>
         </SettingsFooter>

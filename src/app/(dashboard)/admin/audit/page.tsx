@@ -22,9 +22,9 @@ interface AuditItem {
   targetUsername: string | null;
   note: string | null;
   createdAt: string;
-  adminId: string;
-  adminUsername: string;
-  adminDisplayName: string;
+  adminId: string | null;
+  adminUsername: string | null;
+  adminDisplayName: string | null;
   adminAvatar: string | null;
 }
 
@@ -165,11 +165,11 @@ function AuditTable({
                     {row.adminAvatar ? (
                       <AvatarImage src={`/api/media/file/${row.adminAvatar}`} />
                     ) : null}
-                    <AvatarFallback>
-                      {row.adminDisplayName.slice(0, 1).toUpperCase()}
-                    </AvatarFallback>
+                    <AvatarFallback>{(row.adminDisplayName ?? "·").slice(0, 1)}</AvatarFallback>
                   </Avatar>
-                  <span className="whitespace-nowrap text-sm">@{row.adminUsername}</span>
+                  <span className="whitespace-nowrap text-sm">
+                    {row.adminUsername ? `@${row.adminUsername}` : "system"}
+                  </span>
                 </span>
               </td>
               <td>

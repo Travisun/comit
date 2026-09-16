@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ClipboardEvent,
@@ -11,6 +12,8 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   BarChart3,
@@ -37,15 +40,16 @@ import { cn } from "@/lib/utils";
 import { CONTENT_LABELS, type ContentLabelId } from "@/lib/content-labels";
 import { validatePollEndsAt, validatePollOptions } from "@/lib/poll";
 import {
+  ApiError,
   SHORT_DRAFT_KEY,
   apiGet,
   isAuthError,
   mediaUrl,
   postJson,
-  postJsonSafe,
-  requestSafe,
   requestJson,
 } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 import { BlockedDialog } from "../editor/blocked-dialog";
 import {
   AnchoredPanel,
@@ -130,16 +134,13 @@ export function PinnedComposer({
   const router = useRouter();
   const zh = locale === "zh";
 
-  const [initialDraft] = useState(readShortDraft);
-  const [expanded, setExpanded] = useState(initialExpanded || initialDraft !== null);
+  // Hydration-safe：首渲状态必须与 SSR 一致，渲染期不读 localStorage；
+  // 已保存的草稿在挂载后的 effect 里恢复（见 draft autosave 段）。
+  const [expanded, setExpanded] = useState(initialExpanded);
 
-  const [title, setTitle] = useState(initialDraft?.title ?? "");
-  const [content, setContent] = useState(initialDraft?.content ?? "");
-  const [images, setImages] = useState<ImgItem[]>(() =>
-    (initialDraft?.images ?? [])
-      .filter((i) => i?.url)
-      .map((i) => ({ key: `restored-${i.url}`, status: "done", url: i.url })),
-  );
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [images, setImages] = useState<ImgItem[]>([]);
 
   /* 发布设置 */
   const [visibility, setVisibility] = useState<"public" | "followers">("public");
@@ -147,15 +148,13 @@ export function PinnedComposer({
   const [sourceUrl, setSourceUrl] = useState("");
   const [poll, setPoll] = useState<PollDraft | null>(null);
   const [collectionId, setCollectionId] = useState<string | null>(null);
-  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]);
   const [creatingCollection, setCreatingCollection] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
-  const [creatingCollectionBusy, setCreatingCollectionBusy] = useState(false);
 
   /* Markdown / 预览 */
   const [preview, setPreview] = useState(false);
   /** 标题输入：点进 composer（正文聚焦）后才展示；失焦且为空时收回 */
-  const [showTitle, setShowTitle] = useState(Boolean(initialDraft?.title));
+  const [showTitle, setShowTitle] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
   const [composing, setComposing] = useState(false); // IME 组字期间关闭话题高亮镜像
 
@@ -167,7 +166,6 @@ export function PinnedComposer({
   /** # 插入点：话题面板选中后从这里补全 */
   const topicAnchorRef = useRef<number | null>(null);
 
-  const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState<string[] | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [draftSaved, setDraftSaved] = useState<Date | null>(null);
@@ -215,11 +213,26 @@ export function PinnedComposer({
   /* --------------------------- draft autosave ---------------------------- */
 
   useEffect(() => {
-    if (initialDraft) {
+    // 挂载后再读 localStorage 恢复草稿（渲染期读会造成 hydration mismatch）；
+    // 有草稿则填回输入区并展开 composer，提示一次。
+    // 「外部系统（localStorage）→ 本地状态」的挂载初始化，属 effect 合法
+    // 用途；新 lint 规则不识别该模式，显式豁免（同 post-tree.tsx）。
+    const draft = readShortDraft();
+    if (draft) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time restore
+      setTitle(draft.title ?? "");
+      setContent(draft.content ?? "");
+      setImages(
+        (draft.images ?? [])
+          .filter((i) => i?.url)
+          .map((i) => ({ key: `restored-${i.url}`, status: "done", url: i.url! })),
+      );
+      setShowTitle(Boolean(draft.title));
+      setExpanded(true);
       toast.message(zh ? "已恢复上次未发布的草稿" : "Restored your unpublished draft");
     }
     loadedRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore + toast once on mount
   }, []);
 
   useEffect(() => {
@@ -247,15 +260,18 @@ export function PinnedComposer({
 
   /* --------------------- collections (lazy) & preview -------------------- */
 
-  // 展开后首次加载用户合集（ref 守卫，只发一次）
-  const collectionsRequestedRef = useRef(false);
-  useEffect(() => {
-    if (!expanded || collectionsRequestedRef.current) return;
-    collectionsRequestedRef.current = true;
-    requestSafe<{ items?: { id: string; name: string }[] }>("/api/posts/collections")
-      .then((r) => setCollections(r.ok ? (r.data.items ?? []) : []))
-      .catch(() => undefined);
-  }, [expanded]);
+  // 合集列表：与编辑器目录树（post-tree）共用 queryKeys.collections() 同一份
+  // 查询缓存 —— 一侧创建后另一侧自动可见；展开后才拉取（enabled 门控，
+  // 替代原先 useState+ref 手管的双缓存）。
+  const collectionsQ = useQuery({
+    queryKey: queryKeys.collections(),
+    queryFn: async () =>
+      z
+        .object({ items: z.array(z.object({ id: z.string(), name: z.string() })) })
+        .parse(await apiGet<unknown>("/api/posts/collections")).items,
+    enabled: expanded,
+  });
+  const collections = useMemo(() => collectionsQ.data ?? [], [collectionsQ.data]);
 
   // 预览：与发布同一服务端渲染管线（防抖）；空内容由渲染分支兜底
   useEffect(() => {
@@ -462,35 +478,88 @@ export function PinnedComposer({
     });
   }
 
-  async function createCollection() {
+  // 创建合集：mutation 收编 —— 成功后失效 queryKeys.collections()，依赖
+  // useQuery 自动重查出新合集（不再手动 setCollections 前插）。
+  const createCollectionMutation = useApiMutation(
+    (name: string) => postJson<{ id: string; name: string }>("/api/posts/collections", { name }),
+    {
+      refresh: false, // 合集不在 RSC 树上，查询缓存失效即可
+      invalidate: [queryKeys.collections()],
+      successToast: (d) => (zh ? `合集「${d.name}」已创建` : `Collection "${d.name}" created`),
+      onSuccess: (d) => {
+        setCollectionId(d.id);
+        setCreatingCollection(false);
+        setNewCollectionName("");
+      },
+    },
+  );
+
+  function createCollection() {
     const name = newCollectionName.trim();
-    if (!name || creatingCollectionBusy) return;
-    setCreatingCollectionBusy(true);
-    try {
-      const r = await postJsonSafe<{ id?: string; name?: string; error?: string }>(
-        "/api/posts/collections",
-        { name },
-      );
-      if (!r.ok) throw new Error(r.error ?? t("common.error"));
-      const id = r.data.id;
-      if (!id) throw new Error(t("common.error"));
-      const item = { id, name: r.data.name ?? name };
-      setCollections((prev) => [item, ...prev.filter((c) => c.id !== item.id)]);
-      setCollectionId(item.id);
-      setCreatingCollection(false);
-      setNewCollectionName("");
-      toast.success(zh ? `合集「${item.name}」已创建` : `Collection "${item.name}" created`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setCreatingCollectionBusy(false);
-    }
+    if (!name || createCollectionMutation.pending) return;
+    void createCollectionMutation.mutate(name);
   }
 
   /* ------------------------------ publishing ----------------------------- */
 
+  // 发布（mutation 收编）：422 审核命中（blocked 词）不走默认错误 toast，
+  // 改弹 BlockedDialog；401/403 跳登录。成功后除 RSC 重验外，还失效
+  // feedPrefix（跨 scope 时间线）与 myPostListPrefix（我的管理列表）——
+  // Query 默认 staleTime 15s，invalidate 让 initialData 窗口内的缓存也立即重查。
+  const publishMutation = useApiMutation(
+    (input: {
+      type: "short";
+      action: "submit";
+      title?: string;
+      content: string;
+      visibility: "public" | "followers";
+      label: ContentLabelId;
+      sourceUrl?: string;
+      topicNames: string[];
+      collectionId?: string;
+      poll?: { mode: PollDraft["mode"]; options: string[]; endsAt: string };
+    }) => postJson("/api/posts", input),
+    {
+      silent: true, // 错误提示由 onError 自定义分支给出
+      invalidate: [queryKeys.feedPrefix(), queryKeys.myPostListPrefix()],
+      onSuccess: () => {
+        setTitle("");
+        setContent("");
+        setImages([]);
+        setPoll(null);
+        setSourceUrl("");
+        setLabel("original");
+        setVisibility("public");
+        setCollectionId(null);
+        setPreview(false);
+        try {
+          localStorage.removeItem(SHORT_DRAFT_KEY);
+        } catch {
+          // ignore
+        }
+        setDraftSaved(null);
+        toast.success(t("feed.publish"));
+        if (fullscreen) {
+          setFullscreen(false);
+          setFullscreenClosing(false);
+        }
+        collapse();
+      },
+      onError: (err) => {
+        if (err instanceof ApiError && err.body.blocked?.length) {
+          setBlocked(err.body.blocked);
+          return;
+        }
+        toast.error(err instanceof Error ? err.message : t("common.error"));
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          router.push("/auth/login");
+        }
+      },
+    },
+  );
+
   async function publish() {
-    if (busy || uploadingCount > 0) return;
+    if (publishMutation.pending || uploadingCount > 0) return;
     const text = content.trim();
     const done = images.filter((i) => i.status === "done" && i.url);
     if (!title.trim() && !text && done.length === 0 && !poll) return;
@@ -514,66 +583,28 @@ export function PinnedComposer({
       return;
     }
 
-    setBusy(true);
-    try {
-      const full =
-        done.length > 0
-          ? `${text}${text ? "\n\n" : ""}${done.map((i) => `![](${i.url})`).join("\n\n")}`
-          : text;
-      const tags = extractHashtags(`${title} ${full}`);
-      if (tags.length > TOPIC_MAX) {
-        toast.error(zh ? `最多 ${TOPIC_MAX} 个话题，已保留前 ${TOPIC_MAX} 个` : `Up to ${TOPIC_MAX} topics — kept the first ${TOPIC_MAX}`);
-      }
-      const r = await postJsonSafe("/api/posts", {
-        type: "short",
-        title: title.trim() || undefined,
-        content: full,
-        action: "submit",
-        visibility,
-        label,
-        ...(label === "repost" ? { sourceUrl: sourceUrl.trim() } : {}),
-        topicNames: tags.slice(0, TOPIC_MAX),
-        collectionId: collectionId || undefined,
-        ...(poll
-          ? { poll: { mode: poll.mode, options: poll.options, endsAt: poll.endsAt } }
-          : {}),
-      });
-      if (!r.ok) {
-        if (r.blocked?.length) {
-          setBlocked(r.blocked);
-          return;
-        }
-        toast.error(r.error ?? t("common.error"));
-        if (r.status === 401 || r.status === 403) router.push("/auth/login");
-        return;
-      }
-      setTitle("");
-      setContent("");
-      setImages([]);
-      setPoll(null);
-      setSourceUrl("");
-      setLabel("original");
-      setVisibility("public");
-      setCollectionId(null);
-      setPreview(false);
-      try {
-        localStorage.removeItem(SHORT_DRAFT_KEY);
-      } catch {
-        // ignore
-      }
-      setDraftSaved(null);
-      toast.success(t("feed.publish"));
-      if (fullscreen) {
-        setFullscreen(false);
-        setFullscreenClosing(false);
-      }
-      collapse();
-      router.refresh();
-    } catch {
-      toast.error(t("common.error"));
-    } finally {
-      setBusy(false);
+    const full =
+      done.length > 0
+        ? `${text}${text ? "\n\n" : ""}${done.map((i) => `![](${i.url})`).join("\n\n")}`
+        : text;
+    const tags = extractHashtags(`${title} ${full}`);
+    if (tags.length > TOPIC_MAX) {
+      toast.error(zh ? `最多 ${TOPIC_MAX} 个话题，已保留前 ${TOPIC_MAX} 个` : `Up to ${TOPIC_MAX} topics — kept the first ${TOPIC_MAX}`);
     }
+    void publishMutation.mutate({
+      type: "short",
+      action: "submit",
+      title: title.trim() || undefined,
+      content: full,
+      visibility,
+      label,
+      ...(label === "repost" ? { sourceUrl: sourceUrl.trim() } : {}),
+      topicNames: tags.slice(0, TOPIC_MAX),
+      collectionId: collectionId || undefined,
+      ...(poll
+        ? { poll: { mode: poll.mode, options: poll.options, endsAt: poll.endsAt } }
+        : {}),
+    });
   }
 
   function pickEmoji(emoji: string) {
@@ -906,10 +937,14 @@ export function PinnedComposer({
           aria-label={t("feed.publish")}
           title={zh ? "Enter 发送 · Shift/Ctrl+Enter 换行" : "Enter to send · Shift/Ctrl+Enter for newline"}
           className="rounded-full"
-          disabled={!canPublish || busy}
+          disabled={!canPublish || publishMutation.pending}
           onClick={() => void publish()}
         >
-          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
+          {publishMutation.pending ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden />
+          ) : (
+            <Send className="size-4" aria-hidden />
+          )}
         </Button>
       </div>
     </div>
@@ -1099,10 +1134,10 @@ export function PinnedComposer({
               aria-label={zh ? "创建" : "Create"}
               title={zh ? "创建" : "Create"}
               onClick={() => void createCollection()}
-              disabled={creatingCollectionBusy || !newCollectionName.trim()}
+              disabled={createCollectionMutation.pending || !newCollectionName.trim()}
               className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {creatingCollectionBusy ? (
+              {createCollectionMutation.pending ? (
                 <Loader2 className="size-3.5 animate-spin" aria-hidden />
               ) : (
                 <Check className="size-3.5" aria-hidden />

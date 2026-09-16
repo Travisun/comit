@@ -1,24 +1,22 @@
 import { and, count, eq, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { conversations, follows, messages, notifications, posts } from "@/db/schema";
+import { conversations, messages, notifications } from "@/db/schema";
 import { getAuth } from "@/lib/auth/session";
 import { getLocale } from "@/lib/i18n/index.server";
 import { getSetting } from "@/lib/settings";
 import { SiteShell, type ShellUser } from "@/components/site-shell";
-import { SiteRail } from "@/components/site-rail";
 import { SiteFooter } from "@/components/site-footer";
-import {
-  getActiveAuthors,
-  getCommunityStats,
-  getTrendingTopics,
-} from "@/components/user-space/queries";
-import type { AuthorCardData, TopicRef } from "@/components/user-space/types";
+import { SiteRailSection } from "./_rail/rail-section";
 
 /**
  * Public site chrome: X-style three-column shell — left icon/text nav,
  * 600px timeline column (rendered by each page), right rail ≥1280px,
  * mobile top bar + bottom tab bar. Dashboard-style routes (write / settings /
  * admin) live in the other route group and render full-screen without this.
+ *
+ * TTFB：主链只 await locale / 站点名 / 会话与导航未读数；右栏 rail
+ * （topics/authors/stats + 本人计数，5 组查询）拆到 <SiteRailSection> 的
+ * Suspense 边界里流式注入，骨架先行，不再阻塞整树首字节。
  */
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
@@ -60,53 +58,12 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     console.error("[site-layout] db not ready:", (err as Error).message);
   }
 
-  // right rail data (topics / authors / community stats) — best-effort
-  let topics: TopicRef[] = [];
-  let authors: AuthorCardData[] = [];
-  let stats: Awaited<ReturnType<typeof getCommunityStats>> | null = null;
-  try {
-    [topics, authors, stats] = await Promise.all([
-      getTrendingTopics(7),
-      getActiveAuthors(3),
-      getCommunityStats(),
-    ]);
-  } catch {
-    // db not ready — rail renders without data cards
-  }
-
-  // viewer's own blog stats for the rail console card (best-effort)
-  let myStats: { posts: number; followers: number; following: number } | null = null;
-  if (user) {
-    try {
-      const [[p], [f], [g]] = await Promise.all([
-        db
-          .select({ n: count() })
-          .from(posts)
-          .where(and(eq(posts.authorId, user.id), eq(posts.status, "published"))),
-        db.select({ n: count() }).from(follows).where(eq(follows.followeeId, user.id)),
-        db.select({ n: count() }).from(follows).where(eq(follows.followerId, user.id)),
-      ]);
-      myStats = { posts: p.n, followers: f.n, following: g.n };
-    } catch {
-      // db not ready — card renders without stats
-    }
-  }
-
   return (
     <SiteShell
       user={user}
       locale={locale}
       siteName={siteName}
-      rail={
-        <SiteRail
-          siteName={siteName}
-          topics={topics}
-          authors={authors}
-          stats={stats}
-          myStats={myStats}
-          user={user ? { displayName: user.displayName, username: user.username, avatarPath: user.avatarPath } : null}
-        />
-      }
+      rail={<SiteRailSection user={user} siteName={siteName} />}
       footer={<SiteFooter locale={locale} />}
     >
       {children}

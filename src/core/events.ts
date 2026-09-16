@@ -12,7 +12,7 @@ export interface AppEventPayloads {
     username: string;
     invitedByUserId?: string | null;
   };
-  "user:login": { userId: string; ip?: string };
+  // 登录事件统一走 auth:login（原 user:login 双胞胎无 emit/无监听，已删除）
   "user:followed": { followerId: string; followeeId: string };
   "user:unfollowed": { followerId: string; followeeId: string };
 
@@ -46,6 +46,8 @@ export interface AppEventPayloads {
     replyToUserId?: string | null;
     excerpt: string;
   };
+  // 消费现状：lib/actions/likes.ts 已 emit，但当前无监听者（webhooks 目录亦未含）
+  // —— 作为事件目录保留，监听者可随时接入。
   "comment:liked": {
     commentId: string;
     actorId: string;
@@ -66,6 +68,8 @@ export interface AppEventPayloads {
   "auth:password.reset": { userId: string };
   "auth:password.changed": { userId: string };
 
+  // 消费现状：当前全库无 emit 方（@mention 功能未落地）—— 作为事件目录保留，
+  // 监听者（通知/webhooks）可先行接入。
   "user:mentioned": {
     userIds: string[];
     actorId: string;

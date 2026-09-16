@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { forbidden } from "@/core/errors";
+import { conflict, forbidden } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { checkUsernameAvailable, USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users";
@@ -10,6 +10,17 @@ import { parseOrThrow } from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** drizzle 把底层 pg 错误包进 DrizzleQueryError.cause；逐层解包查唯一冲突 23505 */
+function isPgUniqueViolation(err: unknown, constraint?: string): boolean {
+  let cur: unknown = err;
+  for (let depth = 0; depth < 5 && cur instanceof Error; depth += 1) {
+    const e = cur as Error & { code?: string; constraint?: string };
+    if (e.code === "23505" && (!constraint || e.constraint === constraint)) return true;
+    cur = e.cause;
+  }
+  return false;
+}
 
 function daysSince(at: Date | null): number {
   if (!at) return Number.POSITIVE_INFINITY;
@@ -69,10 +80,18 @@ export async function PUT(req: Request) {
       );
     }
 
-    await db
-      .update(users)
-      .set({ username: normalized, usernameUpdatedAt: new Date(), updatedAt: new Date() })
-      .where(eq(users.id, auth.user.id));
+    try {
+      await db
+        .update(users)
+        .set({ username: normalized, usernameUpdatedAt: new Date(), updatedAt: new Date() })
+        .where(eq(users.id, auth.user.id));
+    } catch (err) {
+      // 并发兜底：检查与更新之间同名被抢注（users_username_key 唯一约束）
+      if (isPgUniqueViolation(err, "users_username_key")) {
+        throw conflict("用户名已被占用 / Username already taken");
+      }
+      throw err;
+    }
     return ok({ username: normalized });
   });
 }

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import type { Metadata } from "next";
 import { routes } from "@/core/routes";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -47,8 +48,9 @@ export default async function ArticlePermalinkPage({ params }: Props) {
 
   const { post, author, topics, collection, followState, interactions, gated } = data;
 
-  // fire-and-forget view counter (published renders only)
-  if (post.status === "published") incrementPostViews(post.id);
+  // view counter — published renders only。after() 把副作用推迟到渲染/响应
+  // 完成之后执行（不阻塞 TTFB），闭包里的 post.id 在回调内依然可用
+  if (post.status === "published") after(() => incrementPostViews(post.id));
 
   return (
     <PostView

@@ -14,6 +14,10 @@ export const runtime = "nodejs";
 
 const BAD_CREDENTIALS = "邮箱或密码错误 / Incorrect email or password";
 
+// 时序防护用固定 dummy 哈希（scrypt$N$salt$key，值与环境无关）。用户不存在时
+// 也对其跑一遍同样的 scrypt 验证，使响应耗时与真实用户一致，防枚举。
+const DUMMY_HASH = `scrypt$16384$${"0".repeat(32)}$${"0".repeat(128)}`;
+
 const schema = z.object({
   email: z.string().trim().toLowerCase().min(1, BAD_CREDENTIALS),
   password: z.string().min(1, BAD_CREDENTIALS),
@@ -25,9 +29,8 @@ export async function POST(req: Request) {
     const body = await parseJsonBody(req, schema);
 
     const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);
-    const passwordOk = user
-      ? await verifyPassword(body.password, user.passwordHash)
-      : false;
+    // 无论用户是否存在都执行一次同构的 scrypt 验证（不存在时对 dummy 哈希）
+    const passwordOk = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || user.status === "deleted" || user.deletedAt || !passwordOk) {
       throw new AppError(BAD_CREDENTIALS, 401, "bad_credentials");
     }

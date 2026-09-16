@@ -2,7 +2,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AppError, forbidden } from "@/core/errors";
+import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { absolute } from "@/core/routes";
 import { ok, withApi, withUser } from "@/lib/http";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
@@ -30,7 +30,8 @@ const postSchema = z.object({
 export async function GET(req: Request) {
   return withApi(req, async () => {
     const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "请先登录 / Sign in required" }, { status: 401 });
+    // 复用统一错误工具 → { error, code: "unauthorized" } envelope（withApi 兜底转换）
+    if (!user) throw unauthorized();
     return ok({
       email: maskEmail(user.email),
       pendingEmail: user.pendingEmail ? maskEmail(user.pendingEmail) : null,

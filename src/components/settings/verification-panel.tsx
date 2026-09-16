@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiUpload } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 import {
   Briefcase,
   Building2,
@@ -45,23 +47,27 @@ const TYPE_ICONS: Record<VerificationTypeInfo["icon"], LucideIcon> = {
 
 const MAX_ATTACHMENTS = 3;
 
+/** 认证状态查询键 — keys.ts 冻结期内就地字面量，后续可提升进 queryKeys */
+const VERIFICATION_KEY = ["me", "verification"] as const;
+
 /** 设置 → 认证：申请 / 撤回 / 徽章展示 / 历史记录。 */
 export function VerificationPanel() {
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const [data, setData] = useState<VerificationMeResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [applying, setApplying] = useState(false);
+  const queryClient = useQueryClient();
 
-  const load = useCallback(() => {
-    apiRequest<VerificationMeResponse>("/api/me/verification", "GET")
-      .then(setData)
-      .catch((err: Error) => setError(err.message));
-  }, []);
+  const verificationQ = useQuery({
+    queryKey: VERIFICATION_KEY,
+    queryFn: () => apiRequest<VerificationMeResponse>("/api/me/verification", "GET"),
+  });
+  const data = verificationQ.data;
+  const error = verificationQ.error instanceof Error ? verificationQ.error.message : null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  /** 子卡片提交/撤回后的重取（等价原 load()） */
+  function refetch() {
+    void queryClient.invalidateQueries({ queryKey: VERIFICATION_KEY });
+  }
 
   if (error) {
     return (
@@ -96,7 +102,7 @@ export function VerificationPanel() {
           request={data.activeRequest}
           onWithdrawn={() => {
             toast.success(zh ? "已撤回申请" : "Request withdrawn");
-            load();
+            refetch();
           }}
         />
       )}
@@ -119,7 +125,7 @@ export function VerificationPanel() {
           upgrading={Boolean(data.verified)}
           onDone={() => {
             setApplying(false);
-            load();
+            refetch();
           }}
           onCancel={data.verified || data.activeRequest?.status === "rejected" ? () => setApplying(false) : undefined}
         />
@@ -194,21 +200,14 @@ function PendingCard({
 }) {
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const [busy, setBusy] = useState(false);
   const info = VERIFICATION_TYPE_MAP[request.type];
   const typeName = info ? (zh ? info.name.zh : info.name.en) : request.type;
 
-  async function withdraw() {
-    setBusy(true);
-    try {
-      await apiRequest(`/api/me/verification?id=${request.id}`, "DELETE");
-      onWithdrawn();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 撤回申请 — pending 驱动按钮禁用；成功提示与重取由 onWithdrawn 回调负责
+  const withdrawMutation = useApiMutation(
+    () => apiRequest(`/api/me/verification?id=${request.id}`, "DELETE"),
+    { refresh: false, onSuccess: () => onWithdrawn() },
+  );
 
   return (
     <div className="rounded-lg border-amber-500/30 bg-amber-500/5 p-6">
@@ -224,8 +223,13 @@ function PendingCard({
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <Badge variant="warning">{zh ? "待审核" : "Pending"}</Badge>
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => void withdraw()}>
-            {busy ? <Loader2 className="animate-spin" /> : <X />}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={withdrawMutation.pending}
+            onClick={() => void withdrawMutation.mutate(undefined)}
+          >
+            {withdrawMutation.pending ? <Loader2 className="animate-spin" /> : <X />}
             {zh ? "撤回" : "Withdraw"}
           </Button>
         </div>
@@ -294,8 +298,18 @@ function ApplyCard({
   const [description, setDescription] = useState("");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // 提交申请 — pending 驱动提交/取消按钮禁用
+  const submitMutation = useApiMutation(
+    (payload: CreateVerificationRequestInput) => apiRequest("/api/me/verification", "POST", payload),
+    {
+      // 保持原行为等价：成功只回调 onDone（关表单 + 重取），不触发 RSC 回流
+      refresh: false,
+      successToast: zh ? "申请已提交，请等待审核" : "Application submitted for review",
+      onSuccess: () => onDone(),
+    },
+  );
 
   async function uploadFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -329,7 +343,7 @@ function ApplyCard({
     }
   }
 
-  async function submit() {
+  function submit() {
     const payload: CreateVerificationRequestInput = {
       type,
       label: label.trim(),
@@ -344,16 +358,7 @@ function ApplyCard({
       );
       return;
     }
-    setSubmitting(true);
-    try {
-      await apiRequest("/api/me/verification", "POST", payload);
-      toast.success(zh ? "申请已提交，请等待审核" : "Application submitted for review");
-      onDone();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
+    void submitMutation.mutate(payload);
   }
 
   return (
@@ -480,12 +485,12 @@ function ApplyCard({
 
         <div className="flex justify-end gap-2">
           {onCancel && (
-            <Button variant="outline" onClick={onCancel} disabled={submitting}>
+            <Button variant="outline" onClick={onCancel} disabled={submitMutation.pending}>
               {zh ? "取消" : "Cancel"}
             </Button>
           )}
-          <Button onClick={() => void submit()} disabled={submitting || uploading}>
-            {submitting ? <Loader2 className="animate-spin" /> : <Send />}
+          <Button onClick={() => void submit()} disabled={submitMutation.pending || uploading}>
+            {submitMutation.pending ? <Loader2 className="animate-spin" /> : <Send />}
             {zh ? "提交申请" : "Submit"}
           </Button>
         </div>

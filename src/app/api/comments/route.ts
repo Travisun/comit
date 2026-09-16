@@ -94,20 +94,25 @@ export async function POST(req: Request) {
       throw new AppError(savingCtx.rejection, 422, "extension_rejected");
     }
 
-    const [created] = await db
-      .insert(comments)
-      .values(savingCtx.payload as typeof comments.$inferInsert)
-      .returning();
+    // 评论插入 + commentCount 自增同事务：两条语句要么全部生效要么全部回滚，
+    // 避免插入成功但计数更新失败导致的计数漂移（保持原子自增 +1 方向不变）。
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(comments)
+        .values(savingCtx.payload as typeof comments.$inferInsert)
+        .returning();
+      await tx
+        .update(posts)
+        .set({ commentCount: sql`${posts.commentCount} + 1` })
+        .where(eq(posts.id, postId));
+      return row;
+    });
 
+    // 事务提交后再触发钩子/事件（监听方经连接池读取时行已可见）
     await hooks.callHook("comment:saved", {
       comment: { id: created.id, postId, userId: me.id },
       postAuthorId: row.post.authorId,
     });
-
-    await db
-      .update(posts)
-      .set({ commentCount: sql`${posts.commentCount} + 1` })
-      .where(eq(posts.id, postId));
 
     void emit("comment:created", {
       commentId: created.id,
@@ -248,14 +253,17 @@ export async function DELETE(req: Request) {
     }
 
     if (row.comment.status !== "deleted") {
-      await db
-        .update(comments)
-        .set({ status: "deleted", body: "" })
-        .where(eq(comments.id, id));
-      await db
-        .update(posts)
-        .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
-        .where(eq(posts.id, row.comment.postId));
+      // 软删 + 计数递减同事务，防止状态改了计数没减（或反之）的不一致
+      await db.transaction(async (tx) => {
+        await tx
+          .update(comments)
+          .set({ status: "deleted", body: "" })
+          .where(eq(comments.id, id));
+        await tx
+          .update(posts)
+          .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
+          .where(eq(posts.id, row.comment.postId));
+      });
     }
     return ok();
   });

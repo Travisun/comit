@@ -115,7 +115,9 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     const title = body.title?.trim() ?? post.title;
     const slug =
       body.slug !== undefined && post.type === "article" && body.slug.trim() !== ""
-        ? await resolveArticleSlug(body.slug, post.id)
+        ? // slug 为服务端生成的 opaque short id（客户端提供的 slug 按设计忽略），
+          // 提交 slug 字段即触发重新生成；查重范围 = 作者命名空间，排自身
+          await resolveArticleSlug({ authorId: post.authorId, excludePostId: post.id })
         : post.slug;
     const summary =
       body.summary === undefined ? post.summary : ensureSummary(body.summary, nextContent || title || "");
@@ -182,6 +184,7 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
 export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
   return withUser(req, async (auth) => {
     const { id } = await ctx.params;
+    parseWith(idSchema, id);
     const purge = new URL(req.url).searchParams.get("purge") === "true";
     const post = await getAuthorPost(id, auth.user.id);
     await authorize(auth.user, "post.delete", post);

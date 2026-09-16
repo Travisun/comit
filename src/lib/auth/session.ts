@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { and, eq, gt, isNull, or, lt, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, ne, or, lt, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { sessions, users, type User } from "@/db/schema";
 import { config } from "@/core/config";
@@ -58,12 +58,13 @@ export async function destroyCurrentSession(): Promise<void> {
   store.delete(config.auth.sessionCookie);
 }
 
-export async function destroyUserSessions(userId: string, exceptSessionId?: string) {
-  const rows = await db.select().from(sessions).where(eq(sessions.userId, userId));
-  for (const s of rows) {
-    if (exceptSessionId && s.id === exceptSessionId) continue;
-    await db.delete(sessions).where(eq(sessions.id, s.id));
-  }
+export async function destroyUserSessions(userId: string, exceptSessionId?: string): Promise<void> {
+  // 单条 DELETE（原来先 SELECT 再逐行删除，N+1）
+  await db.delete(sessions).where(
+    exceptSessionId
+      ? and(eq(sessions.userId, userId), ne(sessions.id, exceptSessionId))
+      : eq(sessions.userId, userId),
+  );
 }
 
 /** Get the current auth context (memoized per request). Timed bans gate here. */

@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { Bell, Loader2, SquarePen } from "lucide-react";
-import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
 import { apiGet, mediaUrl, postJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
+import { useApiMutation } from "@/lib/query/mutation";
+import { useRealtime } from "@/lib/client/realtime";
 import {
   conversationSchema,
   notificationSchema,
@@ -59,8 +60,9 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
         .parse(await apiGet<unknown>("/api/notifications")).items,
   });
 
-  const convs = conversationsQ.data ?? [];
-  const notifs = notificationsQ.data ?? [];
+  // eslint: 包一层 useMemo，稳定 rows 依赖（同 post-tree 的 data ?? [] 模式）
+  const convs = useMemo(() => conversationsQ.data ?? [], [conversationsQ.data]);
+  const notifs = useMemo(() => notificationsQ.data ?? [], [notificationsQ.data]);
   const loaded = !conversationsQ.isLoading && !notificationsQ.isLoading;
 
   // 新私信 people picker — 打开时才拉取（enabled 条件查询）
@@ -110,26 +112,69 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
 
   const unreadNotifs = notifs.filter((n) => !n.readAt).length;
 
-  async function markAllRead() {
-    // 乐观置已读 + 后台提交（失败不打扰，下次轮询纠正）
-    queryClient.setQueryData(queryKeys.notifications(), (prev: NotificationItem[] | undefined) =>
-      (prev ?? []).map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })),
-    );
-    try {
-      await postJson("/api/notifications/read-all", {});
-    } catch {
-      // best-effort
+  // 实时接入（单例 SSE 总线）：新消息 / 已读回执 / 断线重连都会改变会话
+  // 预览与未读 → 失效会话列表。通知列表与角标由 use-local-unread 的全局
+  // 订阅负责，这里不重复。
+  useRealtime((event) => {
+    if (
+      event.type === "message.created" ||
+      event.type === "message.read" ||
+      event.type === "realtime.reconnected"
+    ) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.conversations() });
     }
-  }
+  });
+
+  // 全部已读（mutation 收编）：optimistic 先把列表置已读（失败自动回滚
+  // 快照），静默提交不打扰；成功后失效角标查询，顶部铃铛才会归零。
+  const markAllReadMutation = useApiMutation(
+    () => postJson("/api/notifications/read-all", {}),
+    {
+      silent: true,
+      refresh: false, // 列表/角标均为查询缓存数据，无需 RSC 重验
+      optimistic: {
+        queryKey: queryKeys.notifications(),
+        apply: (prev) =>
+          prev === undefined
+            ? prev
+            : (prev as NotificationItem[]).map((n) => ({
+                ...n,
+                readAt: n.readAt ?? new Date().toISOString(),
+              })),
+      },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.notificationBadge() });
+      },
+    },
+  );
 
   /** system rows: mark read, then navigate to the notification's target */
+  const markOneReadMutation = useApiMutation(
+    (id: string) => postJson("/api/notifications/read", { id }),
+    {
+      silent: true,
+      refresh: false,
+      optimistic: {
+        queryKey: queryKeys.notifications(),
+        apply: (prev, id) =>
+          prev === undefined
+            ? prev
+            : (prev as NotificationItem[]).map((x) =>
+                x.id === id ? { ...x, readAt: x.readAt ?? new Date().toISOString() } : x,
+              ),
+      },
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.notificationBadge() });
+      },
+    },
+  );
+
+  function markAllRead() {
+    void markAllReadMutation.mutate(undefined);
+  }
+
   function openSystem(n: NotificationItem) {
-    if (!n.readAt) {
-      queryClient.setQueryData(queryKeys.notifications(), (prev: NotificationItem[] | undefined) =>
-        (prev ?? []).map((x) => (x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x)),
-      );
-      void postJson("/api/notifications/read", { id: n.id }).catch(() => undefined);
-    }
+    if (!n.readAt) void markOneReadMutation.mutate(n.id);
     if (n.url) router.push(n.url);
   }
 

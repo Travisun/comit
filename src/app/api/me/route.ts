@@ -53,17 +53,28 @@ export async function DELETE(req: Request) {
     }
 
     if (body.deleteContent) {
-      // delete media files first (rows cascade with the user below)
-      const files = await db
-        .select({ path: media.path })
-        .from(media)
-        .where(eq(media.userId, auth.user.id));
-      await Promise.all(files.map((f) => deleteMediaFile(f.path)));
-
+      // 事务内先收集媒体路径、再删 user（media 行随级联删除）；全部 DB 删除
+      // 提交成功后才清理磁盘文件 —— 事务回滚时磁盘文件仍完好，不再出现
+      // 「文件已删、用户还在」的不可逆不一致。
+      const mediaFiles: string[] = [];
       await db.transaction(async (tx) => {
+        const files = await tx
+          .select({ path: media.path })
+          .from(media)
+          .where(eq(media.userId, auth.user.id));
+        mediaFiles.push(...files.map((f) => f.path));
         // user row cascade removes posts/comments/sessions/tokens/webhooks/etc.
         await tx.delete(users).where(eq(users.id, auth.user.id));
       });
+
+      // 磁盘清理放在事务后：单个文件删除失败仅告警，不影响注销响应
+      await Promise.all(
+        mediaFiles.map((p) =>
+          deleteMediaFile(p).catch((err: unknown) => {
+            console.warn(`[me] 媒体文件删除失败 / Failed to remove media file: ${p}`, err);
+          }),
+        ),
+      );
     } else {
       // anonymize — keep content, scrub personal data
       const anonUsername = `deleted-user-${auth.user.id.slice(0, 8)}`;

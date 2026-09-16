@@ -2,6 +2,7 @@ import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { collections } from "@/db/schema";
+import { notFound } from "@/core/errors";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { parseWith, normalizeSlug } from "../../_shared";
 
@@ -24,7 +25,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
       .from(collections)
       .where(and(eq(collections.id, id), eq(collections.userId, auth.user.id)))
       .limit(1);
-    if (!row) return ok(null);
+    if (!row) throw notFound("合集不存在 / Collection not found");
 
     const { name } = parseWith(renameSchema, await jsonBody(req));
 
@@ -55,7 +56,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       .from(collections)
       .where(and(eq(collections.id, id), eq(collections.userId, auth.user.id)))
       .limit(1);
-    if (!row) return ok(null);
+    if (!row) throw notFound("合集不存在 / Collection not found");
     await db.delete(collections).where(eq(collections.id, row.id));
     return ok({ id: row.id });
   });

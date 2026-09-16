@@ -82,6 +82,15 @@ export function MarkdownEnhance({ scanKey }: { scanKey?: string }) {
           }
         } catch (err) {
           console.error("[markdown] mermaid load failed:", err);
+          // 加载失败（chunk 拉取/实例化出错）也给用户可见的提示，避免静默空白
+          for (const block of blocks) {
+            block.dataset.rendered = "1";
+            block.innerHTML = "";
+            const msg = document.createElement("p");
+            msg.className = "mermaid-error";
+            msg.textContent = "图表渲染失败 / Failed to render diagram";
+            block.appendChild(msg);
+          }
         }
       })();
     }

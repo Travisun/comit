@@ -12,7 +12,8 @@ import type { FederatedProfile } from "@/lib/auth/oauth";
  * SSO, Cloudflare Access):
  *   1. (provider, providerAccountId) already linked → that user
  *   2. email matches an existing account → link + that user
- *   3. otherwise auto-register (email considered verified by the provider)
+ *      （仅当 provider 侧邮箱已验证才允许自动绑定；X 的合成/未验证邮箱一律不绑）
+ *   3. otherwise auto-register (emailVerifiedAt mirrors the provider's claim)
  */
 
 export interface FederatedIdentity {
@@ -42,9 +43,17 @@ export async function findOrCreateFederatedUser(
     if (user && user.status !== "deleted") return { user, created: false };
   }
 
-  // 2. existing account with the same email → bind
+  // 2. existing account with the same email → bind（仅限 provider 已验证邮箱：
+  //    凭未验证邮箱（如 X 的合成 noreply 地址）自动接管现有账户＝账户接管）
   const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (existing) {
+    if (profile.emailVerified !== true) {
+      throw new AppError(
+        "该邮箱已注册，但第三方账号的邮箱未经验证，无法自动绑定 / Email already registered and the provider did not verify it — cannot auto-link",
+        409,
+        "oauth_email_conflict",
+      );
+    }
     if (existing.status === "deleted") {
       throw new AppError("该邮箱账户已注销 / This email account was deleted", 400, "oauth_deleted");
     }
@@ -59,7 +68,8 @@ export async function findOrCreateFederatedUser(
     return { user: existing, created: false };
   }
 
-  // 3. auto-register
+  // 3. auto-register — 只有 provider 明确验证过邮箱才写 emailVerifiedAt，
+  //    否则留 null（后续走常规邮箱验证流程）
   const username = await pickAvailableUsername(profile.username || email.split("@")[0] || "user");
   const [user] = await db
     .insert(users)
@@ -67,7 +77,7 @@ export async function findOrCreateFederatedUser(
       email,
       username,
       displayName: (profile.displayName || username).slice(0, 80),
-      emailVerifiedAt: new Date(),
+      emailVerifiedAt: profile.emailVerified === true ? new Date() : null,
       locale: "zh",
     })
     .returning();

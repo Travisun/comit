@@ -26,7 +26,13 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   return (
-    <html lang={locale === "zh" ? "zh-CN" : "en"} suppressHydrationWarning>
+    <html
+      lang={locale === "zh" ? "zh-CN" : "en"}
+      // globals.css 里 html { scroll-behavior: smooth } — 该标记让 Next 在
+      // 路由切换期间临时禁用平滑滚动（瞬间回顶），结束后恢复，消除导航时的滚动动画
+      data-scroll-behavior="smooth"
+      suppressHydrationWarning
+    >
       <body className="min-h-dvh flex flex-col">
         <I18nProvider locale={locale}>
           <DataProvider>

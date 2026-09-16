@@ -37,8 +37,12 @@ const SITE_THEMES = new Set([
 const SITE_THEME_DEFAULT = "site";
 const SITE_THEME_STORAGE = "site-theme";
 
-/** Route prefixes that render without the social chrome (centered card pages). */
-const BARE_PREFIXES = ["/auth", "/legal", "/about"];
+/**
+ * Route prefixes that render without the social chrome (centered card pages).
+ * /auth 不在此列——它已迁入独立 (auth) 路由组，裸页由 src/app/(auth)/layout.tsx
+ * 结构化表达；这里只剩仍位于 (site) 组内的裸页（/legal、/about）。
+ */
+const BARE_PREFIXES = ["/legal", "/about"];
 
 export function SiteShell({
   user,
@@ -72,7 +76,7 @@ export function SiteShell({
     };
   }, []);
 
-  // 扩展页面可选 bare 布局（无三栏壳，auth 页同款）
+  // 扩展页面可选 bare 布局（无三栏壳；/auth 裸页已由 (auth) 路由组承担）
   const extPage = pathname.startsWith("/e/")
     ? EXTENSION_PAGES.find((p) => pathname === `/e/${p.path}`)
     : null;

@@ -11,7 +11,7 @@ import rehypePrettyCode from "rehype-pretty-code";
 import type { Element, Root } from "hast";
 import { visit } from "unist-util-visit";
 import { config } from "@/core/config";
-import { hooks } from "@/core/hooks";
+import { callHook } from "@/core/hooks";
 
 /**
  * Server-side Markdown → HTML pipeline.
@@ -224,9 +224,9 @@ export async function renderMarkdown(md: string): Promise<RenderResult> {
     .use(extract)
     .process(md);
   let html = String(file);
-  // extension point: plugins may post-filter rendered HTML
-  const ctx = { html };
-  await hooks.callHook("post:render", ctx as never);
+  // extension point: plugins may post-filter rendered HTML（原地改写 ctx.html）
+  const ctx: { html: string } = { html };
+  await callHook("post:render", ctx);
   html = ctx.html;
   return { html, headings };
 }

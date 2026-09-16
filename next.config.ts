@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // 不对外泄露框架指纹（X-Powered-By: Next.js）
+  poweredByHeader: false,
   serverExternalPackages: [
     "pg",
     "pg-boss",
@@ -26,20 +28,33 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   async headers() {
-    return [
+    // 安装面安全头唯一出处（src/proxy.ts 原本重复设置的 X-Frame-Options /
+    // X-Content-Type-Options / Referrer-Policy 已收敛至此；proxy 只保留 rewrite）。
+    // "/(.*)" 覆盖页面、/api route handlers 与静态资源，含 matcher 被排除的
+    // _next/static、api/auth/oauth、api/mcp 等路径，无死角。
+    const securityHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
       {
-        source: "/(.*)",
-        headers: [
-          { key: "X-Content-Type-Options", value: "nosniff" },
-          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "X-Frame-Options", value: "SAMEORIGIN" },
-          {
-            key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=()",
-          },
-        ],
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=()",
       },
     ];
+    const rules: { source: string; headers: { key: string; value: string }[] }[] = [
+      { source: "/(.*)", headers: securityHeaders },
+    ];
+    // dev 静态资源禁止入盘缓存：Turbopack dev 的 chunk URL 跨代际稳定而内容会
+    // 随依赖变更/重编译变化，默认的 no-cache + ETag 协商可能让浏览器跨 dev server
+    // 重启甚至跨浏览器重启复用上一代编译的字节（module factory / enqueueModel
+    // 类错误根源之一）。浏览器磁盘缓存跨浏览器重启持久存在，必须 no-store 才能切断。
+    if (process.env.NODE_ENV !== "production") {
+      rules.push({
+        source: "/_next/static/:path*",
+        headers: [{ key: "Cache-Control", value: "no-store, must-revalidate" }],
+      });
+    }
+    return rules;
   },
 };
 

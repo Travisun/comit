@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportClientError } from "@/lib/client/error-report";
 
 /**
  * 路由段错误边界兜底 — 渲染期/数据异常不白屏，给出可重试卡片。
+ * 上报走统一通道 reportClientError（fire-and-forget POST /api/client-errors，
+ * 内部保留 console.error("[app-error]", error) 的原有终端行为）。
  * error.digest 可用于关联服务端日志。
  */
 export default function Error({
@@ -14,7 +17,7 @@ export default function Error({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[app-error]", error);
+    reportClientError("app-error", error);
   }, [error]);
 
   return (

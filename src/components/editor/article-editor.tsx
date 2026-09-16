@@ -253,15 +253,21 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
     }
   };
 
+  // 每次渲染同步最新保存入口与弹窗状态，供全局 ⌘S 监听（空依赖）读取
   const saveDraftRef = useRef<() => void>(() => {});
+  const publishOpenRef = useRef(false);
   useEffect(() => {
     saveDraftRef.current = () => void save(status === "published" ? "update" : "draft");
+    publishOpenRef.current = publishOpen;
   });
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
+        e.preventDefault(); // 拦下浏览器「存储页面」
+        // 发布设置 Dialog 打开时跳过默认保存：焦点在弹窗设置表单里，
+        // ⌘S 再触发后台 draft/update 会与「发布」意图打架
+        if (publishOpenRef.current) return;
         saveDraftRef.current();
       }
     };

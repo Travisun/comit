@@ -1,11 +1,13 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { and, eq } from "drizzle-orm";
+import type { Metadata } from "next";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { likes, posts, reposts, users } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n";
 import { routes } from "@/core/routes";
+import { pageMetadata } from "@/lib/seo";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { TimelineHeader } from "@/components/site-shell";
@@ -22,6 +24,43 @@ import { InterruptView } from "@/lib/plugins/registry";
 import { PostActionsSlot } from "@/lib/plugins/ui";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type Props = { params: Promise<{ id: string }> };
+
+/** 短动态的 SEO 元数据 — 轻量查询（只取 needed 列），取不到即 404。 */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { id } = await params;
+  if (!UUID_RE.test(id)) notFound();
+
+  const [row] = await db
+    .select({
+      title: posts.title,
+      // 只截取正文前 60 字符做标题兜底，避免整段 content 出网络
+      excerpt: sql<string>`left(${posts.content}, 60)`,
+      authorName: users.displayName,
+    })
+    .from(posts)
+    .innerJoin(users, eq(users.id, posts.authorId))
+    .where(eq(posts.id, id))
+    .limit(1);
+  if (!row) notFound();
+
+  // 标题：显式标题 → 正文截断（~60 字符）→ 作者名兜底
+  const excerpt = row.excerpt?.replace(/\s+/g, " ").trim();
+  const title = row.title
+    ? row.title.slice(0, 60)
+    : excerpt
+      ? `${excerpt} · ${row.authorName}`.slice(0, 60)
+      : `${row.authorName} 的动态`;
+
+  return pageMetadata({
+    title,
+    description: excerpt || undefined,
+    path: routes.shortPost(id),
+    type: "article",
+    authors: [row.authorName],
+  });
+}
 
 export default async function PostPermalinkPage({
   params,

@@ -1,4 +1,4 @@
-import { forbidden } from "@/core/errors";
+import { forbidden, unauthorized } from "@/core/errors";
 import { toErrorResponse } from "@/lib/http";
 import { apiUser } from "@/lib/auth/guards";
 import type { AuthContext } from "@/lib/auth/session";
@@ -52,7 +52,9 @@ export async function withPermission(
     const { assertSameOrigin } = await import("@/lib/http");
     assertSameOrigin(req);
     const user = await apiUser();
-    if (!user) throw forbidden("请先登录 / Sign in required");
+    // 契约约定：未认证（无会话/会话无效）→ 401 unauthorized；
+    // 已认证但角色缺少该权限 → 403 forbidden
+    if (!user) throw unauthorized("请先登录 / Sign in required");
     if (!can(user.user.role as Role, action)) {
       throw forbidden("没有权限 / Insufficient permissions");
     }

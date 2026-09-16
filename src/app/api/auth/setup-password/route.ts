@@ -2,9 +2,10 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AppError, forbidden } from "@/core/errors";
-import { jsonBody, ok, withUser } from "@/lib/http";
+import { forbidden } from "@/core/errors";
+import { ok, withUser } from "@/lib/http";
 import { hashPassword } from "@/lib/auth/password";
+import { parseJsonBody } from "../_lib/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
         "已设置过密码，请使用修改密码功能 / Password already set — use change password",
       );
     }
-    const { password } = schema.parse(await jsonBody(req));
+    // 统一走 parseJsonBody：ZodError 映射为 400 校验错误，而非裸 parse 逃逸成 500
+    const { password } = await parseJsonBody(req, schema);
     await db
       .update(users)
       .set({ passwordHash: await hashPassword(password), updatedAt: new Date() })

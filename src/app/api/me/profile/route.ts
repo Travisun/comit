@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { AppError } from "@/core/errors";
+import { AppError, unauthorized } from "@/core/errors";
 import { hooks } from "@/core/hooks";
 import { coerceProfileFields } from "@/core/capabilities/manifest";
 import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   return withApi(req, async () => {
     const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "请先登录 / Sign in required" }, { status: 401 });
+    // 复用统一错误工具 → { error, code: "unauthorized" } envelope（withApi 兜底转换）
+    if (!user) throw unauthorized();
     return ok({
       id: user.id,
       username: user.username,

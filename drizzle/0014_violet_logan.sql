@@ -1,0 +1,1 @@
+ALTER TABLE "mod_logs" ALTER COLUMN "admin_id" DROP NOT NULL;

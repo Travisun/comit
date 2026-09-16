@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/primitives";
 import { deleteJson, postJson } from "@/lib/client/api";
@@ -46,8 +46,12 @@ export function PreviewBanner({
         ? await deleteJson(`/api/posts/${postId}?purge=true`)
         : await postJson(`/api/posts/${postId}/restore`, {});
       toast.success(action === "purge" ? "已彻底删除" : "已恢复");
-      router.push("/write/posts?tab=trash");
-      router.refresh();
+      // 同一 transition 内派发：push 与 refresh 的两次 RSC 更新由 React 合并应用，
+      // 避免两个飞行中的 RSC 流交叠触发 flight 客户端竞态（enqueueModel 崩溃）
+      startTransition(() => {
+        router.push("/write/posts?tab=trash");
+        router.refresh();
+      });
       return message;
     } catch (err) {
       toast.error(err instanceof Error && err.message ? err.message : "操作失败");

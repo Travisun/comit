@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
 import { feedPageSchema } from "@/lib/models/feed";
@@ -60,24 +60,27 @@ export function FeedStream({
     return out;
   }, [query.data]);
 
-  // ---- auto-refresh: poll for new posts, show banner ----
-  const [newCount, setNewCount] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const page = feedPageSchema.parse(await apiGet<unknown>(feedUrl(0)));
-        const seen = new Set(items.map((i) => i.post.id));
-        setNewCount(page.items.filter((i) => !seen.has(i.post.id)).length);
-      } catch { /* silent */ }
-    }, 30_000);
-    return () => clearInterval(timer);
-  }, [items]); // eslint-disable-line react-hooks/exhaustive-deps -- items 变化时重置计时器（沿用原行为）
+  // ---- auto-refresh: 新帖横幅 — 轻量探测首页（30s 轮询，后台标签页暂停） ----
+  // newCount 由探测结果与已取页的差集派生；翻页不再重建轮询
+  // （旧 useEffect([items]) 手写 interval 的问题随声明式 refetchInterval 自然消失）
+  const checkQ = useQuery({
+    queryKey: queryKeys.feedCheck(scope),
+    queryFn: async () => feedPageSchema.parse(await apiGet<unknown>(feedUrl(0))),
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+  const newCount = useMemo(() => {
+    const latest = checkQ.data?.items;
+    if (!latest) return 0;
+    const seen = new Set(items.map((i) => i.post.id));
+    return latest.filter((i) => !seen.has(i.post.id)).length;
+  }, [checkQ.data, items]);
 
   const loadNew = () => {
-    setNewCount(0);
-    // 重拉已取回的所有页：新帖自然排到最前，游标状态保持一致
+    // 重拉已取回的所有页：新帖自然排到最前，游标状态保持一致；横幅计数随
+    // items 更新自动归零，无需手动清零。
+    // 取舍：深翻页后 refetch 会按游标重放所有页请求（网络放大）；setQueryData
+    // 前插需要重排各页的 offset 游标一致性，当前页深下成本大于收益，保留 refetch。
     void query.refetch();
   };
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUiRegistryVersion } from "@/lib/plugins/registry";
 import type { ReactNode } from "react";
 import {
   Compass,
@@ -53,6 +54,7 @@ export function LeftNav({
   locale: "zh" | "en";
   unread: LocalUnread;
 }) {
+  useUiRegistryVersion(); // 扩展注册变化时重渲导航
   const pathname = usePathname();
   const login = routes.login;
 

@@ -630,9 +630,8 @@ export const modLogs = pgTable(
   "mod_logs",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    adminId: uuid("admin_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    // 可空：null = 系统 actor（自动触发的审计，非人工操作）
+    adminId: uuid("admin_id").references(() => users.id, { onDelete: "cascade" }),
     action: varchar("action", { length: 60 }).notNull(),
     targetType: varchar("target_type", { length: 20 }).notNull(),
     targetId: uuid("target_id"),

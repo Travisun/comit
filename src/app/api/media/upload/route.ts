@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
+import { rateLimit } from "@/lib/rate-limit";
 import { isSupportedImage, processAndSaveImage, type MediaKind } from "@/lib/media";
 import { routes } from "@/core/routes";
 import { runMediaProcessors } from "@/core/capabilities/media";
@@ -12,11 +13,25 @@ import { hooks } from "@/core/hooks";
  * → 200 { id, path, url, width, height, size, filename, mime }
  */
 const MAX_BYTES = 10 * 1024 * 1024;
+// multipart 编码有 boundary/头部开销，声明长度留 15% 余量再拒，避免误伤合法文件
+const MULTIPART_HEADROOM = 1.15;
 
 const kindSchema = z.enum(["inline", "avatar", "cover", "featured"]);
 
 export async function POST(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
+    // per-user 限流：20 次/分钟（对齐 auth 组的 rateLimit 用法）
+    rateLimit(`upload:${auth.user.id}`, 20, 60_000);
+
+    // 解析 formData 前先按 Content-Length 短路，避免超大 body 白白占用内存
+    const declaredLength = Number(req.headers.get("content-length"));
+    if (
+      Number.isFinite(declaredLength) &&
+      declaredLength > MAX_BYTES * MULTIPART_HEADROOM
+    ) {
+      throw new AppError("图片不能超过 10MB / Image exceeds the 10MB limit", 413, "too_large");
+    }
+
     let form: FormData;
     try {
       form = await req.formData();

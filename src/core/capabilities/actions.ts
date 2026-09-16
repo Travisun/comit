@@ -1,9 +1,9 @@
 import { z } from "zod";
-import { AppError, forbidden } from "@/core/errors";
+import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { toErrorResponse } from "@/core/errors";
 import { apiUser } from "@/lib/auth/guards";
 import { assertSameOrigin, ok } from "@/lib/http";
-import { authorize, can } from "@/core/capabilities/policies";
+import { authorize } from "@/core/capabilities/policies";
 import { logger } from "@/core/logger";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
 
@@ -92,24 +92,34 @@ export function rateLimitAction(name: string, limit: number, windowMs: number): 
   };
 }
 
-/** 平台内置：维护模式守卫（读 site.maintenance，放行 auth/admin/health）。 */
+/**
+ * 平台内置：维护模式守卫 — 读 site.maintenance（lib/settings 每进程 10s TTL 缓存，
+ * 不再叠加 cache.remember 双层缓存）。语义：仅拦截变更方法（GET/HEAD/OPTIONS 豁免），
+ * 管理员豁免，命中抛 503 maintenance。
+ *
+ * 生效范围（诚实声明）：
+ *  - runAction 默认把本守卫挂在中间件链首位 → 对全部注册的 Action 生效；
+ *  - 手写 route（lib/http.ts 的 withApi/withUser）不在 Action 框架内 — 若要启用，
+ *    在 route 内自行 `await maintenanceGuard.handle(req)`；http.ts 归属他处，未接入。
+ */
 export const maintenanceGuard: Middleware = {
   name: "maintenance",
   async handle(req) {
-    const { cache } = await import("@/core/cache");
+    const method = req.method.toUpperCase();
+    if (method === "GET" || method === "HEAD" || method === "OPTIONS") return;
     const { getSetting } = await import("@/lib/settings");
-    const on = await cache.remember("site.maintenance", 5_000, () => getSetting("site.maintenance"));
-    if (!on) return;
+    if (!(await getSetting("site.maintenance"))) return;
     const url = new URL(req.url);
+    // 认证 / 管理 / 健康检查路径永放行（对手写 route 手动接入同样成立）
     if (url.pathname.startsWith("/api/auth") || url.pathname.startsWith("/api/admin") || url.pathname === "/api/health") {
       return;
     }
-    void url;
-    throw forbidden("站点维护中，请稍后再来 / Site is under maintenance");
+    // 中间件先于 runAction 的鉴权步骤执行，管理员豁免需在此自查会话
+    const auth = await apiUser();
+    if (auth?.user.role === "admin") return;
+    throw new AppError("站点维护中，请稍后再来 / Site is under maintenance", 503, "maintenance");
   },
 };
-
-void can;
 
 /* ---------------------------- 执行器 -------------------------------------- */
 
@@ -126,18 +136,18 @@ export async function runAction<TInput, TOutput>(
 ): Promise<Response> {
   const started = Date.now();
   try {
-    // 1. 中间件：全局 → 动作级
-    for (const m of [...globalMiddleware, ...(def.middleware ?? [])]) {
+    // 1. 中间件：维护守卫（平台默认强制，见 maintenanceGuard）→ 全局 → 动作级
+    for (const m of [maintenanceGuard, ...globalMiddleware, ...(def.middleware ?? [])]) {
       const short = await m.handle(req);
       if (short) return short;
     }
 
-    // 2. 鉴权
+    // 2. 鉴权（契约约定：未认证 → 401 unauthorized；已认证但角色/权限不足 → 403 forbidden）
     let user: ActionUser | null = null;
     if (def.auth !== "public") {
       assertSameOrigin(req);
       const auth = await apiUser();
-      if (!auth) throw forbidden("请先登录 / Sign in required");
+      if (!auth) throw unauthorized("请先登录 / Sign in required");
       if (def.auth === "admin" && auth.user.role !== "admin") {
         throw forbidden("需要管理员权限 / Admin required");
       }
@@ -153,9 +163,9 @@ export async function runAction<TInput, TOutput>(
       input = parsed.data;
     }
 
-    // 4. Policy（A2 authorize 语义）
+    // 4. Policy（A2 authorize 语义）— 已认证但被 policy 拒绝仍走 403
     if (def.policy) {
-      if (!user) throw forbidden("请先登录 / Sign in required");
+      if (!user) throw unauthorized("请先登录 / Sign in required");
       const target = def.policy.target?.(input as never);
       await authorize(user as never, def.policy.ability, target);
     }

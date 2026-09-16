@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import {
   Ban,
   Bookmark,
@@ -34,7 +34,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { deleteJson, postJson } from "@/lib/client/api";
+import { apiGet, deleteJson, postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
+import { useRscRefresh } from "@/lib/client/rsc-refresh";
 import { PostRowMenuSlot } from "@/extensions/_boot/client";
 import { REPORT_REASONS } from "@/components/social/report-dialog";
 import type { FeedItemDTO } from "./types";
@@ -58,95 +61,103 @@ export function RowActionsMenu({
   mine?: boolean;
 }) {
   const router = useRouter();
+  const scheduleRefresh = useRscRefresh();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [following, setFollowing] = useState<boolean | null>(null);
-  const [blocking, setBlocking] = useState<boolean | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function toggleBookmark() {
-    try {
-      const res = await postJson<{ bookmarked: boolean }>("/api/bookmarks", { postId: post.id });
-      setBookmarked(res.bookmarked);
-      toast.success(res.bookmarked ? "已加入收藏" : "已取消收藏");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    }
-  }
+  // 关注/屏蔽关系 — 语义化 GET 端点，菜单打开时拉取（键暂未入厂：keys.ts 冻结）。
+  // 加载中按 null 展示默认文案（关注/屏蔽），与原"打开瞬间未知态"一致
+  const relationQ = useQuery({
+    queryKey: ["relation", author.username] as const,
+    queryFn: async () => {
+      const [follow, block] = await Promise.all([
+        apiGet<{ following: boolean }>(
+          `/api/follows?username=${encodeURIComponent(author.username)}`,
+        ),
+        apiGet<{ blocked: boolean }>(
+          `/api/blocks?username=${encodeURIComponent(author.username)}`,
+        ),
+      ]);
+      return { following: follow.following, blocked: block.blocked };
+    },
+    enabled: menuOpen && !mine,
+  });
+  const following = relationQ.data?.following ?? null;
+  const blocking = relationQ.data?.blocked ?? null;
 
-  async function toggleFollow() {
-    try {
-      const res = await postJson<{ following: boolean }>("/api/follows", { username: author.username });
-      setFollowing(res.following);
-      toast.success(res.following ? `已关注 @${author.username}` : `已取消关注 @${author.username}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    }
-  }
+  // 每个操作独立 mutation — pending 天然互不干扰（原单个 busy 管两个无关操作的问题随之消失）
+  const bookmarkMutation = useApiMutation(
+    () => postJson<{ bookmarked: boolean }>("/api/bookmarks", { postId: post.id }),
+    {
+      refresh: false,
+      successToast: (res) => (res.bookmarked ? "已加入收藏" : "已取消收藏"),
+      onSuccess: (res) => setBookmarked(res.bookmarked),
+    },
+  );
 
-  async function toggleBlock() {
-    try {
-      const res = await postJson<{ blocked: boolean }>("/api/blocks", { username: author.username });
-      setBlocking(res.blocked);
-      toast.success(res.blocked ? `已屏蔽 @${author.username}` : `已取消屏蔽 @${author.username}`);
-      if (res.blocked) router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    }
-  }
+  const followMutation = useApiMutation(
+    () => postJson<{ following: boolean }>("/api/follows", { username: author.username }),
+    {
+      refresh: false,
+      // 关注状态缓存随 toggle 结果刷新，菜单文案立即翻转
+      invalidate: [["relation", author.username]],
+      successToast: (res) =>
+        res.following ? `已关注 @${author.username}` : `已取消关注 @${author.username}`,
+    },
+  );
 
-  async function removePost() {
-    if (busy) return;
+  const blockMutation = useApiMutation(
+    () => postJson<{ blocked: boolean }>("/api/blocks", { username: author.username }),
+    {
+      // 原行为等价：仅"屏蔽成功"改变可见范围时回流 RSC
+      refresh: false,
+      invalidate: [["relation", author.username]],
+      successToast: (res) =>
+        res.blocked ? `已屏蔽 @${author.username}` : `已取消屏蔽 @${author.username}`,
+      onSuccess: (res) => {
+        if (res.blocked) scheduleRefresh();
+      },
+    },
+  );
+
+  // 删帖 — 失效全部时间线 + 我的管理列表，refresh 保持 true 让 RSC 回流
+  const removeMutation = useApiMutation(() => deleteJson(`/api/posts/${post.id}`), {
+    invalidate: [queryKeys.feedPrefix(), queryKeys.myPostListPrefix()],
+    successToast: "已移入回收站",
+  });
+
+  const reportMutation = useApiMutation(
+    (reason: string) => postJson("/api/reports", { targetType: "post", targetId: post.id, reason }),
+    {
+      refresh: false,
+      successToast: "已提交举报，管理员会尽快处理",
+      onSuccess: () => {
+        setReportOpen(false);
+        setPreset(null);
+        setDetail("");
+      },
+    },
+  );
+
+  function removePost() {
     if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
-    setBusy(true);
-    try {
-      await deleteJson(`/api/posts/${post.id}`);
-      toast.success("已移入回收站");
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error && err.message ? err.message : "删除失败");
-    } finally {
-      setBusy(false);
-    }
+    void removeMutation.mutate(undefined);
   }
 
-  async function submitReport() {
-    if (!preset || busy) return;
+  function submitReport() {
+    if (!preset || reportMutation.pending) return;
     const extra = detail.trim();
     const text = preset === "其他问题" ? extra : extra ? `${preset} — ${extra}` : preset;
     if (!text) return;
-    setBusy(true);
-    try {
-      await postJson("/api/reports", { targetType: "post", targetId: post.id, reason: text });
-      toast.success("已提交举报，管理员会尽快处理");
-      setReportOpen(false);
-      setPreset(null);
-      setDetail("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "提交失败");
-    } finally {
-      setBusy(false);
-    }
+    void reportMutation.mutate(text);
   }
 
   return (
     <>
-      <DropdownMenu
-        onOpenChange={(open) => {
-          if (!open || mine) return;
-          // 打开菜单时拉取真实的关注/屏蔽状态，文案随状态切换
-          setFollowing(null);
-          setBlocking(null);
-          void postJson<{ following: boolean }>(`/api/follows?username=${encodeURIComponent(author.username)}`, {})
-            .then((r) => setFollowing(r.following))
-            .catch(() => setFollowing(null));
-          void postJson<{ blocked: boolean }>(`/api/blocks?username=${encodeURIComponent(author.username)}`, {})
-            .then((r) => setBlocking(r.blocked))
-            .catch(() => setBlocking(null));
-        }}
-      >
+      <DropdownMenu onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>
           <button
             type="button"
@@ -167,7 +178,7 @@ export function RowActionsMenu({
           <MenuItem
             icon={<Bookmark className={cn("size-4", bookmarked && "fill-current")} />}
             label={bookmarked ? "取消收藏" : "收藏"}
-            onClick={() => void toggleBookmark()}
+            onClick={() => void bookmarkMutation.mutate(undefined)}
           />
           {!mine && (
             <>
@@ -176,13 +187,13 @@ export function RowActionsMenu({
                   following ? <UserCheck className="size-4" /> : <UserPlus className="size-4" />
                 }
                 label={`${following ? "取消关注" : "关注"} @${author.username}`}
-                onClick={() => void toggleFollow()}
+                onClick={() => void followMutation.mutate(undefined)}
               />
               <MenuItem
                 icon={<Ban className="size-4" />}
                 label={`${blocking ? "取消屏蔽" : "屏蔽"} @${author.username}`}
                 className="text-destructive focus-visible:text-destructive"
-                onClick={() => void toggleBlock()}
+                onClick={() => void blockMutation.mutate(undefined)}
               />
             </>
           )}
@@ -272,9 +283,9 @@ export function RowActionsMenu({
             </Button>
             <Button
               onClick={() => void submitReport()}
-              disabled={busy || !preset || (preset === "其他问题" && !detail.trim())}
+              disabled={reportMutation.pending || !preset || (preset === "其他问题" && !detail.trim())}
             >
-              {busy && <Loader2 className="animate-spin" />}
+              {reportMutation.pending && <Loader2 className="animate-spin" />}
               提交举报
             </Button>
           </DialogFooter>

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { routes } from "@/core/routes";
 import { postJsonSafe } from "@/lib/client/api";
 import { useI18n } from "@/lib/i18n/client";
@@ -12,7 +11,6 @@ import { AuthBanner } from "../../_components/auth-card";
 export function ChallengeForm() {
   const { t, locale } = useI18n();
   const zh = locale === "zh";
-  const router = useRouter();
   const [mode, setMode] = useState<"totp" | "recovery">("totp");
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -27,13 +25,16 @@ export function ChallengeForm() {
       const r = await postJsonSafe("/api/auth/2fa/challenge", body);
       if (!r.ok) {
         setError(r.error ?? t("common.error"));
+        setLoading(false);
         return;
       }
-      router.push(routes.home);
-      router.refresh();
+      // 整页跳转：登录会话边界不做 SPA 导航（push+refresh 双 RSC 竞态），
+      // 全量加载确保登录态/客户端缓存一致。
+      // 跳转即将离场，保持 loading（按钮禁用）直到卸载——不再在 finally 里
+      // 复位，否则导航完成前存在复点窗口。
+      window.location.replace(routes.home);
     } catch {
       setError(t("common.error"));
-    } finally {
       setLoading(false);
     }
   }

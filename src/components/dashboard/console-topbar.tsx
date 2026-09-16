@@ -1,11 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import type { ReactNode } from "react";
 import { Bell, LogOut, Menu, Plus, Settings, SquarePen, UserRound } from "lucide-react";
 import {
   DropdownMenu,
@@ -47,7 +44,6 @@ export function ConsoleTopbar({
   actions,
   onMenuClick,
 }: ConsoleTopbarProps) {
-  const router = useRouter();
 
   // Best-effort unread count for the bell; stays silent on failure.
   // 键挂在 ["notifications"] 前缀下 —— 收件箱置已读会连带刷新角标。
@@ -62,9 +58,9 @@ export function ConsoleTopbar({
 
   async function logout() {
     await postJson("/api/auth/logout", {}).catch(() => undefined);
-    // replace：登出后浏览器回退不应回到已登录页面
-    router.replace("/");
-    router.refresh();
+    // 整页跳转：会话边界不做 SPA 导航（replace+refresh 双 RSC 请求会触发
+    // flight 客户端竞态 enqueueModel 崩溃），同时确保客户端缓存全部清空
+    window.location.replace("/");
   }
 
   return (

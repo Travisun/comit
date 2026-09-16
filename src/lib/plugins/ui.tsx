@@ -1,6 +1,9 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
+import { subscribeUiRegistry, getUiRegistryVersion } from "./registry";
+import { PluginErrorBoundary } from "./error-boundary";
 
 /**
  * 前端 UI 插件机制 — 与服务端 `src/core/plugins`（PluginContext + 注册表）
@@ -79,14 +82,19 @@ export function slotComponents(slot: UiSlotName): Registration[] {
 /**
  * 槽位渲染器 — 布局/卡片组件在扩展点挂载它，插件组件按注册顺序渲染。
  * 无插件注册时渲染 null（零开销，不产生 DOM）。
+ * 每个插件组件独立错误边界:单个扩展抛错只降级自身并上报,不影响宿主
+ * 卡片与其余扩展。
  */
 export function SlotRenderer<K extends UiSlotName>({ slot, ctx }: { slot: K; ctx: SlotContexts[K] }) {
+  useSyncExternalStore(subscribeUiRegistry, getUiRegistryVersion, getUiRegistryVersion);
   const items = slotComponents(slot);
   if (items.length === 0) return null;
   return (
     <>
       {items.map((r, i) => (
-        <r.component key={`${r.plugin}#${i}`} {...ctx} />
+        <PluginErrorBoundary key={`${r.plugin}#${i}`} scope={`slot:${slot}:${r.plugin}`}>
+          <r.component {...ctx} />
+        </PluginErrorBoundary>
       ))}
     </>
   );

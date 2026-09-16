@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 /**
  * GET /api/admin/audit?action=&adminId=&limit=40&offset=
  * Read-only mod_logs stream (newest first) with the acting admin joined in.
+ * adminId 可为 null（系统 actor 的审计行），故用 leftJoin 而非 innerJoin。
  * Also returns the distinct action list for the filter dropdown.
  */
 export async function GET(req: Request) {
@@ -40,7 +41,7 @@ export async function GET(req: Request) {
           adminAvatar: users.avatarPath,
         })
         .from(modLogs)
-        .innerJoin(users, eq(users.id, modLogs.adminId))
+        .leftJoin(users, eq(users.id, modLogs.adminId))
         .where(where)
         .orderBy(desc(modLogs.createdAt))
         .limit(limit)

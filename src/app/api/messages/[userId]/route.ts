@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, isNull, lt, or } from "drizzle-orm";
+import { and, desc, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { conversations, messages, users } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
@@ -194,27 +194,33 @@ export async function POST(req: Request, ctx: { params: Promise<{ userId: string
       throw new AppError(sendingCtx.rejection, 422, "extension_rejected");
     }
 
-    const [created] = await db
-      .insert(messages)
-      .values({
-        conversationId: conv.id,
-        senderId: me,
-        body: parsed.data.body ?? null,
-        mediaPath: parsed.data.mediaPath ?? null,
-      })
-      .returning();
+    // 消息写入 + 会话 lastMessageAt 推进同事务（任一失败整体回滚）。
+    // lastMessageAt 用 greatest()：乱序写入的旧 createdAt 不会把会话顶到最前
+    //（timestamptz 列与参数化 Date 直接比较）。
+    const created = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(messages)
+        .values({
+          conversationId: conv.id,
+          senderId: me,
+          body: parsed.data.body ?? null,
+          mediaPath: parsed.data.mediaPath ?? null,
+        })
+        .returning();
+      await tx
+        .update(conversations)
+        .set({ lastMessageAt: sql`greatest(${conversations.lastMessageAt}, ${row.createdAt})` })
+        .where(eq(conversations.id, conv.id));
+      return row;
+    });
 
+    // 钩子/实时推送在事务提交后触发（监听方经连接池读取时行已可见）
     await hooks.callHook("message:sent", {
       message: { id: created.id, conversationId: conv.id },
       senderId: me,
       receiverId: userId,
     });
     broadcast([userId], { type: "message.created", payload: { from: me, messageId: created.id } });
-
-    await db
-      .update(conversations)
-      .set({ lastMessageAt: created.createdAt })
-      .where(eq(conversations.id, conv.id));
 
     void emit("message:created", {
       messageId: created.id,

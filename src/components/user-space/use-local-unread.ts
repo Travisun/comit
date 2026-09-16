@@ -35,12 +35,21 @@ export function useLocalUnread(user: { username: string } | null | undefined): L
   const markSeen = useUnreadSeenStore((s) => s.markSeen);
   const queryClient = useQueryClient();
 
-  // 实时事件（私信/通知广播）→ 立即失效未读查询；60s 轮询作为兜底
+  // 实时事件（私信/通知广播）→ 立即失效未读/通知查询；60s 轮询作为兜底。
+  // 仅登录用户订阅：游客连 /api/realtime/stream 只会拿到 401，白建连接。
   useRealtime((event) => {
-    if (event.type === "message.created" || event.type === "message.read" || event.type === "notification.created") {
+    if (
+      event.type === "message.created" ||
+      event.type === "message.read" ||
+      event.type === "notification.created" ||
+      // 断线重连成功：补一次失效，覆盖断线窗口内可能丢失的推送事件
+      event.type === "realtime.reconnected"
+    ) {
       queryClient.invalidateQueries({ queryKey: ["unread"] });
+      // 前缀失效可连带 ["notifications","badge"] 角标一起刷新
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications() });
     }
-  });
+  }, Boolean(user));
 
   // 进入对应页面的瞬间：推进 seen 标记（该入口清零）——键变化驱动重查
   useEffect(() => {

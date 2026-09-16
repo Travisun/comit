@@ -12,7 +12,8 @@ export async function audit(input: {
   await db
     .insert(modLogs)
     .values({
-      adminId: input.actorId ?? "system",
+      // null = 系统 actor（非人工操作）；admin_id 已改为可空列
+      adminId: input.actorId ?? null,
       action: input.action,
       targetType: input.targetType,
       targetId: input.targetId ?? null,

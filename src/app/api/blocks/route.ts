@@ -11,11 +11,19 @@ const bodySchema = z.object({
   username: z.string().min(1).max(64),
 });
 
+const querySchema = z.object({
+  username: z.string().min(1).max(64),
+});
+
 /** GET /api/blocks?username= — whether the viewer blocks the target. */
 export async function GET(req: Request) {
   return withUser(req, async (auth) => {
-    const username = new URL(req.url).searchParams.get("username") ?? "";
-    const target = await getUserByUsername(username);
+    const parsed = querySchema.safeParse({
+      username: new URL(req.url).searchParams.get("username") ?? "",
+    });
+    if (!parsed.success) throw new AppError("参数错误 / Invalid payload", 400, "bad_request");
+
+    const target = await getUserByUsername(parsed.data.username);
     if (target.id === auth.user.id) return ok({ blocked: false, self: true });
     const [row] = await db
       .select({ x: blocks.blockerId })

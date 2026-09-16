@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useUiRegistryVersion } from "@/lib/plugins/registry";
 import { PenLine } from "lucide-react";
 import {
   LogOut,
@@ -40,13 +40,13 @@ export function UserMenu({
   siteName: string;
   locale: "zh" | "en";
 }) {
-  const router = useRouter();
+  useUiRegistryVersion(); // 扩展注册变化时重渲菜单
 
   async function logout() {
     await postJson("/api/auth/logout", {}).catch(() => undefined);
-    // replace：登出后浏览器回退不应回到已登录页面
-    router.replace("/");
-    router.refresh();
+    // 整页跳转：会话边界不做 SPA 导航（replace+refresh 双 RSC 请求会触发
+    // flight 客户端竞态 enqueueModel 崩溃），同时确保客户端缓存全部清空
+    window.location.replace("/");
   }
 
   return (

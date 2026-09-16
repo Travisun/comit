@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, MailCheck, MailQuestion } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,8 +14,10 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
-import { apiRequest } from "./client";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
+import { apiRequest } from "./client";
 
 interface EmailState {
   email: string | null;
@@ -23,21 +25,43 @@ interface EmailState {
   hasPassword: boolean;
 }
 
+const emailStateSchema = z.object({
+  email: z.string().nullable(),
+  pendingEmail: z.string().nullable(),
+  hasPassword: z.boolean(),
+});
+
 /** 邮箱 — 展示当前（脱敏）邮箱，支持换绑：密码验证 → 新邮箱收确认邮件。 */
 export function EmailPanel() {
   const { locale } = useI18n();
   const zh = locale === "zh";
-  const router = useRouter();
-  const queryClient = useQueryClient();
   const [newEmail, setNewEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const emailQ = useQuery({
-    queryKey: queryKeys.emailStatus(),
-    queryFn: async () => apiRequest<EmailState>("/api/me/email", "GET"),
-  });
+  const emailQ = useQuery(
+    apiQueryOptions({
+      queryKey: queryKeys.emailStatus(),
+      url: "/api/me/email",
+      schema: emailStateSchema,
+    }),
+  );
   const state: EmailState = emailQ.data ?? { email: null, pendingEmail: null, hasPassword: false };
+
+  // 提交换绑 — pending 驱动按钮禁用（原手写 busy 在 toast 抛错时会把按钮永久锁死）
+  const sendMutation = useApiMutation(
+    (input: { newEmail: string; password?: string }) =>
+      apiRequest<{ message?: string }>("/api/me/email", "POST", input),
+    {
+      // 保持原行为等价：只失效邮箱状态查询，不整页 refresh
+      refresh: false,
+      invalidate: [queryKeys.emailStatus()],
+      successToast: (res) => res.message ?? (zh ? "确认邮件已发送" : "Confirmation email sent"),
+      onSuccess: () => {
+        setNewEmail("");
+        setPassword("");
+      },
+    },
+  );
 
   useEffect(() => {
     // 换绑确认后返回时带 ?updated=1
@@ -46,24 +70,13 @@ export function EmailPanel() {
     if (params.get("error")) toast.error(zh ? "确认链接无效或已过期" : "Invalid or expired link");
   }, [zh]);
 
-  async function submit(e: React.FormEvent) {
+  function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const res = await apiRequest<{ message: string }>("/api/me/email", "POST", {
-        newEmail: newEmail.trim(),
-        password: password || undefined,
-      });
-      toast.success(res.message ?? (zh ? "确认邮件已发送" : "Confirmation email sent"));
-      setNewEmail("");
-      setPassword("");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.emailStatus() });
-      setBusy(false);
-    } catch (err) {
-      toast.error((err as Error).message);
-      setBusy(false);
-    }
+    if (sendMutation.pending) return;
+    void sendMutation.mutate({
+      newEmail: newEmail.trim(),
+      password: password || undefined,
+    });
   }
 
   if (!state) {
@@ -126,8 +139,8 @@ export function EmailPanel() {
               />
             </div>
           )}
-          <Button type="submit" disabled={busy || !newEmail.trim()}>
-            {busy && <Loader2 className="animate-spin" />}
+          <Button type="submit" disabled={sendMutation.pending || !newEmail.trim()}>
+            {sendMutation.pending && <Loader2 className="animate-spin" />}
             {zh ? "发送确认邮件" : "Send confirmation email"}
           </Button>
         </form>

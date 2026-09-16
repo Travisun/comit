@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,8 +16,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FilterChips } from "@/components/admin/bits";
-import { timeAgo } from "@/lib/utils";
+import { subscribeNoop, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
 
 /**
@@ -74,16 +75,18 @@ const FILTERS = [
 ] as const;
 
 export function MyPostsManager() {
-  const [status, setStatus] = useState<string>(() =>
-    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("tab") === "trash"
-      ? "deleted"
-      : "all",
+  // 初始 tab：水合期用服务端可预测默认值 "all"（getServerSnapshot），挂载后
+  // useSyncExternalStore 自动切到客户端快照读取的 ?tab=trash —— 既避免
+  // typeof window 分支的水合不匹配，也不在 effect 里手动 setState
+  const initialTab = useSyncExternalStore(
+    subscribeNoop,
+    () => (new URLSearchParams(window.location.search).get("tab") === "trash" ? "deleted" : "all"),
+    () => "all",
   );
+  const [status, setStatus] = useState<string>(initialTab);
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
   const [deleting, setDeleting] = useState<MyPost | null>(null);
-  const [busy, setBusy] = useState(false);
-  const queryClient = useQueryClient();
 
   // 列表查询 — key 随筛选/搜索变化；placeholderData 让切换页签时保留上一页数据
   const postsQ = useQuery({
@@ -96,7 +99,7 @@ export function MyPostsManager() {
     },
     placeholderData: keepPreviousData,
   });
-  const items = postsQ.data?.items ?? [];
+  const items = useMemo(() => postsQ.data?.items ?? [], [postsQ.data]);
   const total = postsQ.data?.total ?? 0;
   const loading = postsQ.isLoading;
 
@@ -106,41 +109,37 @@ export function MyPostsManager() {
     return () => clearTimeout(timer);
   }, [qInput]);
 
-  /** 增删后刷新当前列表家族（所有筛选页签的缓存一起失效） */
-  function refreshList() {
-    void queryClient.invalidateQueries({ queryKey: ["posts", "mine-list"] });
-  }
-
-  async function confirmDelete() {
-    if (!deleting) return;
-    setBusy(true);
-    try {
+  // 删除（软删/彻底删）— 失效整个管理列表家族；silent 保持原失败文案
+  const deleteMutation = useApiMutation(
+    (post: MyPost) => {
       // normal delete → recycle bin (soft); purge → permanent removal
-      const qs = deleting.status === "deleted" ? "?purge=true" : "";
-      await deleteJson(`/api/posts/${deleting.id}${qs}`);
-      toast.success(deleting.status === "deleted" ? "已彻底删除" : "已移入回收站");
-      setDeleting(null);
-      refreshList();
-    } catch {
-      toast.error("删除失败");
-    } finally {
-      setBusy(false);
-    }
-  }
+      const qs = post.status === "deleted" ? "?purge=true" : "";
+      return deleteJson(`/api/posts/${post.id}${qs}`);
+    },
+    {
+      // 保持原行为等价：只失效列表查询，不触发 RSC 回流
+      refresh: false,
+      invalidate: [queryKeys.myPostListPrefix()],
+      silent: true,
+      onError: () => toast.error("删除失败"),
+      onSuccess: (_data, post) => {
+        toast.success(post.status === "deleted" ? "已彻底删除" : "已移入回收站");
+        setDeleting(null);
+      },
+    },
+  );
 
-  async function restore(post: MyPost) {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await postJson(`/api/posts/${post.id}/restore`, {});
-      toast.success("已恢复为草稿");
-      refreshList();
-    } catch {
-      toast.error("恢复失败");
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 恢复为草稿 — 同上，按前缀批量失效
+  const restoreMutation = useApiMutation(
+    (postId: string) => postJson(`/api/posts/${postId}/restore`, {}),
+    {
+      refresh: false,
+      invalidate: [queryKeys.myPostListPrefix()],
+      successToast: "已恢复为草稿",
+      silent: true,
+      onError: () => toast.error("恢复失败"),
+    },
+  );
 
   const stats = useMemo(() => {
     const pub = items.filter((i) => i.status === "published");
@@ -159,8 +158,8 @@ export function MyPostsManager() {
           <Button
             variant="outline"
             size="sm"
-            disabled={busy}
-            onClick={() => void restore(post)}
+            disabled={restoreMutation.pending}
+            onClick={() => void restoreMutation.mutate(post.id)}
           >
             <RotateCcw className="size-3.5" /> 恢复
           </Button>
@@ -342,8 +341,14 @@ export function MyPostsManager() {
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDeleting(null)}>取消</Button>
-            <Button variant="destructive" onClick={confirmDelete} disabled={busy}>
-              {busy ? "删除中…" : deleting?.status === "deleted" ? "彻底删除" : "移入回收站"}
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (deleting) void deleteMutation.mutate(deleting);
+              }}
+              disabled={deleteMutation.pending}
+            >
+              {deleteMutation.pending ? "删除中…" : deleting?.status === "deleted" ? "彻底删除" : "移入回收站"}
             </Button>
           </DialogFooter>
         </DialogContent>

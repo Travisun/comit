@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, count, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, reposts } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
@@ -43,11 +43,16 @@ export async function POST(req: Request) {
       reposted = true;
     }
 
-    const [{ n }] = await db
-      .select({ n: count() })
-      .from(reposts)
-      .where(eq(reposts.postId, postId));
-    await db.update(posts).set({ repostCount: n }).where(eq(posts.id, postId));
+    // 单条原子 SQL：UPDATE … SET repost_count = (SELECT COUNT(*) …)，
+    // 消除 select→update 读改写竞态；RETURNING 取回最新计数。
+    const [row] = await db
+      .update(posts)
+      .set({
+        repostCount: sql`(SELECT COUNT(*) FROM ${reposts} WHERE ${reposts.postId} = ${postId})`,
+      })
+      .where(eq(posts.id, postId))
+      .returning({ repostCount: posts.repostCount });
+    const n = row?.repostCount ?? 0;
 
     if (reposted) {
       void emit("post:reposted", {

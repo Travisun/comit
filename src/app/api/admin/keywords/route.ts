@@ -2,7 +2,7 @@ import { z } from "zod";
 import { desc, ilike } from "drizzle-orm";
 import { db } from "@/db";
 import { keywords } from "@/db/schema";
-import { withAdmin, ok, jsonBody } from "@/lib/http"
+import { ok, jsonBody } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { conflict } from "@/core/errors";
 import { parseOrThrow } from "@/app/api/admin/_shared";
@@ -34,6 +34,19 @@ const postSchema = z.object({
   category: z.string().trim().max(40).optional(),
 });
 
+/**
+ * Postgres unique_violation (23505) — drizzle 0.4x 会把驱动错误包在
+ * DrizzleQueryError.cause 里，沿 cause 链向上找 pg 错误码。
+ */
+function isUniqueViolation(err: unknown): boolean {
+  let cur: unknown = err;
+  for (let depth = 0; cur instanceof Error && depth < 4; depth++) {
+    if ((cur as Error & { code?: string }).code === "23505") return true;
+    cur = (cur as Error).cause;
+  }
+  return false;
+}
+
 /** POST /api/admin/keywords — add one keyword. */
 export async function POST(req: Request) {
   return withPermission(req, "admin.moderate", async () => {
@@ -48,7 +61,9 @@ export async function POST(req: Request) {
         })
         .returning();
       return ok({ item: row });
-    } catch {
+    } catch (err) {
+      // 只有唯一键冲突才映射 409；其余错误 rethrow 走统一 500 管线
+      if (!isUniqueViolation(err)) throw err;
       throw conflict("关键词已存在 / Keyword already exists");
     }
   });

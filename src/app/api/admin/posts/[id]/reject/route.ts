@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
-import { withAdmin, ok, jsonBody } from "@/lib/http"
+import { ok, jsonBody } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
-import { notFound } from "@/core/errors";
+import { AppError, notFound } from "@/core/errors";
 import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
@@ -14,7 +14,11 @@ const bodySchema = z.object({
   reason: z.string().trim().min(1, "请填写驳回原因 / Reason required").max(500),
 });
 
-/** POST /api/admin/posts/[id]/reject — mark a post as rejected with a reason. */
+/**
+ * POST /api/admin/posts/[id]/reject — mark a post as rejected with a reason.
+ * 状态机：仅允许 pending_review → rejected；draft / published / rejected /
+ * deleted 均为非法来源 → 409（rejected 后需作者重新提交，再次驳回无意义）。
+ */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   return withPermission(req, "admin.moderate", async ({ user }) => {
     const { id } = await params;
@@ -23,8 +27,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const [post] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
     if (!post) throw notFound("文章不存在 / Post not found");
+    if (post.status !== "pending_review") {
+      throw new AppError(
+        `文章当前状态为 ${post.status}，仅待审内容可驳回 / Only posts pending review can be rejected`,
+        409,
+        "invalid_status",
+      );
+    }
 
-    await db
+    // 条件更新兜底并发：两个管理员同时审核只成功一次
+    const [updated] = await db
       .update(posts)
       .set({
         status: "rejected",
@@ -32,11 +44,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         moderation: {
           ...post.moderation,
           reviewedAt: new Date().toISOString(),
-          reviewedBy: "admin",
+          reviewedBy: user.id, // 实际操作者，不再是硬编码 "admin"
         },
         updatedAt: new Date(),
       })
-      .where(eq(posts.id, id));
+      .where(and(eq(posts.id, id), eq(posts.status, "pending_review")))
+      .returning({ id: posts.id });
+    if (!updated) {
+      throw new AppError(
+        "文章状态已被并发操作变更 / Post status was changed concurrently",
+        409,
+        "conflict",
+      );
+    }
 
     await logAdmin(user.id, "post.reject", "post", id, body.reason);
     return ok({ ok: true });

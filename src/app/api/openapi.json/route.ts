@@ -1,4 +1,5 @@
 import { listActions } from "@/core/capabilities/actions";
+import { config } from "@/core/config";
 
 export const runtime = "nodejs";
 
@@ -20,8 +21,19 @@ export async function GET() {
   }
   return Response.json({
     openapi: "3.0.0",
-    info: { title: "comit.sh API", version: "1" },
-    components: { securitySchemes: { cookieAuth: { type: "apiKey", in: "cookie", name: "session" } } },
+    info: {
+      title: "comit.sh API",
+      version: "1",
+      description:
+        "当前仅覆盖 Action 目录（defineAction）注册的端点，其余 route handler 未收录。/ " +
+        "Only endpoints registered in the Action catalog (defineAction) are listed; " +
+        "other route handlers are not included.",
+    },
+    components: {
+      securitySchemes: {
+        cookieAuth: { type: "apiKey", in: "cookie", name: config.auth.sessionCookie },
+      },
+    },
     paths,
   });
 }
