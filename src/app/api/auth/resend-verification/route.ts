@@ -20,6 +20,8 @@ const schema = z.object({
 /** Always returns ok — never reveals whether the address is registered. */
 export async function POST(req: Request) {
   return withApi(req, async () => {
+    // 匿名流程：仅凭 body.email 查找、无会话可用（响应也不泄露邮箱是否存在），
+    // 无 user.id 可作限流主体 → 保持按 IP 限流，防邮件轰炸/枚举
     await rateLimitBucket("auth.email", clientIp(req));
     const body = await parseJsonBody(req, schema);
     const generic = { ok: true, message: "如果该邮箱存在，验证邮件已重新发送 / If that email exists, a verification email has been resent" };

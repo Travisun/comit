@@ -75,7 +75,12 @@ function blockedPaths(): RouteMiddleware {
       const blocked = raw.split(",").map((p) => p.trim()).filter(Boolean);
       if (blocked.length === 0) return;
       const path = new URL(req.url).pathname;
-      const hit = blocked.some((p) => path === p || path.startsWith(p.endsWith("/") ? p : `${p}/`));
+      // 条目归一化去尾斜杠："/api/internal/" 与 "/api/internal" 同义，
+      // 均拦裸路径与整棵子树
+      const hit = blocked.some((p) => {
+        const norm = p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
+        return path === norm || path.startsWith(`${norm}/`);
+      });
       if (hit) throw forbidden("路径已被屏蔽 / Path blocked");
     },
   };

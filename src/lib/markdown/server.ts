@@ -30,7 +30,11 @@ import { callHook } from "@/core/hooks";
 function rehypeDropDangerous() {
   const DROP = new Set(["script", "style", "iframe", "object", "embed", "frame", "frameset", "applet", "base", "form", "input", "button", "select", "textarea", "link", "meta", "noscript"]);
   return (tree: Root) => {
-    visit(tree, "parent", (node: Element) => {
+    // 无 test 的 visit 遍历全部节点；只对含 children 的父节点过滤危险子元素。
+    // （此前误用 "parent" 作为 unist test —— 它不是合法测试，命中 0 节点，
+    // 本函数实际从未生效，危险元素全靠 rehype-sanitize 兜底。）
+    visit(tree, (node) => {
+      if (!("children" in node) || !Array.isArray(node.children)) return;
       node.children = (node.children as Element[]).filter(
         (c) => !(c.type === "element" && typeof c.tagName === "string" && DROP.has(c.tagName)),
       );
@@ -145,7 +149,7 @@ const DANGEROUS_STYLE_PROPS = new Set([
  *  视口单位（配合尺寸类属性可撑满全屏）。要求数字前缀避免误伤字体名等。 */
 const DANGEROUS_STYLE_VALUE = /url\s*\(|expression\s*\(|\d(?:\.\d+)?\s*(?:vh|vw|vmin|vmax)\b/i;
 
-function rehypeTightenStyles() {
+export function rehypeTightenStyles() {
   // 严格白名单（pre/code 之外）：仅保留颜色/字重子集
   const strictStyle = (style: string): string =>
     style

@@ -124,7 +124,7 @@ function unwrapEmbeddedIpv4(addr: string): string | null {
 }
 
 /** 判定一个解析出的地址是否落在禁止访问的网段（IPv4/IPv6，含内嵌 IPv4 的各类 v6 形式） */
-function isBlockedAddress(ip: string): boolean {
+export function isBlockedAddress(ip: string): boolean {
   // ::ffff:a00:1 / ::7f00:1 / 64:ff9b::a00:1 这类先还原成 IPv4 再判定
   const addr = unwrapEmbeddedIpv4(ip) ?? ip.toLowerCase();
   return addr.includes(":") ? isBlockedIpv6(addr) : isBlockedIpv4(addr);

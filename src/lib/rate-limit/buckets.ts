@@ -52,8 +52,16 @@ function sanitizeOverride(v: unknown): BucketOverride | null {
  */
 export async function rateLimitBucket(bucket: BucketName, identity: string): Promise<void> {
   const base = BUCKET_MAP[bucket];
-  const overrides = await getSetting("ratelimit.buckets");
-  const override = sanitizeOverride(overrides?.[bucket]);
+  let override: BucketOverride | null | undefined;
+  try {
+    // 覆写查询失败（DB 抖动/10s 缓存过期撞上故障）→ 回落桶默认值。
+    // 限流是热路径上的可用性守卫，绝不能因这次查询以 500 击穿请求——
+    // 即便驱动链（Redis→PG→内存）本身完全健康。
+    const overrides = await getSetting("ratelimit.buckets");
+    override = sanitizeOverride(overrides?.[bucket]);
+  } catch (err) {
+    console.warn(`[rate-limit] bucket override lookup failed, using defaults for ${bucket}:`, err);
+  }
   const limit = override?.limit ?? base.limit;
   const windowSec = override?.windowSec ?? base.windowSec;
   await rateLimit(`${bucket}:${identity}`, limit, windowSec * 1000);

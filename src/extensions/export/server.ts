@@ -1,7 +1,7 @@
 import { ZipArchive } from "archiver";
 import path from "path";
 import fs from "fs";
-import { eq, desc } from "drizzle-orm";
+import { eq, inArray, desc } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, exportJobs, users, postTopics, topics, collections } from "@/db/schema";
 import { mediaAbsPath } from "@/lib/media";
@@ -38,6 +38,35 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
     return `media/${path.basename(relPath)}`;
   };
 
+  // 批量预取 topics / collections（历史 N+1：每篇 2 查询 → 全程最多 2 查询）
+  const postIds = rows.map((p) => p.id);
+  const topicsByPost = new Map<string, string[]>();
+  if (postIds.length) {
+    // inArray 空数组会生成非法 SQL → 空集直接跳过查询
+    const topicRows = await db
+      .select({ postId: postTopics.postId, name: topics.name })
+      .from(postTopics)
+      .innerJoin(topics, eq(topics.id, postTopics.topicId))
+      .where(inArray(postTopics.postId, postIds))
+      .orderBy(topics.name); // 确定性输出：同一文章的 topics 顺序稳定
+    for (const t of topicRows) {
+      const list = topicsByPost.get(t.postId);
+      if (list) list.push(t.name);
+      else topicsByPost.set(t.postId, [t.name]);
+    }
+  }
+  const collectionNames = new Map<string, string>();
+  const collectionIds = [
+    ...new Set(rows.map((p) => p.collectionId).filter((id): id is string => id !== null)),
+  ];
+  if (collectionIds.length) {
+    const cRows = await db
+      .select({ id: collections.id, name: collections.name })
+      .from(collections)
+      .where(inArray(collections.id, collectionIds));
+    for (const c of cRows) collectionNames.set(c.id, c.name);
+  }
+
   for (const post of rows) {
     const d = post.publishedAt ?? post.createdAt;
     const yyyy = d.getUTCFullYear();
@@ -58,20 +87,9 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
       body = body.replaceAll(`/api/media/file/${rel}`, local).replaceAll(rel, local);
     }
 
-    const postTopicsRows = await db
-      .select({ name: topics.name })
-      .from(postTopics)
-      .innerJoin(topics, eq(topics.id, postTopics.topicId))
-      .where(eq(postTopics.postId, post.id));
-    let collectionName: string | null = null;
-    if (post.collectionId) {
-      const [c] = await db
-        .select({ name: collections.name })
-        .from(collections)
-        .where(eq(collections.id, post.collectionId))
-        .limit(1);
-      collectionName = c?.name ?? null;
-    }
+    // 内存组装（批量预取结果），导出产物与逐篇查询时完全一致
+    const postTopicNames = topicsByPost.get(post.id) ?? [];
+    const collectionName = post.collectionId ? (collectionNames.get(post.collectionId) ?? null) : null;
 
     const fm = [
       "---",
@@ -82,7 +100,7 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
       post.publishedAt ? `published: ${post.publishedAt.toISOString()}` : null,
       `created: ${post.createdAt.toISOString()}`,
       collectionName ? `collection: ${JSON.stringify(collectionName)}` : null,
-      postTopicsRows.length ? `topics: [${postTopicsRows.map((t) => JSON.stringify(t.name)).join(", ")}]` : null,
+      postTopicNames.length ? `topics: [${postTopicNames.map((n) => JSON.stringify(n)).join(", ")}]` : null,
       post.coverPath ? `cover: media/${path.basename(post.coverPath)}` : null,
       `url: ${config.app.url}/u/${user.username}/posts/${slug}`,
       "---",

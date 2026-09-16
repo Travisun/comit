@@ -75,29 +75,19 @@ import type {
   CronTaskDef,
 } from "@/core/capabilities/scheduler";
 import type { storage } from "@/core/capabilities/storage";
+// 只保留 PluginContext 类型签名真正引用的能力符号；能力函数本体由
+// extensions/_boot/server.ts 直接 import 并接线（registerXxx/broadcast 等
+// 值符号在此仅是类型导入、从未被引用 → 删除，避免 no-unused-vars）。
 import type {
-  registerNotificationTemplate,
   NotificationTemplate,
 } from "@/core/capabilities/notify-templates";
 import type {
-  broadcast,
-  BroadcastEvent,
-} from "@/core/capabilities/broadcast";
-import type {
-  registerSearchProvider,
   SearchProvider,
 } from "@/core/capabilities/search";
 import type {
-  registerSeed,
-} from "@/core/capabilities/seeds";
-import type {
-  registerGlobalMiddleware,
   Middleware,
 } from "@/core/capabilities/actions";
 import type {
-  defineFlag,
-  flagEnabled,
-  setFlag as setFlagValue,
   listFlagDefs,
 } from "@/core/capabilities/flags";
 import type { can as policyCan, authorize as policyAuthorize, registerPolicy } from "@/core/capabilities/policies";

@@ -10,6 +10,7 @@ import { assertNotUnderMaintenance } from "@/lib/maintenance";
 import { authorize } from "@/core/capabilities/policies";
 import { logger } from "@/core/logger";
 import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { getSetting } from "@/lib/settings";
 
 /**
  * Action 层（A1/A2，Laravel Controller + FormRequest 对应物）—
@@ -86,16 +87,57 @@ export function listGlobalMiddleware(): string[] {
   return globalMiddleware.map((m) => m.name);
 }
 
-/** 平台内置：内存限流中间件工厂（复用 lib/rate-limit 语义，按 ip+name 限桶）。
+/** 平台内置：Action 层限流中间件工厂 —— 已接入后台可配置桶体系
+ *  （lib/rate-limit/buckets，同源 ratelimit.buckets 覆盖 + 10s 缓存）。
+ *
+ *  覆盖键约定：设置键 `ratelimit.buckets` 内的 `action.<name>`（如 `action.likes`）
+ *  是 Action 层扩展桶的约定命名空间 —— 有覆盖用覆盖的 limit/windowSec，
+ *  无覆盖回落调用点传入的默认参数。诚实声明 UI 缺口：`action.*` 不在
+ *  RATE_BUCKETS 桶清单（bucket-manifest.ts）内，后台「频率限制」页不会列出
+ *  —— 若 UI 未列出，说明这是 Action 层扩展桶，需在「频率限制」之外经设置
+ *  API（POST /api/admin/settings 的 entries["ratelimit.buckets"]["action.<name>"]）
+ *  精调；getSetting 复用 settings 的每进程 10s TTL 缓存（无每请求新查询），
+ *  覆盖最迟 10s 生效。
+ *
+ *  identity 固定 clientIp(req)：本中间件在 runAction 管线的鉴权段之前执行
+ *  （中间件链先于 apiUser()），此刻登录用户尚未解析、拿不到 user.id，
+ *  按 IP 限流是鉴权前的唯一可用主体 —— 管线顺序约束，非实现取舍。
+ *
  *  rateLimit 契约为 async（`Promise<void>`，失败内部降级不 throw）→ await 化；
- *  Middleware 形状不变，使用方（likes.ts 等）无需改动。 */
+ *  超限抛 429 AppError（与 rateLimitBucket 同语义）。计数键 `action.<name>:<ip>`
+ *  与桶体系的 `${bucket}:${identity}` 键法同构，`action.` 前缀保证与桶清单
+ *  内的桶名永不撞号。Middleware 形状不变，使用方（likes.ts 等）无需改动。 */
 export function rateLimitAction(name: string, limit: number, windowMs: number): Middleware {
+  const bucket = `action.${name}`; // 约定命名空间：与 RATE_BUCKETS 清单隔离
   return {
     name: `rate-limit:${name}`,
     async handle(req) {
-      await rateLimit(`${name}:${clientIp(req)}`, limit, windowMs);
+      let override: { limit: number; windowSec: number } | null | undefined;
+      try {
+        // 覆写查询失败 → 回落调用点默认参数（限流守卫绝不因配置查询 5xx）
+        const overrides = await getSetting("ratelimit.buckets");
+        override = sanitizeActionOverride(overrides?.[bucket]);
+      } catch (err) {
+        console.warn(`[rate-limit] action override lookup failed, using defaults for ${bucket}:`, err);
+      }
+      await rateLimit(
+        `${bucket}:${clientIp(req)}`,
+        override?.limit ?? limit,
+        override ? override.windowSec * 1000 : windowMs,
+      );
     },
   };
+}
+
+/** 覆写形状防御（与 buckets.ts 的 sanitizeOverride 同规则，彼处未导出）：
+ *  settings 值运行时形状不可全信（历史脏行先于 admin 精确校验写入），
+ *  不完整的覆写整条忽略、回落默认 —— 坏配置绝不放大阈值。 */
+function sanitizeActionOverride(v: unknown): { limit: number; windowSec: number } | null {
+  if (typeof v !== "object" || v === null) return null;
+  const { limit, windowSec } = v as Record<string, unknown>;
+  const positiveInt = (x: unknown): x is number =>
+    typeof x === "number" && Number.isInteger(x) && x >= 1;
+  return positiveInt(limit) && positiveInt(windowSec) ? { limit, windowSec } : null;
 }
 
 /**

@@ -25,11 +25,15 @@ export function trustProxyMode(): TrustProxyMode {
 
 export const UNKNOWN_IP = "unknown";
 
-/** XFF 从右往左跳过 count 个受信代理后取第一个不受信跳（无则返回 null）。 */
+/**
+ * XFF 语义：每个代理追加"它所看到的对端地址"。因此最右 trustedCount 跳是
+ * 受信代理链追加的地址（最右 = 最末代理看到的对端），客户端 IP 在第
+ * `length - trustedCount` 位；伪造头会被挤到更左侧而被忽略。
+ * 跳数不足（全部为受信代理）或 trustedCount=0（XFF 整体不受信）→ null。
+ */
 function pickFromXff(xff: string, trustedCount: number): string | null {
   const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
-  // 最右 trustedCount 跳是代理自身，客户端 IP 在其左侧
-  const idx = hops.length - 1 - trustedCount;
+  const idx = hops.length - trustedCount;
   return idx >= 0 ? (hops[idx] || null) : null;
 }
 
@@ -56,7 +60,8 @@ export function clientIp(req: Request): string {
   const realIp = req.headers.get("x-real-ip");
   if (realIp) return realIp.trim();
 
-  const trustedCount = Math.max(0, Number(process.env.TRUSTED_PROXY_COUNT ?? 1) || 1);
+  const rawCount = Number(process.env.TRUSTED_PROXY_COUNT ?? 1);
+  const trustedCount = Number.isFinite(rawCount) && rawCount >= 0 ? Math.floor(rawCount) : 1;
   const xff = req.headers.get("x-forwarded-for");
   if (xff) return pickFromXff(xff, trustedCount) ?? UNKNOWN_IP;
 

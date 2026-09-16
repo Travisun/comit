@@ -397,12 +397,17 @@ function RateLimitBucketsSection({ seedValue }: { seedValue: unknown }) {
   );
 
   function save() {
-    const payload: BucketOverrides = {};
+    // 以当前覆盖对象为底拷贝：保留本页未列出的键（如 Action 层经设置 API 写入的
+    // `action.*` 扩展桶覆写）——否则整键替换会静默清空它们
+    const payload: BucketOverrides = { ...overrides };
     for (const b of RATE_BUCKETS) {
       const d = drafts[b.name] ?? EMPTY_DRAFT;
       const hasLimit = d.limit.trim() !== "";
       const hasWindow = d.windowSec.trim() !== "";
-      if (!hasLimit && !hasWindow) continue; // 留空 = 恢复默认（从覆盖对象移除）
+      if (!hasLimit && !hasWindow) {
+        delete payload[b.name]; // 留空 = 恢复默认（从覆盖对象移除该桶）
+        continue;
+      }
       const err =
         bucketFieldError(d.limit, `「${b.name}」limit`, 1, BUCKET_LIMIT_MAX) ??
         bucketFieldError(d.windowSec, `「${b.name}」windowSec`, 1, BUCKET_WINDOW_MAX);

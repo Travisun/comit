@@ -66,13 +66,14 @@ function prune(now: number) {
   }
 }
 
-/** 降级路径计数：与旧版进程内实现语义一致，超限抛 429 */
+/** 降级路径计数：窗口与 PG/Redis 一致按 epoch 对齐，超限抛 429 */
 function memRateLimit(key: string, limit: number, windowMs: number): void {
   const now = Date.now();
+  const windowStart = Math.floor(now / windowMs) * windowMs;
   const bucket = store.get(key);
   if (!bucket || bucket.resetAt <= now) {
     if (store.size > MAX_KEYS) prune(now);
-    store.set(key, { count: 1, resetAt: now + windowMs });
+    store.set(key, { count: 1, resetAt: windowStart + windowMs });
     return;
   }
   bucket.count += 1;
