@@ -3,6 +3,7 @@ import { z } from "zod";
 import { cookies } from "next/headers";
 import { db } from "@/db";
 import { media, users } from "@/db/schema";
+import { hooks } from "@/core/hooks";
 import { AppError, ok, withUser } from "@/lib/http";
 import { verifyPassword } from "@/lib/auth/password";
 import { destroyUserSessions } from "@/lib/auth/session";
@@ -35,6 +36,20 @@ export async function DELETE(req: Request) {
       if (!okPw) {
         throw new AppError("密码验证失败 / Password verification failed", 400, "bad_password");
       }
+    }
+
+    // 注销前钩子（扩展可拒绝：数据导出未完成/订阅未结算等）
+    const deletingCtx = {
+      userId: auth.user.id,
+      deleteContent: body.deleteContent === true,
+      rejection: null as string | null,
+      reject(reason: string) {
+        deletingCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("user:deleting", deletingCtx);
+    if (deletingCtx.rejection) {
+      throw new AppError(deletingCtx.rejection, 422, "extension_rejected");
     }
 
     if (body.deleteContent) {

@@ -2,7 +2,8 @@
 
 import { useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRealtime } from "@/lib/client/realtime";
 import { apiGet } from "@/lib/client/api";
 import { unreadSchema, type UnreadCounts } from "@/lib/models/unread";
 import { queryKeys } from "@/lib/query/keys";
@@ -32,6 +33,14 @@ export function useLocalUnread(user: { username: string } | null | undefined): L
   const pathname = usePathname();
   const seen = useUnreadSeenStore((s) => s.seen);
   const markSeen = useUnreadSeenStore((s) => s.markSeen);
+  const queryClient = useQueryClient();
+
+  // 实时事件（私信/通知广播）→ 立即失效未读查询；60s 轮询作为兜底
+  useRealtime((event) => {
+    if (event.type === "message.created" || event.type === "message.read" || event.type === "notification.created") {
+      queryClient.invalidateQueries({ queryKey: ["unread"] });
+    }
+  });
 
   // 进入对应页面的瞬间：推进 seen 标记（该入口清零）——键变化驱动重查
   useEffect(() => {

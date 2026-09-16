@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth/guards";
-import { ALL_WEBHOOK_EVENT_NAMES } from "@/plugins/webhooks";
+import { ALL_WEBHOOK_EVENT_NAMES } from "@/extensions/webhooks/server";
 import { TOKEN_SCOPES } from "@/lib/tokens";
 import { getSettingsPageData, isSettingsTab } from "../_data";
 import { TimelineHeader } from "@/components/site-shell";
@@ -37,7 +37,7 @@ export default async function SettingsTabPage({
 
   const zh = (await getT()).locale === "zh";
   const { SettingsPanel } = await import("@/components/settings/settings-panel");
-  const label = { profile: "资料", security: "安全", notifications: "通知", site: "站点", verification: "认证", username: "用户名", privacy: "隐私", email: "邮箱", connections: "账号绑定", invites: "邀请码", mcp: "MCP", api: "API", export: "数据导出", delete: "账户删除", appearance: "外观", subdomain: "子域名", webhooks: "Webhook", tokens: "API · MCP", developers: "MCP" }[tab] ?? tab;
+  const label = { extensions: "扩展", profile: "资料", security: "安全", notifications: "通知", site: "站点", verification: "认证", username: "用户名", privacy: "隐私", email: "邮箱", connections: "账号绑定", invites: "邀请码", mcp: "MCP", api: "API", export: "数据导出", delete: "账户删除", appearance: "外观", subdomain: "子域名", webhooks: "Webhook", tokens: "API · MCP", developers: "MCP" }[tab] ?? tab;
 
   return (
     <div className="w-full pt-[10px]">

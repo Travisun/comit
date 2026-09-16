@@ -4,6 +4,8 @@ import { db } from "@/db";
 import { conversations, messages, users } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
+import { hooks } from "@/core/hooks";
+import { broadcast } from "@/core/capabilities/broadcast";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { assertNotBlocked, isFollowing } from "@/lib/users";
 
@@ -87,7 +89,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ userId: string 
     if (!conv) return ok({ items: [], nextCursor: null });
 
     // opening the conversation marks the other party's messages as read
-    await db
+    const marked = await db
       .update(messages)
       .set({ readAt: new Date() })
       .where(
@@ -96,7 +98,13 @@ export async function GET(req: Request, ctx: { params: Promise<{ userId: string 
           eq(messages.senderId, userId),
           isNull(messages.readAt),
         ),
+      )
+      .returning({ id: messages.id });
+    if (marked.length > 0) {
+      void emit("message:read", { userId: me, peerId: userId, count: marked.length }).catch(
+        () => undefined,
       );
+    }
 
     // fetch the newest page, then flip to ascending for the client
     const conditions = [eq(messages.conversationId, conv.id)];
@@ -169,6 +177,23 @@ export async function POST(req: Request, ctx: { params: Promise<{ userId: string
 
     const conv = await findOrCreateConversation(me, userId);
 
+    // 私信发送前钩子（扩展可拒绝：频控/内容过滤/自动回复前置等）
+    const sendingCtx = {
+      conversationId: conv.id,
+      senderId: me,
+      receiverId: userId,
+      body: parsed.data.body ?? null,
+      mediaPath: parsed.data.mediaPath ?? null,
+      rejection: null as string | null,
+      reject(reason: string) {
+        sendingCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("message:sending", sendingCtx);
+    if (sendingCtx.rejection) {
+      throw new AppError(sendingCtx.rejection, 422, "extension_rejected");
+    }
+
     const [created] = await db
       .insert(messages)
       .values({
@@ -178,6 +203,13 @@ export async function POST(req: Request, ctx: { params: Promise<{ userId: string
         mediaPath: parsed.data.mediaPath ?? null,
       })
       .returning();
+
+    await hooks.callHook("message:sent", {
+      message: { id: created.id, conversationId: conv.id },
+      senderId: me,
+      receiverId: userId,
+    });
+    broadcast([userId], { type: "message.created", payload: { from: me, messageId: created.id } });
 
     await db
       .update(conversations)

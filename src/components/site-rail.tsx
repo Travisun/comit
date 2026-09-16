@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { FileText, Hash, LogIn, Rss, Trash2 } from "lucide-react";
 import { routes } from "@/core/routes";
+import { ExtensionRailWidgets } from "@/lib/plugins/registry";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import type { AuthorCardData, TopicRef } from "@/components/user-space/types";
 import type { CommunityStats } from "@/components/user-space/queries";
@@ -223,6 +224,9 @@ export function SiteRail({
         </Link>
         <span>© {new Date().getFullYear()} {siteName}</span>
       </footer>
+
+      {/* 扩展注册的 rail widget */}
+      <ExtensionRailWidgets />
     </div>
   );
 }

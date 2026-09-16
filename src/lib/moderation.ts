@@ -4,6 +4,7 @@ import { keywords, posts, type Post } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
 import { emit } from "@/core/events";
 import { markdownToPlain } from "@/lib/utils";
+import { llmChat } from "@/lib/llm";
 
 /**
  * Content moderation pipeline:
@@ -41,33 +42,16 @@ export async function llmReview(text: string): Promise<LlmReviewResult | null> {
   const cfg = await getSetting("moderation.llm");
   if (!cfg.apiKey) return null;
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
-    const res = await fetch(`${cfg.baseURL.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      signal: controller.signal,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${cfg.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: cfg.model,
-        temperature: cfg.temperature,
-        messages: [
-          { role: "system", content: cfg.prompt },
-          {
-            role: "user",
-            content: `请审核以下内容并只返回 JSON：\n\n${text.slice(0, 8000)}`,
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
+    const content = await llmChat({
+      messages: [
+        { role: "system", content: cfg.prompt },
+        { role: "user", content: `请审核以下内容并只返回 JSON：\n\n${text.slice(0, 8000)}` },
+      ],
+      model: cfg.model,
+      temperature: cfg.temperature,
+      json: true,
     });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
-    const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    const content = json.choices?.[0]?.message?.content ?? "{}";
-    const parsed = JSON.parse(content) as LlmReviewResult;
+    const parsed = JSON.parse(content || "{}") as LlmReviewResult;
     return {
       approved: Boolean(parsed.approved),
       score: parsed.score,

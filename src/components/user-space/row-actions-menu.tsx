@@ -35,6 +35,7 @@ import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { deleteJson, postJson } from "@/lib/client/api";
+import { PostRowMenuSlot } from "@/extensions/_boot/client";
 import { REPORT_REASONS } from "@/components/social/report-dialog";
 import type { FeedItemDTO } from "./types";
 
@@ -217,6 +218,7 @@ export function RowActionsMenu({
               />
             </>
           )}
+          <PostRowMenuSlot postId={post.id} postType={post.type} slug={post.slug} />
         </DropdownMenuContent>
       </DropdownMenu>
 

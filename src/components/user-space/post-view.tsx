@@ -13,6 +13,10 @@ import { FollowButton } from "@/components/social/follow-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { PreviewBanner } from "@/components/social/preview-banner";
 import { MarkdownView } from "@/components/markdown/markdown-view";
+import { runPostRenderPipeline } from "@/core/capabilities/post-render";
+import { renderMarkdown } from "@/lib/markdown/server";
+import { InterruptView } from "@/lib/plugins/registry";
+import { PostActionsSlot } from "@/lib/plugins/ui";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
 import { TimelineHeader } from "@/components/site-shell";
 import type { TopicRef, ViewerFollowState, ViewerInteractions } from "./types";
@@ -26,7 +30,7 @@ import type { TopicRef, ViewerFollowState, ViewerInteractions } from "./types";
  * cover → body → topics → action bar → comments → views. Handles follower-only
  * gating and JSON-LD; the caller owns 404 / blocked handling and view counting.
  */
-export function PostView({
+export async function PostView({
   post,
   author,
   viewer,
@@ -53,6 +57,16 @@ export function PostView({
   const date = post.publishedAt ?? post.createdAt;
   const minutes = readingMinutes(post.content);
   const canComment = Boolean(author.commentsEnabled && viewer);
+
+  // 扩展渲染管线：前/后输出、正文改写、meta、打断（gated 时由关注门禁接管）
+  const pipeline = gated
+    ? null
+    : await runPostRenderPipeline({
+        post,
+        author: { id: author.id, username: author.username, displayName: author.displayName },
+        viewer,
+        html: (await renderMarkdown(post.content)).html,
+      });
 
   return (
     <div className="min-h-dvh w-full">
@@ -172,10 +186,12 @@ export function PostView({
           />
         )}
 
-        {/* body / follower gate */}
+        {/* body / follower gate / 扩展渲染管线（前/后输出 + 打断） */}
         <div className="mt-5">
           {gated ? (
             <LockedBody author={author} showLoginHint={!viewer} />
+          ) : pipeline?.ctx.interrupted ? (
+            <InterruptView info={pipeline.ctx.interrupted} />
           ) : (
             <>
               {post.summary && (
@@ -183,7 +199,17 @@ export function PostView({
                   {post.summary}
                 </p>
               )}
-              <MarkdownView content={post.content} className="article-prose" />
+              {pipeline?.prependHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: pipeline.prependHtml }} />
+              ) : null}
+              <MarkdownView
+                content={post.content}
+                className="article-prose"
+                html={pipeline?.ctx.html}
+              />
+              {pipeline?.appendHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: pipeline.appendHtml }} />
+              ) : null}
             </>
           )}
         </div>
@@ -220,6 +246,7 @@ export function PostView({
             initialCount={post.likeCount}
             initialLiked={interactions.liked}
           />
+          <PostActionsSlot postId={post.id} postType={post.type} slug={post.slug} />
           <span className="ml-auto inline-flex items-center gap-1.5 text-sm">
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>

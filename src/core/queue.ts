@@ -26,6 +26,12 @@ export interface JobPayloads {
   "export.cleanup": { requestId: string };
   /** 投票到期：给作者与投票用户派发结果通知（创建时按 endsAt 延迟投递） */
   "poll.end": { postId: string };
+  /** 队列化事件（ShouldQueue 语义，core/capabilities/jobs.ts） */
+  "event.dispatch": { name: string; payloadJson: string };
+  /** 异步通知（渠道扇出走队列） */
+  "notify.dispatch": { userId: string; messageJson: string };
+  /** 扩展异步任务（ext.job，按 extensionId.task 路由到注册的处理器） */
+  "ext.job": { extensionId: string; task: string; payloadJson: string };
 }
 
 type JobName = keyof JobPayloads;
@@ -72,6 +78,26 @@ export const queue = {
       retryDelay: opts?.retryDelay ?? 30,
       retryBackoff: true,
       startAfter: opts?.startAfterSeconds,
+    });
+  },
+
+  /**
+   * 注册定时任务（cron，pg-boss 原生调度 — 数据库持久化，多进程不重复触发）。
+   * 供 core/capabilities/scheduler 使用；扩展经 PluginContext.cron.register。
+   */
+  async cron(def: { name: string; cron: string }, handler: () => Promise<void> | void): Promise<void> {
+    const boss = await getBoss();
+    await boss.createQueue(def.name, { policy: "standard" });
+    await boss.schedule(def.name, def.cron);
+    await boss.work(def.name, { batchSize: 1 }, async (jobs: unknown) => {
+      const list = (Array.isArray(jobs) ? jobs : [jobs]) as { id: string; data: unknown }[];
+      for (const job of list) {
+        try {
+          await handler();
+        } catch (err) {
+          console.error(`[cron:${def.name}] tick failed:`, err);
+        }
+      }
     });
   },
 

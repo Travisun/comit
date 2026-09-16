@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { hooks } from "@/core/hooks";
+import { emit } from "@/core/events";
 import { db } from "@/db";
 import { follows, users } from "@/db/schema";
 import { AppError, forbidden } from "@/core/errors";
@@ -64,6 +66,25 @@ export async function POST(req: Request) {
     }
 
     const locale = localeFromRequest(req);
+
+    // 注册提交钩子（扩展可拒绝：风控/黑名单/邀请策略等）
+    const savingCtx = {
+      payload: {
+        email: body.email,
+        username: body.username,
+        displayName: (body.displayName || body.username).slice(0, 80),
+        locale,
+      } as Record<string, unknown>,
+      rejection: null as string | null,
+      reject(reason: string) {
+        savingCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("register:saving", savingCtx);
+    if (savingCtx.rejection) {
+      throw new AppError(savingCtx.rejection, 422, "extension_rejected");
+    }
+
     const [user] = await db
       .insert(users)
       .values({
@@ -75,6 +96,8 @@ export async function POST(req: Request) {
         locale,
       })
       .returning();
+
+    await emit("auth:registered", { userId: user.id, email: user.email, username: user.username });
 
     // invited users automatically follow their inviter
     if (inviterId && inviterId !== user.id) {

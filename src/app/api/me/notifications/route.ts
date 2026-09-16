@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
-import { DEFAULT_CHANNELS } from "@/plugins/notifications";
+import { DEFAULT_CHANNELS } from "@/extensions/notifications/server";
 import { channels } from "@/core/plugins/registry";
 import { NOTIFICATION_EVENTS } from "@/components/settings/types";
 import { parseOrThrow } from "../_shared";

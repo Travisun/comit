@@ -20,6 +20,7 @@ export const SETTINGS_DEFAULTS = {
   "site.registrationOpen": true,
   "site.inviteRequired": false,
   "site.force2fa": true,
+  "site.maintenance": false as boolean,
   "sso.github": false,
   "sso.google": false,
   "sso.x": false,

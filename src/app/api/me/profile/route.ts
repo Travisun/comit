@@ -1,4 +1,8 @@
 import { eq } from "drizzle-orm";
+import { AppError } from "@/core/errors";
+import { hooks } from "@/core/hooks";
+import { coerceProfileFields } from "@/core/capabilities/manifest";
+import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -36,6 +40,7 @@ export async function GET(req: Request) {
 }
 
 const patchSchema = z.object({
+      customFields: z.record(z.string(), z.string().max(300)).optional(),
   displayName: z.string().trim().min(1).max(80).optional(),
   bio: z.string().max(200, "一句话介绍最多 200 字 / Bio too long").optional(),
   github: z.string().trim().max(120).optional(),
@@ -72,11 +77,29 @@ export async function PUT(req: Request) {
       if (body.coverPath) await assertOwnMedia(auth.user.id, body.coverPath);
       patch.coverPath = body.coverPath;
     }
+    if (body.customFields !== undefined) {
+      patch.customFields = coerceProfileFields(getAllProfileFieldDefs(), body.customFields);
+    }
     if (body.followersVisibility !== undefined) patch.followersVisibility = body.followersVisibility;
     if (body.followingVisibility !== undefined) patch.followingVisibility = body.followingVisibility;
     if (body.bookmarksVisibility !== undefined) patch.bookmarksVisibility = body.bookmarksVisibility;
 
+    // 资料保存前钩子（扩展可改写 patch 或拒绝：审核昵称/头像合规等）
+    const savingCtx = {
+      patch: patch as Record<string, unknown>,
+      userId: auth.user.id,
+      rejection: null as string | null,
+      reject(reason: string) {
+        savingCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("profile:saving", savingCtx);
+    if (savingCtx.rejection) {
+      throw new AppError(savingCtx.rejection, 422, "extension_rejected");
+    }
+
     await db.update(users).set(patch).where(eq(users.id, auth.user.id));
+    await hooks.callHook("profile:saved", { userId: auth.user.id, patch });
     return ok();
   });
 }

@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { AppError } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { emit } from "@/core/events";
 import { consumeAuthToken } from "@/lib/auth/guards";
 import { hashPassword, isValidPassword } from "@/lib/auth/password";
 import { destroyUserSessions } from "@/lib/auth/session";
@@ -40,6 +41,7 @@ export async function POST(req: Request) {
       .where(eq(users.id, userId));
     // any thief holding an old session is signed out
     await destroyUserSessions(userId);
+    await emit("auth:password.reset", { userId });
 
     return ok({ ok: true, message: "密码已重置，请使用新密码登录 / Password reset, sign in with the new password" });
   });

@@ -1,0 +1,6 @@
+{
+  "name": "@ext/mcp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "comit.sh 内置扩展：mcp。第三方依赖在此声明，由根工作区统一安装。"
+}

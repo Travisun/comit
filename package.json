@@ -12,7 +12,9 @@
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx src/db/seed.ts",
     "start:cluster": "NODE_ENV=production node scripts/cluster-server.mjs",
-    "start:cluster:2": "NODE_ENV=production WEB_CONCURRENCY=2 node scripts/cluster-server.mjs"
+    "start:cluster:2": "NODE_ENV=production WEB_CONCURRENCY=2 node scripts/cluster-server.mjs",
+    "test": "vitest run",
+    "ext": "tsx scripts/ext.ts"
   },
   "dependencies": {
     "@fontsource/noto-sans-sc": "^5.3.0",
@@ -91,16 +93,8 @@
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^5.0.0"
   },
-  "packageManager": "pnpm@12.3.4",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "@tailwindcss/oxide",
-      "unrs-resolver",
-      "workerd"
-    ]
-  }
+  "packageManager": "pnpm@12.3.4"
 }

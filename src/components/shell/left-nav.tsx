@@ -16,6 +16,7 @@ import { routes } from "@/core/routes";
 import { BrandLink, ComposerTrigger } from "./brand";
 import { UserMenu } from "./user-menu";
 import type { ShellUser } from "./types";
+import { getNavItems } from "@/lib/plugins/registry";
 import type { LocalUnread } from "@/components/user-space/use-local-unread";
 
 export function NavIcon({
@@ -108,6 +109,28 @@ export function LeftNav({
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 ) : null}
+              </span>
+            </Link>
+          );
+        })}
+
+        {/* 扩展注册的导航项 */}
+        {getNavItems(user ? "user" : "all").map((item) => {
+          const Icon = item.icon;
+          const active = pathname.startsWith(item.href);
+          return (
+            <Link
+              key={item.id}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+                active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
+              )}
+            >
+              {Icon ? <Icon className="size-[18px]" /> : <Compass className="size-[18px]" />}
+              <span className="hidden truncate text-sm lg:inline">
+                {locale === "zh" ? item.label.zh : item.label.en}
               </span>
             </Link>
           );

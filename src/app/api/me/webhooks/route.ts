@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { webhooks } from "@/db/schema";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
-import { ALL_WEBHOOK_EVENT_NAMES, newWebhookSecret } from "@/plugins/webhooks";
+import { ALL_WEBHOOK_EVENT_NAMES, newWebhookSecret } from "@/extensions/webhooks/server";
 import { parseOrThrow } from "../_shared";
 
 export const runtime = "nodejs";

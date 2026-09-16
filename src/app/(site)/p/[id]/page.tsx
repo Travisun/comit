@@ -15,8 +15,11 @@ import { RepostButton } from "@/components/social/repost-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
 import { PreviewBanner } from "@/components/social/preview-banner";
-import { PostDetailAfterSlot } from "@/plugins.client";
+import { PostDetailAfterSlot } from "@/extensions/_boot/client";
 import { getPollView } from "@/lib/poll-server";
+import { runPostRenderPipeline } from "@/core/capabilities/post-render";
+import { InterruptView } from "@/lib/plugins/registry";
+import { PostActionsSlot } from "@/lib/plugins/ui";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -77,6 +80,15 @@ export default async function PostPermalinkPage({
   const poll = await getPollView(post.id, viewer?.id ?? null);
   const published = post.publishedAt ?? post.createdAt;
 
+  // 扩展渲染管线（短动态正文由客户端渲染：prepend/append/meta/interrupt 生效）
+  const pipeline = await runPostRenderPipeline({
+    post,
+    author: { id: author.id, username: author.username, displayName: author.displayName },
+    viewer,
+    html: "",
+  });
+  const interrupted = pipeline.ctx.interrupted;
+
   return (
     <div className="min-h-dvh w-full">
       {/* sticky author bar — identity + date live here, no duplicate row below */}
@@ -117,12 +129,28 @@ export default async function PostPermalinkPage({
         {post.title && (
           <h1 className="reading-serif mb-1.5 text-[22px] font-normal leading-snug">{post.title}</h1>
         )}
-        {post.content.trim() ? (
-          <ShortContent content={post.content} className="text-base" />
+        {interrupted ? (
+          <InterruptView info={interrupted} />
         ) : (
-          !poll && <p className="text-sm italic text-muted-foreground">{t("feed.compose")}</p>
+          <>
+            {pipeline.prependHtml ? (
+              <div dangerouslySetInnerHTML={{ __html: pipeline.prependHtml }} />
+            ) : null}
+            {post.content.trim() ? (
+              <ShortContent content={post.content} className="text-base" />
+            ) : (
+              !poll && <p className="text-sm italic text-muted-foreground">{t("feed.compose")}</p>
+            )}
+            {pipeline.appendHtml ? (
+              <div dangerouslySetInnerHTML={{ __html: pipeline.appendHtml }} />
+            ) : null}
+          </>
         )}
-        <PostDetailAfterSlot postId={post.id} hasPoll={Boolean(poll)} />
+        <PostDetailAfterSlot
+          postId={post.id}
+          hasPoll={Boolean(poll) && !interrupted}
+          meta={pipeline.ctx.meta}
+        />
       </div>
 
         {/* action row */}
@@ -138,6 +166,9 @@ export default async function PostPermalinkPage({
             initialCount={post.repostCount}
             initialReposted={reposted}
           />
+          {!interrupted && (
+            <PostActionsSlot postId={post.id} postType={post.type} slug={post.slug} />
+          )}
           <span className="flex-1" />
           {viewer && viewer.id !== author.id && (
             <ReportDialog targetType="post" targetId={post.id} />

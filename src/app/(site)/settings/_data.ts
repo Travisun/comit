@@ -16,6 +16,7 @@ import type { SettingsTab, SettingsData } from "@/components/settings/types";
  */
 export const SETTINGS_TABS = [
   "profile",
+  "extensions",
   "security",
   "notifications",
   "username",
@@ -51,6 +52,8 @@ export async function getSettingsPageData(auth: {
     locale: string;
     username: string;
     usernameUpdatedAt: Date | null;
+    customFields: Record<string, string> | null;
+    extSettings: Record<string, Record<string, unknown>> | null;
     avatarPath: string | null;
     coverPath: string | null;
     followersVisibility: string;
@@ -140,6 +143,8 @@ export async function getSettingsPageData(auth: {
     },
     appearance: (u.appearance ?? {}) as SettingsData["appearance"],
     widgets: u.widgets ?? [],
+    extSettings: (u.extSettings ?? {}) as SettingsData["extSettings"],
+    customFields: (u.customFields ?? {}) as SettingsData["customFields"],
     security: {
       twoFactorConfirmed,
       recoveryCodesCount: totp?.recoveryCodes.length ?? 0,

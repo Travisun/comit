@@ -5,7 +5,7 @@ import {
 } from "./article-card";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
-import { FeedRowAfterSlot } from "@/plugins.client";
+import { FeedRowAfterSlot } from "@/extensions/_boot/client";
 import type { FeedItemDTO } from "./types";
 
 /**

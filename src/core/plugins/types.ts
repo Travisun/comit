@@ -58,6 +58,51 @@ export interface AdminSectionDef {
   icon?: string;
 }
 
+// ---- Extension capability registrations --------------------------------
+import type {
+  MediaProcessor,
+} from "@/core/capabilities/media";
+import type {
+  PostRenderFilter,
+} from "@/core/capabilities/post-render";
+import type {
+  SitemapSourceFn,
+} from "@/core/capabilities/sitemap";
+import type {
+  ExtApiRouteDef,
+} from "@/core/capabilities/ext-api";
+import type {
+  CronTaskDef,
+} from "@/core/capabilities/scheduler";
+import type { storage } from "@/core/capabilities/storage";
+import type {
+  registerNotificationTemplate,
+  NotificationTemplate,
+} from "@/core/capabilities/notify-templates";
+import type {
+  broadcast,
+  BroadcastEvent,
+} from "@/core/capabilities/broadcast";
+import type {
+  registerSearchProvider,
+  SearchProvider,
+} from "@/core/capabilities/search";
+import type {
+  registerSeed,
+} from "@/core/capabilities/seeds";
+import type {
+  registerGlobalMiddleware,
+  Middleware,
+} from "@/core/capabilities/actions";
+import type {
+  defineFlag,
+  flagEnabled,
+  setFlag as setFlagValue,
+  listFlagDefs,
+} from "@/core/capabilities/flags";
+import type { can as policyCan, authorize as policyAuthorize, registerPolicy } from "@/core/capabilities/policies";
+import type * as LlmCapability from "@/lib/llm";
+
 // ---- Plugin ------------------------------------------------------------
 export interface PluginContext {
   events: AppEvents;
@@ -66,12 +111,63 @@ export interface PluginContext {
   registerMcpTool(tool: McpToolDef): void;
   registerWidget(widget: WidgetDef): void;
   registerAdminSection(section: AdminSectionDef): void;
+  /** 文章渲染管线过滤器（前/后输出、正文改写、meta、打断） */
+  registerPostRenderFilter(name: string, fn: PostRenderFilter, order?: number): void;
+  /** 媒体上传后处理器 */
+  registerMediaProcessor(name: string, fn: MediaProcessor, order?: number): void;
+  /** sitemap 额外 URL 源 */
+  registerSitemapSource(name: string, fn: SitemapSourceFn): void;
+  /** 扩展 API 路由（挂载在 /api/ext/<extensionId>/ 下） */
+  registerExtApiRoute(extensionId: string, def: ExtApiRouteDef): void;
+  /** 定时任务（cron，pg-boss 原生调度） */
+  cron: { register(def: CronTaskDef, handler: () => Promise<void> | void): void };
+  /** LLM 能力：chat / 模型目录 / 远端型号查询 / 提示词模板 */
+  llm: typeof LlmCapability;
+  /** 存储抽象（默认本地适配器，可注册远端） */
+  storage: typeof storage;
+  /** 授权策略 */
+  policies: {
+    register(ability: string, fn: Parameters<typeof registerPolicy>[1]): void;
+    can: typeof policyCan;
+    authorize: typeof policyAuthorize;
+  };
+  /** 异步任务（入队/消费，自动绑定扩展命名空间） */
+  jobs: {
+    dispatch(task: string, payload?: Record<string, unknown>, opts?: { startAfterSeconds?: number; retryLimit?: number; retryDelay?: number }): Promise<string | null>;
+    work(task: string, handler: (payload: Record<string, unknown>) => Promise<void> | void): void;
+  };
+  /** 通知（同步直投 / 异步入队） */
+  notifications: {
+    send(userId: string, message: NotificationMessage): Promise<void>;
+    sendAsync(userId: string, message: NotificationMessage): Promise<void>;
+    registerTemplate(key: string, builder: NotificationTemplate): void;
+    templates(): string[];
+  };
+  /** 实时广播（SSE 下发；targets 为用户 id 数组或 "all"） */
+  broadcast(targets: string[] | "all", event: { type: string; payload?: unknown }): void;
+  /** 搜索 Provider 注册 */
+  search: { registerProvider(name: string, fn: SearchProvider): void };
+  /** Action 全局中间件注册 */
+  middleware: { register(m: Middleware): void };
+  /** Feature Flags */
+  flags: {
+    define(key: string, label: string, def?: boolean): void;
+    enabled(key: string): Promise<boolean>;
+    set(key: string, value: boolean): Promise<void>;
+    defs(): ReturnType<typeof listFlagDefs>;
+  };
+  /** Seeder */
+  seeds: { register(name: string, fn: () => Promise<void>): void };
 }
 
 export interface Plugin {
   name: string;
   description: string;
   version: string;
+  /** 依赖的其他插件名（boot 按此拓扑排序，B4） */
+  requires?: string[];
+  /** true ⇒ 延迟注册：首次被容器 resolve（ext.<name>）时才 register（B3） */
+  deferred?: boolean;
   register(ctx: PluginContext): void | Promise<void>;
 }
 

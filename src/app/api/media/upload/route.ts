@@ -3,6 +3,8 @@ import { AppError } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
 import { isSupportedImage, processAndSaveImage, type MediaKind } from "@/lib/media";
 import { routes } from "@/core/routes";
+import { runMediaProcessors } from "@/core/capabilities/media";
+import { hooks } from "@/core/hooks";
 
 /**
  * POST /api/media/upload — multipart/form-data
@@ -40,6 +42,23 @@ export async function POST(req: Request): Promise<Response> {
       throw new AppError("图片不能超过 10MB / Image exceeds the 10MB limit", 413, "too_large");
     }
 
+    // 上传前钩子（扩展可拒绝：配额/风控/类型策略）
+    const uploadCtx = {
+      userId: auth.user.id,
+      kind,
+      filename: file.name,
+      size: file.size,
+      mime: file.type,
+      rejection: null as string | null,
+      reject(reason: string) {
+        uploadCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("media:uploading", uploadCtx);
+    if (uploadCtx.rejection) {
+      throw new AppError(uploadCtx.rejection, 422, "extension_rejected");
+    }
+
     const buffer = Buffer.from(await file.arrayBuffer());
     let saved;
     try {
@@ -57,6 +76,16 @@ export async function POST(req: Request): Promise<Response> {
       }
       throw new AppError("图片处理失败 / Failed to process image", 400, "process_failed");
     }
+
+    // 扩展后处理管道（水印/扫描/alt 生成…）：失败只记日志，不阻断上传
+    await runMediaProcessors({
+      path: saved.path,
+      url: routes.media(saved.path),
+      mime: "image/webp",
+      size: saved.size,
+      userId: auth.user.id,
+      kind,
+    });
 
     return ok({ ...saved, url: routes.media(saved.path), mime: "image/webp" });
   });

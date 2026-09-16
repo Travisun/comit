@@ -7,7 +7,7 @@ import type { ComponentType } from "react";
  * 同构的客户端镜像：
  *
  *  - 服务端插件在 instrumentation.ts 引导时向 registry 注册 channel / widget；
- *  - 客户端插件在 `src/plugins.client`（前端装配点）向槽位注册组件；
+ *  - 客户端插件在 `src/extensions/_boot/client.tsx`（前端装配点）向槽位注册组件；
  *  - 布局组件不直接 import 具体功能组件，只挂 `<SlotRenderer slot=…>`，
  *    功能（投票、未来的活动/打卡/…）以插件身份自渲染。
  *
@@ -20,6 +20,16 @@ export interface PostSlotContext {
   postId: string;
   /** 帖子是否附带投票（PostBrief.hasPoll，列表查询 leftJoin 一次性下发） */
   hasPoll: boolean;
+  /** 服务端渲染管线下发的扩展元数据（键约定 ext.<id>.*） */
+  meta?: Record<string, unknown>;
+}
+
+/** 动作栏槽位上下文（分享/收藏类快捷操作） */
+export interface PostActionContext {
+  postId: string;
+  postType: "article" | "short";
+  /** 文章 slug（短动态为 null，分享时用 /p/<id>） */
+  slug: string | null;
 }
 
 /** 槽位清单 — 新扩展点在此登记 id 与 ctx 形状 */
@@ -28,6 +38,10 @@ export interface SlotContexts {
   "feed:row:after": PostSlotContext;
   /** 帖子详情正文之后（短动态详情 / 文章页均可挂载） */
   "post:detail:after": PostSlotContext;
+  /** 帖子详情快捷操作栏（点赞/转发一排的扩展动作按钮） */
+  "post:actions": PostActionContext;
+  /** feed 行「···」快捷菜单的扩展项（组件自行渲染 DropdownMenuItem） */
+  "post:row-menu": PostActionContext;
 }
 
 export type UiSlotName = keyof SlotContexts;
@@ -85,4 +99,12 @@ export function FeedRowAfterSlot(props: SlotContexts["feed:row:after"]) {
 
 export function PostDetailAfterSlot(props: SlotContexts["post:detail:after"]) {
   return <SlotRenderer slot="post:detail:after" ctx={props} />;
+}
+
+export function PostActionsSlot(props: SlotContexts["post:actions"]) {
+  return <SlotRenderer slot="post:actions" ctx={props} />;
+}
+
+export function PostRowMenuSlot(props: SlotContexts["post:row-menu"]) {
+  return <SlotRenderer slot="post:row-menu" ctx={props} />;
 }

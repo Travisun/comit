@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { webhooks } from "@/db/schema";
 import { notFound, ok, withUser } from "@/lib/http";
-import { ALL_WEBHOOK_EVENT_NAMES } from "@/plugins/webhooks";
+import { ALL_WEBHOOK_EVENT_NAMES } from "@/extensions/webhooks/server";
 import { parseOrThrow } from "../../_shared";
 
 export const runtime = "nodejs";

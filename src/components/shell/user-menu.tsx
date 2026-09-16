@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { PenLine } from "lucide-react";
 import {
   LogOut,
   NotebookPen,
@@ -22,6 +23,7 @@ import { ThemeToggle, LocaleToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { postJson } from "@/lib/client/api";
+import { getUserMenuItems } from "@/lib/plugins/registry";
 import type { ShellUser } from "./types";
 
 export function UserMenu({
@@ -110,6 +112,19 @@ export function UserMenu({
             <ThemeToggle />
           </span>
         </div>
+        {getUserMenuItems().length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            {getUserMenuItems().map((item) => (
+              <DropdownMenuItem key={item.id} asChild>
+                <Link href={item.href}>
+                  <PenLine className="size-4" />
+                  {locale === "zh" ? item.label.zh : item.label.en}
+                </Link>
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
           <LogOut /> 退出登录

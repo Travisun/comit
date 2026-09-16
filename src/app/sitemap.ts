@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { posts, topics, users } from "@/db/schema";
 import { config } from "@/core/config";
 import { routes } from "@/core/routes";
+import { collectSitemapEntries } from "@/core/capabilities/sitemap";
 
 /** sitemap.xml — static pages + users + published public articles + topics. */
 export const dynamic = "force-dynamic";
@@ -63,6 +64,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: now,
         changeFrequency: "daily" as const,
         priority: 0.5,
+      })),
+      // 扩展注册的额外 URL 源（见 core/capabilities/sitemap.ts）
+      ...(await collectSitemapEntries(base)).map((e) => ({
+        url: e.url,
+        lastModified: e.lastModified ?? now,
+        changeFrequency: e.changeFrequency,
+        priority: e.priority,
       })),
     ];
   } catch (err) {

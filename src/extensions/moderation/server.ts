@@ -20,6 +20,20 @@ const plugin: Plugin = {
       const reviewMode = await getSetting("moderation.reviewMode");
       if (reviewMode === "off") {
         // no review: publish immediately
+        // 发布前钩子（扩展可拦截发布：合规复核/定时发布/付费墙标记…）
+        const publishingCtx = {
+          postId: payload.postId,
+          authorId: payload.authorId,
+          rejection: null as string | null,
+          reject(reason: string) {
+            publishingCtx.rejection = reason;
+          },
+        };
+        await ctx.hooks.callHook("post:publishing", publishingCtx);
+        if (publishingCtx.rejection) {
+          console.warn(`[moderation] publish blocked: ${publishingCtx.rejection}`);
+          return;
+        }
         await db
           .update(posts)
           .set({ status: "published", publishedAt: new Date() })

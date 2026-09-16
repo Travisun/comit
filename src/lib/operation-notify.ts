@@ -1,5 +1,5 @@
 import type { NotificationMessage } from "@/core/plugins/types";
-import { notifySend } from "@/plugins/notifications";
+import { notifySend } from "@/extensions/notifications/server";
 
 /**
  * Operation notification helper — the single entry point for admin/editor

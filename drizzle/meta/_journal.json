@@ -85,6 +85,20 @@
       "when": 1789461957989,
       "tag": "0011_dapper_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789477603425,
+      "tag": "0012_marvelous_marten_broadcloak",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789479368336,
+      "tag": "0013_fancy_cannonball",
+      "breakpoints": true
     }
   ]
 }

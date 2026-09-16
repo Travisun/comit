@@ -11,9 +11,17 @@ export async function getLocale(): Promise<Locale> {
 }
 
 /** Server-side translate using the cookie locale. */
-export async function getT(): Promise<{ t: Translate; locale: Locale }> {
+export async function getT(): Promise<{
+  t: Translate;
+  locale: Locale;
+  /** 扩展命名空间文案（ext.<id>.<key>，manifest.i18n 声明） */
+  tExt: (key: string) => string;
+}> {
   const locale = await getLocale();
-  return { t: translator(locale), locale };
+  const { getAllExtensionI18n } = await import("@/extensions/_boot/manifests");
+  const dicts = getAllExtensionI18n();
+  const tExt = (key: string) => dicts[locale]?.[key] ?? dicts.zh?.[key] ?? key;
+  return { t: translator(locale), locale, tExt };
 }
 
 export { translator, isLocale, LOCALES, DEFAULT_LOCALE } from "./shared";

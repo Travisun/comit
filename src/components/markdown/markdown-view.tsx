@@ -10,11 +10,14 @@ import { MarkdownEnhance } from "./markdown-enhance";
 export async function MarkdownView({
   content,
   className,
+  html: htmlOverride,
 }: {
   content: string;
   className?: string;
+  /** 已渲染的 HTML（扩展管线改写后的产物）— 提供时跳过内部渲染 */
+  html?: string;
 }) {
-  const { html } = await renderMarkdown(content);
+  const html = htmlOverride ?? (await renderMarkdown(content)).html;
   return (
     <>
       <div className={cn("article-prose", className)} dangerouslySetInnerHTML={{ __html: html }} />

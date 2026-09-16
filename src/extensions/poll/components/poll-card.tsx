@@ -12,7 +12,7 @@ import { pollViewSchema, type PollView } from "@/lib/models/poll";
 
 /**
  * 投票卡片 — 附加在短动态行/详情页内（经 feed:row:after /
- * post:detail:after 插件槽位挂载，见 src/plugins.client/poll.tsx）。
+ * post:detail:after 插件槽位挂载，见 src/extensions/poll/client.tsx）。
  * `pollPostId` 非空时按 postId 自取数据（feed 通过 hasPoll 标记只对投票帖
  * 挂载）；null 时不渲染。
  * 未投：选项为可点击按钮；已投/已结束：结果条（占比+票数）。

@@ -51,12 +51,21 @@ export interface AppEventPayloads {
     actorId: string;
     commentAuthorId: string;
   };
+  "message:read": { userId: string; peerId: string; count: number };
   "message:created": {
     messageId: string;
     senderId: string;
     receiverId: string;
     excerpt: string;
   };
+  // auth lifecycle（扩展可订阅：欢迎邮件、风控、外部系统同步…）
+  "auth:login": { userId: string; ip?: string };
+  "auth:logout": { userId: string | null };
+  "auth:registered": { userId: string; email: string; username: string };
+  "auth:password.forgot": { userId: string | null; email: string };
+  "auth:password.reset": { userId: string };
+  "auth:password.changed": { userId: string };
+
   "user:mentioned": {
     userIds: string[];
     actorId: string;
@@ -103,4 +112,16 @@ export function emit<K extends keyof AppEventPayloads>(
   payload: AppEventPayloads[K],
 ): Promise<void> {
   return bus.emit(name, payload).then(() => undefined);
+}
+
+/**
+ * Emit a domain event **via the queue**（Laravel ShouldQueue listener 语义）：
+ * 监听器在 worker 进程异步消费，请求路径零阻塞。监听方式与同步事件一致。
+ */
+export async function emitQueued<K extends keyof AppEventPayloads>(
+  name: K,
+  payload: AppEventPayloads[K],
+): Promise<string | null> {
+  const { queue } = await import("@/core/queue");
+  return queue.send("event.dispatch", { name, payloadJson: JSON.stringify(payload) });
 }

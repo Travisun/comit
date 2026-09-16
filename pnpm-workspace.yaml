@@ -1,4 +1,19 @@
+# 扩展依赖架构（Laravel package discovery / monorepo workspace 模式）：
+# 每个扩展是一个 workspace 包（自带 package.json 声明自己引入的第三方依赖），
+# 依赖统一安装到根 node_modules（pnpm 自动提升 + 去重），锁文件仍是根目录
+# pnpm-lock.yaml —— 「声明在扩展，安装在根目录」。
+packages:
+  - "src/extensions/*"
+
+# 依赖构建脚本审批（pnpm v10+ 安全机制）
 allowBuilds:
-  esbuild: set this to true or false
+  esbuild: true
   sharp: false
   unrs-resolver: false
+
+onlyBuiltDependencies:
+  - esbuild
+  - sharp
+  - "@tailwindcss/oxide"
+  - unrs-resolver
+  - workerd

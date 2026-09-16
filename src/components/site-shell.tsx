@@ -10,6 +10,7 @@ import { MobileTabBar, MobileTopBar } from "@/components/shell/mobile-chrome";
 import { BrandMark } from "@/components/shell/brand";
 import { TimelineHeader, UnderlineTabs } from "@/components/shell/timeline-header";
 import type { ShellUser } from "@/components/shell/types";
+import { EXTENSION_PAGES } from "@/extensions/_boot/registry";
 
 /**
  * SiteShell 组合根 — 前台三栏布局的装配点。布局子件抽离在
@@ -71,7 +72,11 @@ export function SiteShell({
     };
   }, []);
 
-  const bare = BARE_PREFIXES.some((p) => pathname.startsWith(p));
+  // 扩展页面可选 bare 布局（无三栏壳，auth 页同款）
+  const extPage = pathname.startsWith("/e/")
+    ? EXTENSION_PAGES.find((p) => pathname === `/e/${p.path}`)
+    : null;
+  const bare = BARE_PREFIXES.some((p) => pathname.startsWith(p)) || extPage?.layout === "bare";
   if (bare) return <>{children}</>;
 
   // app-surface pages (messenger) take the full panel width without the rail

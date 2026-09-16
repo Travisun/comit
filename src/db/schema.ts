@@ -79,6 +79,16 @@ export const users = pgTable(
       .notNull(),
     /** sidebar widget selection */
     widgets: jsonb("widgets").$type<string[]>().default([]).notNull(),
+    /** 扩展注册的自定义资料字段值（键 = ProfileFieldDef.key，如 ext.signature.tagline） */
+    customFields: jsonb("custom_fields")
+      .$type<Record<string, string>>()
+      .default({})
+      .notNull(),
+    /** 用户级扩展设置（键 = 扩展 id，值经 manifest 收敛） */
+    extSettings: jsonb("ext_settings")
+      .$type<Record<string, Record<string, unknown>>>()
+      .default({})
+      .notNull(),
     // per-user feature switches
     rssEnabled: boolean("rss_enabled").default(true).notNull(),
     commentsEnabled: boolean("comments_enabled").default(true).notNull(),
@@ -701,3 +711,6 @@ export type NotificationRow = typeof notifications.$inferSelect;
 export type Message = typeof messages.$inferSelect;
 export type Setting = typeof settings.$inferSelect;
 export type Poll = typeof polls.$inferSelect;
+
+// 扩展数据表聚合（extensions/<id>/schema.ts → _boot/tables.ts）
+export * from "@/extensions/_boot/tables";

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { pollVotes, polls, posts } from "@/db/schema";
 import { routes } from "@/core/routes";
-import { notifySend } from "./notifications";
+import { notifySend } from "@/extensions/notifications/server";
 
 /**
  * 投票结束通知（poll.end 延迟任务）：

@@ -9,6 +9,7 @@ import {
 import type { User } from "@/db/schema";
 import { routes } from "@/core/routes";
 import { cn, formatDate } from "@/lib/utils";
+import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/follow-button";
@@ -120,6 +121,34 @@ export function ProfileHero({
         {user.bio && (
           <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{user.bio}</p>
         )}
+
+        {/* 扩展注册的自定义资料字段（有值才展示） */}
+        {(() => {
+          const values = (user.customFields ?? {}) as Record<string, string>;
+          const filled = getAllProfileFieldDefs().filter((d) => values[d.key]);
+          if (filled.length === 0) return null;
+          return (
+            <div className="mt-2 space-y-1">
+              {filled.map((d) => (
+                <p key={d.key} className="text-sm text-muted-foreground">
+                  <span className="mr-1.5 text-xs">{d.label}</span>
+                  {d.type === "url" && /^https?:\/\//.test(values[d.key]) ? (
+                    <a
+                      href={values[d.key]}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      {values[d.key]}
+                    </a>
+                  ) : (
+                    values[d.key]
+                  )}
+                </p>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* meta row: follow-back chip + social links + joined date */}
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">

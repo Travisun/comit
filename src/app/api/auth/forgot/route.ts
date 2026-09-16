@@ -5,6 +5,7 @@ import { users } from "@/db/schema";
 import { routes, absolute } from "@/core/routes";
 import { withApi, ok } from "@/lib/http";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { emit } from "@/core/events";
 import { issueAuthToken } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
 import type { Locale } from "@/lib/i18n";
@@ -30,6 +31,7 @@ export async function POST(req: Request) {
 
     if (user) {
       const token = await issueAuthToken(user.id, "password_reset", 30);
+      await emit("auth:password.forgot", { userId: user.id, email: body.email });
       const resetUrl = absolute(`${routes.resetPassword(token)}`);
       const locale = (user.locale === "en" ? "en" : "zh") as Locale;
       const mail = renderMail("resetPassword", locale, { url: resetUrl });

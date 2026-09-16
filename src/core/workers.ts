@@ -3,10 +3,16 @@ import { db } from "@/db";
 import { webhookDeliveries } from "@/db/schema";
 import { queue } from "@/core/queue";
 import { sendMail } from "@/lib/mail";
-import { processModerationJob } from "@/plugins/moderation";
-import { processExportJob } from "@/plugins/export";
-import { processPollEnd } from "@/plugins/poll";
-import { signPayload } from "@/plugins/webhooks";
+import { processModerationJob } from "@/extensions/moderation/server";
+import { processExportJob } from "@/extensions/export/server";
+import { httpRequest } from "@/core/http-client";
+import { processPollEnd } from "@/extensions/poll/server";
+import {
+  dispatchQueuedEvent,
+  runExtJob,
+  runNotifyDispatch,
+} from "@/core/capabilities/jobs";
+import { signPayload } from "@/extensions/webhooks/server";
 
 /**
  * Queue workers — registered once per server process from instrumentation.ts.
@@ -43,8 +49,12 @@ export async function startWorkers(): Promise<void> {
     const timestamp = String(Math.floor(Date.now() / 1000));
     const signature = signPayload(hook.secret, data.payloadJson, timestamp);
     try {
-      const res = await fetch(hook.url, {
+      // D5：出站调用统一走 http-client（超时/日志标准化；重试由队列层负责 → retries: 0）
+      const res = await httpRequest(hook.url, {
         method: "POST",
+        timeoutMs: 15_000,
+        retries: 0,
+        label: "webhook.deliver",
         headers: {
           "Content-Type": "application/json",
           "User-Agent": "comit.sh-Webhook/1.0",
@@ -53,7 +63,6 @@ export async function startWorkers(): Promise<void> {
           "X-Comit-Event": data.event,
         },
         body: data.payloadJson,
-        signal: AbortSignal.timeout(15_000),
       });
       await db
         .update(webhookDeliveries)
@@ -73,7 +82,26 @@ export async function startWorkers(): Promise<void> {
     }
   });
 
+  // 队列化事件（ShouldQueue 语义）
+  await queue.work("event.dispatch", async (data) => {
+    await dispatchQueuedEvent(data.name, data.payloadJson);
+  });
+
+  // 异步通知
+  await queue.work("notify.dispatch", async (data) => {
+    await runNotifyDispatch(data);
+  });
+
+  // 扩展异步任务
+  await queue.work("ext.job", async (data) => {
+    await runExtJob(data);
+  });
+
   console.log("[workers] queue workers registered");
+
+  // 扩展定时任务（bootPlugins 已先于 startWorkers 执行，注册表已就绪）
+  const { startScheduledTasks } = await import("@/core/capabilities/scheduler");
+  await startScheduledTasks();
 }
 
 /** Clean up stale pending deliveries on boot (crash recovery). */

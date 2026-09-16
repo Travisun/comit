@@ -7,6 +7,7 @@ import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
 import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
+import { postRepo } from "@/lib/post-repo";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import { POLL_MAX_DURATION_DAYS, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, validatePollOptions } from "@/lib/poll";
 import {
@@ -118,33 +119,34 @@ export async function POST(req: Request): Promise<Response> {
       body.sourceName,
     );
 
-    const post = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(posts)
-        .values({
-          authorId: auth.user.id,
-          type,
-          slug,
-          title,
-          summary,
-          content,
-          coverPath: body.coverPath ?? null,
-          collectionId: body.collectionId ?? null,
-          status: body.action === "submit" ? "pending_review" : "draft",
-          visibility: body.visibility ?? "public",
-          ...labelColumns,
-        })
-        .returning();
-      if (body.topicNames?.length) await syncPostTopics(tx, row.id, body.topicNames);
+    // 写入统一走仓储层：post:saving / post:saved 钩子在仓储内触发（C1）
+    const post = await postRepo.create(
+      {
+        authorId: auth.user.id,
+        type,
+        slug,
+        title,
+        summary,
+        content,
+        coverPath: body.coverPath ?? null,
+        collectionId: body.collectionId ?? null,
+        status: body.action === "submit" ? "pending_review" : "draft",
+        visibility: body.visibility ?? "public",
+        ...labelColumns,
+      },
+      { id: auth.user.id, username: auth.user.username, role: auth.user.role },
+    );
+
+    await db.transaction(async (tx) => {
+      if (body.topicNames?.length) await syncPostTopics(tx, post.id, body.topicNames);
       if (pollRow) {
         await tx.insert(polls).values({
-          postId: row.id,
+          postId: post.id,
           mode: pollRow.mode,
           options: pollRow.options,
           endsAt: pollRow.endsAt,
         });
       }
-      return row;
     });
 
     // 投票结束任务：到点拉取计票并给作者与投票用户发结果通知；

@@ -6,6 +6,8 @@ import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { preSubmitCheck } from "@/lib/moderation";
+import { authorize } from "@/core/capabilities/policies";
+import { postRepo } from "@/lib/post-repo";
 import {
   assertCollectionOwned,
   blockedResponse,
@@ -135,29 +137,32 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
         ? "pending_review"
         : (body.status ?? post.status);
 
-    const updated = await db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(posts)
-        .set({
-          title,
-          content: nextContent,
-          summary,
-          slug,
-          visibility: body.visibility ?? post.visibility,
-          collectionId:
-            body.collectionId !== undefined ? (body.collectionId ?? null) : post.collectionId,
-          coverPath: body.coverPath !== undefined ? (body.coverPath ?? null) : post.coverPath,
-          status: nextStatus,
-          ...labelColumns,
-          rejectReason:
-            body.action === "submit" || body.status === "draft" ? null : post.rejectReason,
-          updatedAt: new Date(),
-        })
-        .where(eq(posts.id, post.id))
-        .returning();
-      if (body.topicNames !== undefined) await syncPostTopics(tx, post.id, body.topicNames);
-      return row;
-    });
+    const updated = await postRepo.update(
+      post.id,
+      {
+        title,
+        content: nextContent,
+        summary,
+        slug,
+        visibility: body.visibility ?? post.visibility,
+        collectionId:
+          body.collectionId !== undefined ? (body.collectionId ?? null) : post.collectionId,
+        coverPath: body.coverPath !== undefined ? (body.coverPath ?? null) : post.coverPath,
+        status: nextStatus,
+        ...labelColumns,
+        rejectReason:
+          body.action === "submit" || body.status === "draft" ? null : post.rejectReason,
+        updatedAt: new Date(),
+      },
+      { id: auth.user.id, username: auth.user.username, role: auth.user.role },
+    );
+
+    const topicNames = body.topicNames;
+    if (topicNames !== undefined) {
+      await db.transaction(async (tx) => {
+        await syncPostTopics(tx, post.id, topicNames);
+      });
+    }
 
     if (body.action === "submit" && !wasPublished) {
       // reviewMode=off → moderation plugin publishes immediately
@@ -179,6 +184,7 @@ export async function DELETE(req: Request, ctx: Ctx): Promise<Response> {
     const { id } = await ctx.params;
     const purge = new URL(req.url).searchParams.get("purge") === "true";
     const post = await getAuthorPost(id, auth.user.id);
+    await authorize(auth.user, "post.delete", post);
 
     if (purge) {
       // permanent removal from the recycle bin — everything goes

@@ -16,6 +16,7 @@ import {
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { apiRequest, mediaUrl, uploadImage } from "./client";
+import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 
 export interface ProfileInitial {
   displayName: string;
@@ -29,6 +30,8 @@ export interface ProfileInitial {
   followersVisibility: "public" | "followers" | "friends" | "private";
   followingVisibility: "public" | "followers" | "friends" | "private";
   bookmarksVisibility: "public" | "followers" | "friends" | "private";
+  /** 扩展注册的自定义资料字段 */
+  customFields?: Record<string, string>;
 }
 
 export function ProfileForm({ initial }: { initial: ProfileInitial }) {
@@ -45,6 +48,10 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
   const [progress, setProgress] = useState(0);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<"profile" | "social" | "cover">("profile");
+  const profileFieldDefs = getAllProfileFieldDefs();
+  const [customFields, setCustomFields] = useState<Record<string, string>>(
+    initial.customFields ?? {},
+  );
   const avatarInput = useRef<HTMLInputElement>(null);
   const coverInput = useRef<HTMLInputElement>(null);
 
@@ -79,6 +86,7 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
         locale: uiLocale,
         avatarPath,
         coverPath,
+        customFields,
       });
       toast.success(t("settings.profile.saved"));
     } catch (err) {
@@ -270,6 +278,35 @@ export function ProfileForm({ initial }: { initial: ProfileInitial }) {
               onChange={(e) => setBio(e.target.value)}
             />
           </SettingField>
+
+          {/* 扩展注册的自定义资料字段（manifest 声明驱动） */}
+          {profileFieldDefs.map((def) => (
+            <SettingField key={def.key} label={def.label} htmlFor={def.key}>
+              {def.type === "textarea" ? (
+                <Textarea
+                  id={def.key}
+                  value={customFields[def.key] ?? ""}
+                  maxLength={def.maxLength}
+                  rows={2}
+                  placeholder={def.placeholder}
+                  onChange={(e) =>
+                    setCustomFields((prev) => ({ ...prev, [def.key]: e.target.value }))
+                  }
+                />
+              ) : (
+                <Input
+                  id={def.key}
+                  type={def.type === "url" ? "url" : "text"}
+                  value={customFields[def.key] ?? ""}
+                  maxLength={def.maxLength}
+                  placeholder={def.placeholder}
+                  onChange={(e) =>
+                    setCustomFields((prev) => ({ ...prev, [def.key]: e.target.value }))
+                  }
+                />
+              )}
+            </SettingField>
+          ))}
 
           <SettingField label={t("settings.profile.locale")}>
             <div className="inline-flex w-fit rounded-md bg-[var(--muted)] p-[3px] shadow-[0_0_0_1px_var(--border)]">

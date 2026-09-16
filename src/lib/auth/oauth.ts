@@ -1,6 +1,7 @@
 import { GitHub, Google, Twitter, generateCodeVerifier } from "arctic";
 import { createHash, createHmac, randomBytes } from "crypto";
 import { config } from "@/core/config";
+import { httpRequest } from "@/core/http-client";
 import { forbidden } from "@/core/errors";
 import { jwtVerify, createRemoteJWKSet } from "jose";
 
@@ -85,8 +86,10 @@ export async function exchangeOAuthCode(
     const client = new Twitter(config.oauth.x.clientId, config.oauth.x.clientSecret, `${config.app.url}/api/auth/oauth/callback/x`);
     accessToken = (await client.validateAuthorizationCode(code, codeVerifier ?? "")).accessToken();
   } else if (provider === "linuxdo") {
-    const tokenRes = await fetch("https://connect.linux.do/oauth2/token", {
+    const tokenRes = await httpRequest("https://connect.linux.do/oauth2/token", {
       method: "POST",
+      timeoutMs: 10_000,
+      label: "oauth:linuxdo.token",
       headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },
       body: new URLSearchParams({
         grant_type: "authorization_code",
@@ -103,11 +106,13 @@ export async function exchangeOAuthCode(
   } else {
     throw forbidden(`Unknown OAuth provider: ${provider}`);
   }
-  const res = await fetch(profileEndpoint(provider), {
+  const profile = await httpRequest<Record<string, unknown>>(profileEndpoint(provider), {
+    timeoutMs: 10_000,
+    label: `oauth:${provider}.profile`,
     headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json", "User-Agent": "comit.sh" },
   });
-  if (!res.ok) throw new Error(`${provider} profile fetch failed: ${res.status}`);
-  const json = (await res.json()) as Record<string, unknown>;
+  if (!profile.ok) throw new Error(`${provider} profile fetch failed: ${profile.status}`);
+  const json = await profile.json();
   return normalizeProfile(provider, json, accessToken);
 }
 

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError, ok, withUser } from "@/lib/http";
+import { hooks } from "@/core/hooks";
+import { emit } from "@/core/events";
 import { hashPassword, isValidPassword, verifyPassword } from "@/lib/auth/password";
 import { destroyUserSessions } from "@/lib/auth/session";
 import { parseOrThrow } from "../_shared";
@@ -40,10 +42,24 @@ export async function POST(req: Request) {
       );
     }
 
-    await db
-      .update(users)
-      .set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() })
+    const changingCtx = {
+        userId: auth.user.id,
+        rejection: null as string | null,
+        reject(reason: string) {
+          changingCtx.rejection = reason;
+        },
+      };
+      await hooks.callHook("password:changing", changingCtx);
+      if (changingCtx.rejection) {
+        throw new AppError(changingCtx.rejection, 422, "extension_rejected");
+      }
+
+      await db
+        .update(users)
+        .set({ passwordHash: await hashPassword(body.newPassword), updatedAt: new Date() })
       .where(eq(users.id, auth.user.id));
+
+      await emit("auth:password.changed", { userId: auth.user.id });
 
     // kick out every other device
     await destroyUserSessions(auth.user.id, auth.sessionId);

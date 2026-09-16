@@ -1,6 +1,7 @@
 "use client";
 
 import type { DictKey } from "@/lib/i18n/client";
+import { ExtensionsPanel } from "@/components/settings/extensions-panel";
 import type { SettingsData, SettingsTab } from "./types";
 import { ProfileForm } from "./profile-form";
 import { SecurityPanel } from "./security-panel";
@@ -67,7 +68,9 @@ function section(
   enabledTabs?: string[],
 ) {
   switch (tab) {
-    case "profile":
+    case "extensions":
+      return <ExtensionsPanel data={data} />;
+        case "profile":
       return <ProfileForm initial={data.profile} />;
     case "security":
       return <SecurityPanel data={data.security} />;

@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { comments, likes, posts, users } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
+import { hooks } from "@/core/hooks";
 import { jsonBody, ok, withApi, withUser } from "@/lib/http";
 import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
@@ -74,16 +75,34 @@ export async function POST(req: Request) {
       replyToUsername = parent.username;
     }
 
-    const [created] = await db
-      .insert(comments)
-      .values({
+    // 评论发布前钩子（扩展可拒绝：频控/合规/自动审核）
+    const savingCtx = {
+      payload: {
         postId,
         userId: me.id,
         body,
         replyToCommentId: replyToCommentId ?? null,
         replyToUserId,
-      })
+      } as Record<string, unknown>,
+      rejection: null as string | null,
+      reject(reason: string) {
+        savingCtx.rejection = reason;
+      },
+    };
+    await hooks.callHook("comment:saving", savingCtx);
+    if (savingCtx.rejection) {
+      throw new AppError(savingCtx.rejection, 422, "extension_rejected");
+    }
+
+    const [created] = await db
+      .insert(comments)
+      .values(savingCtx.payload as typeof comments.$inferInsert)
       .returning();
+
+    await hooks.callHook("comment:saved", {
+      comment: { id: created.id, postId, userId: me.id },
+      postAuthorId: row.post.authorId,
+    });
 
     await db
       .update(posts)

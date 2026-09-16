@@ -4,6 +4,7 @@ import { withApi, ok } from "@/lib/http";
 import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { consumeRecoveryCode, hasConfirmedTotp, verifyTotpCode } from "@/lib/auth/totp";
+import { emit } from "@/core/events";
 import { parseJsonBody } from "../../_lib/validate";
 
 export const runtime = "nodejs";
@@ -40,6 +41,9 @@ export async function POST(req: Request) {
     }
 
     await setSessionPending2fa(auth.sessionId, false);
+    // 登录真正完成的时刻（2FA 通过）；ip 从会话创建时已记录
+    await emit("auth:login", { userId: auth.user.id });
+
     return ok({ ok: true });
   });
 }

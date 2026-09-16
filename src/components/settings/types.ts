@@ -7,6 +7,7 @@ import type { LocalizedText } from "@/core/plugins/types";
 
 export type SettingsTab =
   | "profile"
+  | "extensions"
   | "appearance"
   | "security"
   | "notifications"
@@ -104,6 +105,10 @@ export interface AppearanceValue {
 
 /** Everything the settings page renders, loaded server-side. */
 export interface SettingsData {
+  /** 用户级扩展设置（键 = 扩展 id）*/
+  extSettings: Record<string, Record<string, unknown>>;
+  /** 扩展自定义资料字段值 */
+  customFields: Record<string, string>;
   appUrl: string;
   profile: {
     displayName: string;
