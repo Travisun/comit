@@ -3,15 +3,20 @@
  * 生成等）。处理器失败只记日志，不阻断上传本身。
  */
 export interface MediaProcessContext {
-  /** 存储相对路径（storage/media 下） */
+  /** 存储相对路径（storage/media 下；posix 键，与 media.path 同形） */
   path: string;
-  /** 对外 URL（/api/media/file/...） */
+  /** 对外 URL（公开桶直连 R2/CDN，否则 /api/media/file/...） */
   url: string;
   mime: string;
   size: number;
   userId: string;
   /** 上传用途：inline / avatar / cover */
   kind: string;
+  /**
+   * ⚠️ 文件可能不在本地盘：STORAGE_DRIVER=r2 时对象存于 R2。需要读/写文件
+   * 内容的处理器必须走 src/lib/storage 抽象（readObject/putObject，按 media
+   * 行的 storage 列分派），禁止直接 fs 操作 path。
+   */
 }
 
 export type MediaProcessor = (ctx: MediaProcessContext) => void | Promise<void>;

@@ -1,6 +1,6 @@
 # 数据模型（Schema）
 
-> 最后更新：2026-09-11
+> 最后更新：2026-09-16
 
 Source of truth：`src/db/schema.ts`（Drizzle，PostgreSQL）。本文是导读，字段冲突时以代码为准。
 
@@ -54,7 +54,7 @@ queue：pgboss.job（pg-boss 自管 schema，LIST(name) 分区，业务只读）
 | 内容 | `collections` | 用户合集（合集话题页 `/u/x/collections/[slug]`） |
 | | `posts` | 文章+短动态（`type`）；`status` 状态机；`label` 内容标注；`moderation` 审核痕迹；标题计数列（views/like/comment/repost，避免聚合查询）；GIN 全文索引 |
 | | `topics` / `post_topics` | 全站话题 + 多对多 |
-| | `media` | WebP 媒体元数据（宽高/体积/kind），`path` 相对 storage/media |
+| | `media` | WebP 媒体元数据（宽高/体积/kind），`path` 相对 storage/media；`storage` 列（varchar `local\|r2`）记录该行落盘驱动——读/删按行分派，切换 `STORAGE_DRIVER` 只影响新上传（混存兼容）；R2 行删除遇配置不可用经 `storage.delete` 队列补偿重试 |
 | 社交 | `likes` / `reposts` / `follows` / `blocks` | 复合主键天然防重；计数冗余在 posts 行上 |
 | | `comments` | 两级回复（replyToCommentId/replyToUserId），status: visible/hidden/deleted |
 | 私信 | `conversations` / `messages` | 会话对唯一（userAId<userBId 规范化）；`lastMessageAt` 排序 |

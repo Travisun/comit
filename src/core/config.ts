@@ -108,4 +108,31 @@ export const config = {
       return Number(process.env.QUEUE_CONCURRENCY ?? 3);
     },
   },
+  storage: {
+    /** 附件存储驱动：local（默认，向后兼容）| r2（Cloudflare R2 S3 API） */
+    get driver(): "local" | "r2" {
+      return process.env.STORAGE_DRIVER === "r2" ? "r2" : "local";
+    },
+    // R2 凭据/桶名只经此读取（永不入日志）；完整性与回落判定见 src/lib/storage。
+    // 字符串字段统一 trim（与 index.ts 必填校验对齐）：粘贴 env 带尾随空白不再
+    // 造成「校验通过、端点/桶名却带空格」的隐性不一致。
+    r2: {
+      get accountId() {
+        return (process.env.R2_ACCOUNT_ID ?? "").trim();
+      },
+      get accessKeyId() {
+        return (process.env.R2_ACCESS_KEY_ID ?? "").trim();
+      },
+      get secretAccessKey() {
+        return (process.env.R2_SECRET_ACCESS_KEY ?? "").trim();
+      },
+      get bucket() {
+        return (process.env.R2_BUCKET ?? "").trim();
+      },
+      /** 可选：自定义域或 r2.dev 公开地址 → 图片直连 R2/CDN，应用路由只服务存量本地文件 */
+      get publicBaseUrl() {
+        return (process.env.R2_PUBLIC_BASE_URL ?? "").trim().replace(/\/+$/, "");
+      },
+    },
+  },
 } as const;

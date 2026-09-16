@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { webhookDeliveries } from "@/db/schema";
 import { queue } from "@/core/queue";
 import { sendMail } from "@/lib/mail";
+import { asStorageTag, deleteObject } from "@/lib/storage";
 import { httpRequest } from "@/core/http-client";
 import { registerCronTask } from "@/core/capabilities/scheduler";
 import {
@@ -102,6 +103,14 @@ export async function startWorkers(): Promise<void> {
   // 扩展异步任务
   await queue.work("ext.job", async (data) => {
     await runExtJob(data);
+  });
+
+  // R2 对象删除补偿（scheduleMediaCleanup 入队）：配置恢复后重删即成功；
+  // 仍不可用则 deleteObject 抛 StorageUnavailableError → rethrow 交给
+  // pg-boss 按重试策略退避重试，多次失败进 failed 队列（/admin/ops 可见）。
+  // 其余错误（对象已不存在等）由 deleteObject 容忍吞掉，视为完成（幂等）。
+  await queue.work("storage.delete", async (data) => {
+    await deleteObject(data.key, asStorageTag(data.storage));
   });
 
   // 增长型表保留策略：核心侧 cron 交给 startScheduledTasks 统一注册到 pg-boss

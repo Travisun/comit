@@ -1,6 +1,6 @@
 # 部署与运维
 
-> 最后更新：2026-09-11
+> 最后更新：2026-09-16
 
 ## 目录
 
@@ -61,6 +61,31 @@
 | 变量 | 说明 |
 | --- | --- |
 | `QUEUE_CONCURRENCY` | 预留（当前 batchSize=1）；队列复用 `DATABASE_URL`，无独立配置 |
+
+### Storage（媒体附件）
+
+| 变量 | 必填 | 说明 |
+| --- | --- | --- |
+| `STORAGE_DRIVER` | 可选（默认 `local`） | 新上传的写入驱动：`local`（落 `./storage/media`）/ `r2`（Cloudflare R2 S3 API）。只影响新写入：每行 `media.storage` 记录自己的驱动，读/删按行分派，可随时切换（混存兼容）。`r2` 但配置缺失时 fail-safe 回落 local（站点照常起，打一条 `[storage]` error） |
+| `R2_ACCOUNT_ID` | `r2` 必填 | Cloudflare 账号 ID（构成 `https://<accountId>.r2.cloudflarestorage.com` 端点）；永不入日志，报错统一脱敏为 `«account»` |
+| `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` | `r2` 必填 | R2 API Token 签发的 S3 凭据（仅服务端持有，永不打印） |
+| `R2_BUCKET` | `r2` 必填 | 桶名；**桶必须专用**（只放本应用媒体对象，见下） |
+| `R2_PUBLIC_BASE_URL` | 可选 | 公开基址（自定义域或 r2.dev，无尾斜杠）。配置即「公开桶」形态：新上传图片 `url` 直连 R2/CDN（对象写入带 `Cache-Control: public, max-age=31536000, immutable`）；不配即「私有桶」，全部经应用路由转发 |
+
+两种部署形态（`media.storage` 按行分派，切换驱动不影响存量行）：
+
+| 形态 | 配置 | 读取路径 | 取舍 |
+| --- | --- | --- | --- |
+| 公开桶 | r2 四件套 + `R2_PUBLIC_BASE_URL` | 新行直连 R2/CDN（immutable 缓存）；存量 local 行与「配公开域之前的旧 r2 行」仍走 `/api/media/file` 应用转发（`url` 是读时按行解析的，不回填 DB） | 省应用带宽；代价是桶公开可读 |
+| 私有桶 | 仅 r2 四件套 | 全部经 `/api/media/file` GetObject 流式转发（不整块进内存） | 桶不暴露；应用扛带宽/并发。路由带键形状守卫（`isMediaObjectKey`，非媒体键形状一律 404）兜底防「桶内混入非媒体对象被应用公开」，但**桶必须专用**仍应作为运维纪律 |
+
+R2 删除失败的兜底：删除走「先删 DB 行、后删对象」；对象删除遇 R2 配置不可用（driver 切走/env 清空）不再静默跳过，而是入队 `storage.delete`（pg-boss）持久重试；队列也不可用时打 `[storage]` error 提示人工清理（含 key）。
+
+已知取舍（`/admin/ops` 的 storage `SUM(size)` 与真实桶用量存在合理偏差）：
+
+- 「配公开域之前」的旧 r2 行仍走应用转发，直连收益只对新行生效；
+- `SUM(size)` 只统计 media 行的 WebP 归一后体积：不含 DB 行已删、对象尚在的补偿重试窗口（秒级），不含历史上已丢失 DB 行的孤儿对象，也不含本地 `storage/`（导出 zip 等非媒体产物）；
+- R2 侧 multipart 残留/生命周期规则不计入该数字。
 
 ## 2. 启动方式
 
@@ -127,6 +152,7 @@ rsync -a /backup/myblogs-storage/ storage/
 | `[workers]` | core/workers.ts | 队列 worker 注册完成 |
 | `[plugins]` | core/plugins/registry.ts | `booted: mcp@1.0.0` / 启动失败 |
 | `[moderation]` | lib/moderation.ts | LLM 审核失败 |
+| `[storage]` | lib/storage | 驱动回落 error、删除容忍 warn、R2 清理补偿入队失败 error |
 | `[db]` | src/db/index.ts | 连接池错误（空闲连接被断开等） |
 | `[instrumentation]` | instrumentation.ts | 引导失败（插件/worker 启动异常） |
 

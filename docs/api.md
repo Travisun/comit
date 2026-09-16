@@ -1,6 +1,6 @@
 # REST API 与 MCP
 
-> 最后更新：2026-09-11
+> 最后更新：2026-09-16
 
 ## 目录
 
@@ -95,9 +95,19 @@
 | 方法 路径 | 权限 | 说明 |
 | --- | --- | --- |
 | POST /api/media/upload | 登录 | 上传图片（sharp→WebP，kind: inline/avatar/cover/featured） |
-| GET/DELETE /api/media | 登录 | 媒体库列表/删除（删行+删文件） |
+| GET/DELETE /api/media | 登录 | 媒体库列表/删除（删行+删文件；文件删除失败经 `storage.delete` 队列补偿） |
 | POST /api/media/alt | 登录 | 更新替代文本 |
-| GET /api/media/file/[...path] | 公开 | 媒体读取（缓存头） |
+| GET /api/media/file/[...path] | 公开 | 媒体读取（缓存头；R2 回源前校验媒体键形状，非媒体对象 404） |
+
+上传响应（`POST /api/media/upload`）字段说明：
+
+- `storage`：实际落盘驱动（`local` | `r2`），即写入 `media.storage` 的值；
+- `url` 三态：
+  1. 公开桶（r2 + `R2_PUBLIC_BASE_URL`）→ `${R2_PUBLIC_BASE_URL}/${path}`，直连 R2/CDN；
+  2. 私有桶（r2 未配公开域）→ 应用路由 `/api/media/file/${path}`（流式转发）；
+  3. local 驱动 → 应用路由 `/api/media/file/${path}`（本地盘读取）。
+
+其余字段：`id/path/width/height/size/filename/mime`（`path` 为 posix 对象键，`mime` 恒 `image/webp`）。
 
 ### Social
 

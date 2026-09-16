@@ -1,0 +1,1 @@
+ALTER TABLE "media" ADD COLUMN "storage" varchar(10) DEFAULT 'local' NOT NULL;

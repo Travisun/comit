@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     "shiki",
     "rehype-pretty-code",
     "nodemailer",
+    // AWS SDK 体积大且依赖 Node 内建（crypto/net），保持外部化避免打进 server bundle
+    "@aws-sdk/client-s3",
   ],
   experimental: {
     // 全站页面均为 force-dynamic 且无 loading 边界，默认「进入视口即预取」

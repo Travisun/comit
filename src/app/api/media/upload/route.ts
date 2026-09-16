@@ -3,7 +3,6 @@ import { AppError } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { isSupportedImage, processAndSaveImage, type MediaKind } from "@/lib/media";
-import { routes } from "@/core/routes";
 import { runMediaProcessors } from "@/core/capabilities/media";
 import { hooks } from "@/core/hooks";
 
@@ -92,16 +91,18 @@ export async function POST(req: Request): Promise<Response> {
       throw new AppError("图片处理失败 / Failed to process image", 400, "process_failed");
     }
 
-    // 扩展后处理管道（水印/扫描/alt 生成…）：失败只记日志，不阻断上传
+    // 扩展后处理管道（水印/扫描/alt 生成…）：失败只记日志，不阻断上传。
+    // url 用 SavedMedia.url：公开桶（r2 + R2_PUBLIC_BASE_URL）为直连地址，否则应用路由
     await runMediaProcessors({
       path: saved.path,
-      url: routes.media(saved.path),
+      url: saved.url,
       mime: "image/webp",
       size: saved.size,
       userId: auth.user.id,
       kind,
     });
 
-    return ok({ ...saved, url: routes.media(saved.path), mime: "image/webp" });
+    // saved.url 已按驱动解析（公开桶直连 / 私有桶与应用路由），url 字段优先取它
+    return ok({ ...saved, url: saved.url, mime: "image/webp" });
   });
 }

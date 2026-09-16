@@ -17,6 +17,7 @@ import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { pendingReviewCount } from "@/lib/moderation";
 import { STORAGE_ROOT } from "@/lib/media";
+import { activeStorage, storageStatus } from "@/lib/storage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,9 @@ export const dynamic = "force-dynamic";
  * usage. Strictly read-only: no inserts/updates, no queue side effects.
  * The storage walk is budgeted (~2s) so a huge media tree can never hang
  * the response — partial results are flagged with `complete: false`.
+ * storage 响应形状：{ driver, r2Configured, media, exports, budgetMs[, r2] } —
+ * local 部分照旧磁盘遍历；driver=r2 时追加 `r2: { bytes, files }`
+ * （SUM(media.size) WHERE storage='r2' 聚合，避免 ListObjects 计费 API）。
  */
 
 const STORAGE_BUDGET_MS = 2_000;
@@ -121,6 +125,8 @@ export async function GET(req: Request) {
   return withPermission(req, "admin.ops", async () => {
     const startedAt = Date.now();
     const since24h = new Date(Date.now() - 24 * 3600_000);
+    const driver = activeStorage();
+    const { r2Configured } = storageStatus();
 
     const [
       processInfo,
@@ -133,6 +139,7 @@ export async function GET(req: Request) {
       newPosts24hRes,
       mediaUsage,
       exportsUsage,
+      r2UsageRows,
     ] = await Promise.all([
       Promise.resolve({
         worker: process.env.WORKER_ID ?? "solo",
@@ -171,6 +178,16 @@ export async function GET(req: Request) {
       db.select({ n: count() }).from(posts).where(gte(posts.createdAt, since24h)),
       storageUsage(STORAGE_ROOT, Date.now() + STORAGE_BUDGET_MS),
       storageUsage(path.join(process.cwd(), "storage", "exports"), Date.now() + STORAGE_BUDGET_MS),
+      // r2 用量走 DB 聚合（行级 size 求和），绝不调 ListObjects 计费 API
+      driver === "r2"
+        ? db
+            .select({
+              bytes: sql<string>`coalesce(sum(${media.size}), 0)::bigint`,
+              n: count(),
+            })
+            .from(media)
+            .where(eq(media.storage, "r2"))
+        : Promise.resolve([{ bytes: "0", n: 0 }]),
     ]);
 
     const [
@@ -186,6 +203,11 @@ export async function GET(req: Request) {
     const [openReportsN] = openReports;
     const [newUsers24h] = newUsers24hRes;
     const [newPosts24h] = newPosts24hRes;
+    // ::bigint 经 pg 驱动返回字符串，防 >2GB 溢出；转 number 输出
+    const r2Usage =
+      driver === "r2"
+        ? { bytes: Number(r2UsageRows[0]?.bytes ?? 0), files: r2UsageRows[0]?.n ?? 0 }
+        : undefined;
 
     return ok({
       process: processInfo,
@@ -211,8 +233,12 @@ export async function GET(req: Request) {
         newPosts24h: newPosts24h.n,
       },
       storage: {
+        driver,
+        r2Configured,
+        // media/exports 为本地磁盘遍历（存量 local 行 + exports zip 仍在盘上）
         media: mediaUsage,
         exports: exportsUsage,
+        ...(r2Usage ? { r2: r2Usage } : {}),
         budgetMs: STORAGE_BUDGET_MS,
       },
       collectedInMs: Date.now() - startedAt,

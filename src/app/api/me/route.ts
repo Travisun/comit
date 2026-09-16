@@ -8,6 +8,7 @@ import { AppError, ok, withUser } from "@/lib/http";
 import { verifyPassword } from "@/lib/auth/password";
 import { destroyUserSessions } from "@/lib/auth/session";
 import { deleteMediaFile } from "@/lib/media";
+import { asStorageTag, type StorageTag } from "@/lib/storage";
 import { config } from "@/core/config";
 import { parseOrThrow } from "./_shared";
 
@@ -53,25 +54,27 @@ export async function DELETE(req: Request) {
     }
 
     if (body.deleteContent) {
-      // 事务内先收集媒体路径、再删 user（media 行随级联删除）；全部 DB 删除
-      // 提交成功后才清理磁盘文件 —— 事务回滚时磁盘文件仍完好，不再出现
+      // 事务内先收集媒体路径+驱动、再删 user（media 行随级联删除）；全部 DB 删除
+      // 提交成功后才清理文件 —— 事务回滚时文件仍完好，不再出现
       // 「文件已删、用户还在」的不可逆不一致。
-      const mediaFiles: string[] = [];
+      const mediaFiles: { path: string; storage: StorageTag }[] = [];
       await db.transaction(async (tx) => {
         const files = await tx
-          .select({ path: media.path })
+          .select({ path: media.path, storage: media.storage })
           .from(media)
           .where(eq(media.userId, auth.user.id));
-        mediaFiles.push(...files.map((f) => f.path));
+        mediaFiles.push(...files.map((f) => ({ path: f.path, storage: asStorageTag(f.storage) })));
         // user row cascade removes posts/comments/sessions/tokens/webhooks/etc.
         await tx.delete(users).where(eq(users.id, auth.user.id));
       });
 
-      // 磁盘清理放在事务后：单个文件删除失败仅告警，不影响注销响应
+      // 文件清理放在事务后（顺序不可变）：按各行的驱动分派删除，单个失败仅
+      // 告警；R2 配置不可用时 deleteMediaFile 自动转 storage.delete 队列持久重试
+      //（deleteMediaFile 内部兜住，不阻断注销响应）
       await Promise.all(
-        mediaFiles.map((p) =>
-          deleteMediaFile(p).catch((err: unknown) => {
-            console.warn(`[me] 媒体文件删除失败 / Failed to remove media file: ${p}`, err);
+        mediaFiles.map((f) =>
+          deleteMediaFile(f.path, f.storage).catch((err: unknown) => {
+            console.warn(`[me] 媒体文件删除失败 / Failed to remove media file: ${f.path}`, err);
           }),
         ),
       );

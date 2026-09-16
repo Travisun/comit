@@ -3,8 +3,9 @@ import path from "path";
 import fs from "fs";
 import { eq, inArray, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { posts, exportJobs, users, postTopics, topics, collections } from "@/db/schema";
-import { mediaAbsPath } from "@/lib/media";
+import { posts, exportJobs, users, postTopics, topics, collections, media } from "@/db/schema";
+import { readMediaFile } from "@/lib/media";
+import { asStorageTag, type StorageTag } from "@/lib/storage";
 import { config } from "@/core/config";
 import type { Plugin } from "@/core/plugins/types";
 
@@ -19,6 +20,17 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
   if (!user) throw new Error("user gone");
 
+  // 一次预取 media 行驱动：读文件经存储抽象按行分派（local 读盘 / r2 拉 R2），
+  // 正文里的路径若不在 media 表（异常历史数据）按 local 兜底，缺失容忍跳过
+  const storageByPath = new Map<string, StorageTag>(
+    (
+      await db
+        .select({ path: media.path, storage: media.storage })
+        .from(media)
+        .where(eq(media.userId, userId))
+    ).map((m) => [m.path, asStorageTag(m.storage)]),
+  );
+
   const rows = await db
     .select()
     .from(posts)
@@ -31,10 +43,11 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
 
   let index = `# ${user.displayName} (@${user.username}) — comit.sh 导出\n\n`;
   const copyMedia = async (relPath: string, destDir: string): Promise<string> => {
-    const abs = mediaAbsPath(relPath);
     await fs.promises.mkdir(destDir, { recursive: true });
     const dest = path.join(destDir, path.basename(relPath));
-    await fs.promises.copyFile(abs, dest).catch(() => {});
+    await readMediaFile(relPath, storageByPath.get(relPath) ?? "local")
+      .then((buf) => fs.promises.writeFile(dest, buf))
+      .catch(() => {});
     return `media/${path.basename(relPath)}`;
   };
 

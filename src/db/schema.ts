@@ -348,6 +348,8 @@ export const media = pgTable(
     height: integer("height").default(0).notNull(),
     alt: varchar("alt", { length: 300 }).default("").notNull(),
     kind: varchar("kind", { length: 20 }).default("inline").notNull(), // inline|avatar|cover|featured
+    /** 存储驱动：local（本地磁盘 storage/media）| r2（Cloudflare R2）—— 按行分派读/删 */
+    storage: varchar("storage", { length: 10 }).default("local").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [index("media_user_idx").on(t.userId, t.createdAt)],
