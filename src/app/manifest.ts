@@ -18,12 +18,11 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: "zh-CN",
     categories: ["social", "productivity", "blogging"],
     icons: [
-      { src: "/icons/favicon@128w.png", sizes: "128x128", type: "image/png" },
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/logo-mark.svg", sizes: "any", type: "image/svg+xml" },
+      { src: "/icons/logo-mark-256.png", sizes: "256x256", type: "image/png", purpose: "any" },
       {
-        src: "/icons/icon-512-maskable.png",
-        sizes: "512x512",
+        src: "/icons/logo-mark-256.png",
+        sizes: "256x256",
         type: "image/png",
         purpose: "maskable",
       },

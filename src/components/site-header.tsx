@@ -14,6 +14,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { LogoFull } from "@/components/brand/logo";
 import { postJson } from "@/lib/client/api";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import {
@@ -67,8 +68,8 @@ export function SiteHeader({
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-card">
       <div className="mx-auto flex h-[var(--header-h)] max-w-6xl items-center gap-3 px-4">
-        <Link href="/" className="flex items-center gap-2 font-bold text-[15px] tracking-tight">
-          <span className="font-mono font-extrabold tracking-[-0.04em] text-primary">comit<span className="text-foreground">.</span>sh</span>
+        <Link href="/" className="flex items-center gap-2 py-1 font-bold text-[15px] tracking-tight">
+          <LogoFull height={20} />
         </Link>
 
         <nav className="ml-4 hidden items-center gap-1 md:flex">

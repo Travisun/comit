@@ -3,20 +3,18 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
+import { LogoFull } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
 
-/**
- * Brand mark — the official comit.sh.svg wordmark asset.
- * Dark fill by default; inverted in dark mode for the gray canvas.
- */
+/** 兼容旧签名 — 移动端顶栏等处的小尺寸图标位。 */
 export function BrandMark({ className }: { className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/icons/comit.sh.svg"
+      src="/icons/logo-mark.svg"
       alt="comit.sh"
-      className={cn("h-[20px] w-auto select-none dark:invert", className)}
+      className={cn("h-5 w-auto select-none dark:invert", className)}
     />
   );
 }
@@ -28,13 +26,14 @@ export function BrandLink({ siteName }: { siteName: string }) {
       className="inline-flex items-center rounded-[10px] p-2"
       aria-label={siteName}
     >
-      {/* 收起态（<lg）用 favicon 方标；展开态用完整字标 */}
+      {/* 收起态（<lg）：方形图标；展开态（lg）：完整字标 — SVG 优先 */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src="/icons/favicon@32w.png"
+        src="/icons/logo-mark.svg"
         alt={siteName}
         className="size-8 select-none rounded-md dark:invert lg:hidden"
       />
-      <BrandMark className="hidden h-[22px] lg:block" />
+      <LogoFull className="hidden lg:block" height={22} />
     </Link>
   );
 }

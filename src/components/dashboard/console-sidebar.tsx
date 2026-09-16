@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { LogoFull } from "@/components/brand/logo";
 import { ArrowLeft, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -100,12 +101,8 @@ function BackToSiteLink({ onNavigate }: { onNavigate?: () => void }) {
 
 function BrandMark() {
   return (
-    <span
-      role="img"
-      aria-label="comit.sh"
-      className="inline-flex select-none items-baseline px-1.5 font-mono text-[17px] font-extrabold leading-none tracking-[-0.04em] text-foreground"
-    >
-      comit<span className="text-primary">.</span>sh
+    <span className="inline-flex select-none items-center px-1.5" role="img" aria-label="comit.sh">
+      <LogoFull height={18} />
     </span>
   );
 }
