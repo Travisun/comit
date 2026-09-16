@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Play, Save } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Separator, Switch } from "@/components/ui/primitives";
+import { EmptyState } from "@/components/admin/bits";
 import { Field } from "@/components/admin/switch-row";
-import { api } from "@/components/admin/client";
 import { cn } from "@/lib/utils";
+import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
 interface LlmConfig {
   baseURL: string;
@@ -18,14 +22,36 @@ interface LlmConfig {
   prompt: string;
 }
 
-interface SettingsResponse {
-  entries: Record<string, unknown> & {
-    "moderation.reviewMode": "off" | "llm" | "manual";
-    "moderation.keywordsEnabled": boolean;
-    "moderation.llmFailMode": "open" | "closed";
-    "moderation.llm": LlmConfig & { hasKey: boolean };
-  };
-}
+/* -------------------------------- schema --------------------------------- */
+
+// GET /api/admin/settings 的 moderation 白名单键（apiKey 被服务端脱敏为 hasKey）
+const llmEntrySchema = z.object({
+  baseURL: z.string().optional(),
+  apiKey: z.string().optional(),
+  model: z.string().optional(),
+  temperature: z.number().optional(),
+  prompt: z.string().optional(),
+  hasKey: z.boolean().optional(),
+});
+
+const adminSettingsSchema = z.object({
+  entries: z.object({
+    "moderation.reviewMode": z.enum(["off", "llm", "manual"]),
+    "moderation.keywordsEnabled": z.boolean(),
+    "moderation.llmFailMode": z.enum(["open", "closed"]),
+    "moderation.llm": llmEntrySchema,
+  }),
+});
+
+type AdminSettingsEntries = z.infer<typeof adminSettingsSchema>["entries"];
+
+type LlmTestResult = { approved: boolean; score?: number; reason?: string } | null;
+
+/**
+ * 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）。与 admin settings 页
+ * 共用同一端点/键，保存审核配置后失效会连带刷新两处。
+ */
+const ADMIN_SETTINGS_KEY = ["admin", "settings"] as const;
 
 const REVIEW_MODES = [
   { value: "off", label: "直接发布", hint: "不审核，发布即上线" },
@@ -35,85 +61,116 @@ const REVIEW_MODES = [
 
 /** LLM 审核设置 + 测试审核。 */
 export function ModerationLlmTab() {
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [hasKey, setHasKey] = useState(false);
-  const [reviewMode, setReviewMode] = useState<"off" | "llm" | "manual">("off");
-  const [keywordsEnabled, setKeywordsEnabled] = useState(true);
-  const [failMode, setFailMode] = useState<"open" | "closed">("open");
-  const [llm, setLlm] = useState<LlmConfig>({
-    baseURL: "",
-    apiKey: "",
-    model: "",
-    temperature: 0,
-    prompt: "",
-  });
+  // 设置查询 — 配置卡片为 keyed 子组件：data 版本变化（首次到达/保存失效重取）
+  // 时以服务端权威值重新播种；测试面板的输入/结果留在高层，不随重播种丢失
+  const settingsQ = useQuery(
+    apiQueryOptions({
+      queryKey: ADMIN_SETTINGS_KEY,
+      url: "/api/admin/settings",
+      schema: adminSettingsSchema,
+    }),
+  );
+  const loading = settingsQ.isLoading;
+  const error = settingsQ.error instanceof Error ? settingsQ.error.message : null;
+
   const [testText, setTestText] = useState("");
   const [testResult, setTestResult] = useState<string | null>(null);
 
-  useEffect(() => {
-    api<SettingsResponse>("/api/admin/settings")
-      .then((d) => {
-        const e = d.entries;
-        setReviewMode(e["moderation.reviewMode"]);
-        setKeywordsEnabled(Boolean(e["moderation.keywordsEnabled"]));
-        setFailMode(e["moderation.llmFailMode"]);
-        const cfg = e["moderation.llm"];
-        setHasKey(Boolean(cfg?.hasKey));
-        setLlm({
-          baseURL: cfg?.baseURL ?? "",
-          apiKey: "",
-          model: cfg?.model ?? "",
-          temperature: cfg?.temperature ?? 0,
-          prompt: cfg?.prompt ?? "",
-        });
-      })
-      .catch((err: Error) => toast.error(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function save() {
-    setSaving(true);
-    try {
-      const res = await api<{ hasKey: boolean }>("/api/admin/moderation/llm", {
-        method: "POST",
-        body: JSON.stringify({ reviewMode, keywordsEnabled, failMode, llm }),
-      });
-      setHasKey(res.hasKey);
-      setLlm((prev) => ({ ...prev, apiKey: "" }));
-      toast.success("审核配置已保存");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function runTest() {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const res = await api<{ result: { approved: boolean; score?: number; reason?: string } | null }>(
-        "/api/admin/moderation/llm/test",
-        { method: "POST", body: JSON.stringify({ text: testText }) },
-      );
-      if (res.result === null) {
-        setTestResult("未获得结果：未配置 API Key，或调用失败（详见服务端日志）。");
-      } else {
-        setTestResult(JSON.stringify(res.result, null, 2));
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "测试失败");
-    } finally {
-      setTesting(false);
-    }
-  }
+  // 测试审核 — 结果是临时产物进本地 state；保持原静默语义：
+  // result 为 null 走内联降级文案而非 toast，失败时默认 toast 服务端错误
+  const testMutation = useApiMutation(
+    (text: string) => postJson<{ result: LlmTestResult }>("/api/admin/moderation/llm/test", { text }),
+    {
+      refresh: false,
+      onSuccess: (res) => {
+        setTestResult(
+          res.result === null
+            ? "未获得结果：未配置 API Key，或调用失败（详见服务端日志）。"
+            : JSON.stringify(res.result, null, 2),
+        );
+      },
+    },
+  );
 
   if (loading) return null;
 
+  if (error && !settingsQ.data) {
+    return <EmptyState title="加载失败" hint={error} />;
+  }
+  if (!settingsQ.data) return null;
+
   return (
     <div className="space-y-4">
+      <LlmConfigForm key={settingsQ.dataUpdatedAt} seed={settingsQ.data.entries} />
+
+      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-3">
+        <div className="space-y-1">
+          <h3 className="text-sm font-semibold">测试审核</h3>
+          <p className="text-xs text-muted-foreground">用一段文本实际调用一次 LLM 审核，查看返回结果</p>
+        </div>
+        <Textarea
+          rows={3}
+          value={testText}
+          onChange={(e) => setTestText(e.target.value)}
+          placeholder="输入要测试的文本内容…"
+        />
+        <Button
+          variant="outline"
+          onClick={() => {
+            setTestResult(null);
+            void testMutation.mutate(testText);
+          }}
+          disabled={testMutation.pending || !testText.trim()}
+        >
+          <Play className="size-4" />
+          {testMutation.pending ? "审核中…" : "测试审核"}
+        </Button>
+        {testResult ? (
+          <pre className="overflow-x-auto rounded-lg bg-[var(--muted)] p-3 text-xs leading-relaxed">
+            {testResult}
+          </pre>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** 审核策略 + LLM 接口两张卡片 — 编辑态从 seed 初始化（不再用 effect 同步）。 */
+function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
+  const cfg = seed["moderation.llm"];
+  const [hasKey, setHasKey] = useState(Boolean(cfg?.hasKey));
+  const [reviewMode, setReviewMode] = useState<"off" | "llm" | "manual">(seed["moderation.reviewMode"]);
+  const [keywordsEnabled, setKeywordsEnabled] = useState(Boolean(seed["moderation.keywordsEnabled"]));
+  const [failMode, setFailMode] = useState<"open" | "closed">(seed["moderation.llmFailMode"]);
+  const [llm, setLlm] = useState<LlmConfig>(() => ({
+    baseURL: cfg?.baseURL ?? "",
+    apiKey: "",
+    model: cfg?.model ?? "",
+    temperature: cfg?.temperature ?? 0,
+    prompt: cfg?.prompt ?? "",
+  }));
+
+  // 保存审核配置 — 成功失效设置键（重取服务端权威值）
+  const saveMutation = useApiMutation(
+    (payload: {
+      reviewMode: "off" | "llm" | "manual";
+      keywordsEnabled: boolean;
+      failMode: "open" | "closed";
+      llm: LlmConfig;
+    }) => postJson<{ ok: boolean; hasKey: boolean }>("/api/admin/moderation/llm", payload),
+    {
+      refresh: false,
+      invalidate: [ADMIN_SETTINGS_KEY],
+      successToast: "审核配置已保存",
+      onSuccess: (res) => {
+        setHasKey(res.hasKey);
+        setLlm((prev) => ({ ...prev, apiKey: "" }));
+      },
+    },
+  );
+
+  return (
+    <>
       <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-4">
         <div className="space-y-1">
           <h3 className="text-sm font-semibold">发布审核策略</h3>
@@ -217,35 +274,13 @@ export function ModerationLlmTab() {
             </Field>
           </div>
           <div className="sm:col-span-2">
-            <Button onClick={save} disabled={saving}>
+            <Button onClick={() => void saveMutation.mutate({ reviewMode, keywordsEnabled, failMode, llm })} disabled={saveMutation.pending}>
               <Save className="size-4" />
-              {saving ? "保存中…" : "保存审核配置"}
+              {saveMutation.pending ? "保存中…" : "保存审核配置"}
             </Button>
           </div>
         </div>
       </div>
-
-      <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-3">
-        <div className="space-y-1">
-          <h3 className="text-sm font-semibold">测试审核</h3>
-          <p className="text-xs text-muted-foreground">用一段文本实际调用一次 LLM 审核，查看返回结果</p>
-        </div>
-        <Textarea
-          rows={3}
-          value={testText}
-          onChange={(e) => setTestText(e.target.value)}
-          placeholder="输入要测试的文本内容…"
-        />
-        <Button variant="outline" onClick={runTest} disabled={testing || !testText.trim()}>
-          <Play className="size-4" />
-          {testing ? "审核中…" : "测试审核"}
-        </Button>
-        {testResult ? (
-          <pre className="overflow-x-auto rounded-lg bg-[var(--muted)] p-3 text-xs leading-relaxed">
-            {testResult}
-          </pre>
-        ) : null}
-      </div>
-    </div>
+    </>
   );
 }

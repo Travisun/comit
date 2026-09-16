@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { emit } from "@/core/events";
 import { consumeAuthToken } from "@/lib/auth/guards";
 import { hashPassword, isValidPassword } from "@/lib/auth/password";
@@ -20,7 +21,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`reset:${clientIp(req)}`, 10, 60_000);
+    await rateLimitBucket("auth.password", clientIp(req));
     const body = await parseJsonBody(req, schema);
     if (!isValidPassword(body.password)) {
       throw new AppError(

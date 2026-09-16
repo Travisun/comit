@@ -5,6 +5,7 @@ import { posts, reposts } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 
 const bodySchema = z.object({
   postId: z.uuid(),
@@ -18,6 +19,9 @@ export async function POST(req: Request) {
     if (!parsed.success) throw new AppError("参数错误 / Invalid payload", 400, "bad_request");
     const { postId, comment } = parsed.data;
     const me = auth.user.id;
+
+    // 桶 action.social：per-user 默认 60 次/60s，覆盖 toggle 高频场景
+    await rateLimitBucket("action.social", me);
 
     const [post] = await db
       .select({ id: posts.id, authorId: posts.authorId })

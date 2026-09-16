@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
-import { apiGet, deleteJsonSafe, patchJsonSafe, postJsonSafe } from "@/lib/client/api";
+import { ApiError, apiGet, deleteJson, patchJson, postJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
+import { useApiMutation } from "@/lib/query/mutation";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -58,7 +59,6 @@ const treePostSchema = z.object({
 
 export function PostTree({ activeId }: { activeId?: string | null }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const collectionsQ = useQuery({
     queryKey: queryKeys.collections(),
     queryFn: async () =>
@@ -81,7 +81,6 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
   const [newName, setNewName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
-  const [busy, setBusy] = useState(false);
 
   // collapse folders without the active post; open the one containing it
   // （打开态是用户可改的本地状态，这里做「props → 派生 UI 状态」同步，
@@ -94,96 +93,97 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
       setOpenFolders((f) => ({ ...f, [active.collectionId ?? "none"]: true }));
   }, [activeId, posts]);
 
-  async function createPost(collectionId: string | null) {
-    setBusy(true);
-    try {
-      const r = await postJsonSafe<{ id?: string; error?: string }>("/api/posts", {
+  // 新建文章 — 成功跳编辑器；silent + onError 保持原失败文案
+  // （服务端错误取 message，其余回落「创建失败」）
+  const createPostMut = useApiMutation(
+    async (collectionId: string | null) => {
+      const data = await postJson<{ id?: string }>("/api/posts", {
         type: "article",
         title: "无标题",
         content: "",
         action: "draft",
         collectionId,
       });
-      if (!r.ok) {
-        toast.error(r.error ?? "创建失败");
-        return;
-      }
-      if (!r.data.id) {
-        toast.error("创建失败");
-        return;
-      }
-      router.push(routes.editorEdit(r.data.id));
-    } catch {
-      toast.error("创建失败");
-    } finally {
-      setBusy(false);
-    }
+      if (!data?.id) throw new Error("创建失败");
+      return data.id;
+    },
+    {
+      silent: true,
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : "创建失败"),
+      onSuccess: (id) => router.push(routes.editorEdit(id)),
+    },
+  );
+
+  // 新建目录 — 成功失效 queryKeys.collections()（与 collection-select /
+  // pinned-composer 共用的缓存自动重取）
+  const createCollectionMut = useApiMutation(
+    async (name: string) => {
+      const data = await postJson<CollectionItem>("/api/posts/collections", { name });
+      if (!data?.id) throw new Error("创建目录失败");
+      return data;
+    },
+    {
+      silent: true,
+      invalidate: [queryKeys.collections()],
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : "创建目录失败"),
+      onSuccess: (col) => {
+        setOpenFolders((f) => ({ ...f, [col.id]: true }));
+        setNewName("");
+        setCreating(false);
+      },
+    },
+  );
+
+  const renameCollectionMut = useApiMutation(
+    async ({ id, name }: { id: string; name: string }) => {
+      const data = await patchJson<CollectionItem>(`/api/posts/collections/${id}`, { name });
+      if (!data?.id) throw new Error("重命名失败");
+      return data;
+    },
+    {
+      silent: true,
+      invalidate: [queryKeys.collections()],
+      onError: (err) => toast.error(err instanceof ApiError ? err.message : "重命名失败"),
+      onSuccess: () => setRenamingId(null),
+    },
+  );
+
+  const deleteCollectionMut = useApiMutation(
+    (id: string) => deleteJson(`/api/posts/collections/${id}`),
+    {
+      silent: true,
+      invalidate: [queryKeys.collections()],
+      onError: () => toast.error("删除失败"),
+    },
+  );
+
+  // 等价原手写 busy：任一 mutation 进行中即禁用写操作按钮
+  const busy =
+    createPostMut.pending ||
+    createCollectionMut.pending ||
+    renameCollectionMut.pending ||
+    deleteCollectionMut.pending;
+
+  function createPost(collectionId: string | null) {
+    void createPostMut.mutate(collectionId);
   }
 
-  async function createCollection() {
-    if (!newName.trim()) return;
-    setBusy(true);
-    try {
-      const r = await postJsonSafe<CollectionItem & { error?: string }>("/api/posts/collections", {
-        name: newName.trim(),
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "创建目录失败");
-        return;
-      }
-      const col = r.data;
-      if (!col?.id) {
-        toast.error("创建目录失败");
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
-      setOpenFolders((f) => ({ ...f, [col.id]: true }));
-      setNewName("");
-      setCreating(false);
-    } finally {
-      setBusy(false);
-    }
+  function createCollection() {
+    const name = newName.trim();
+    if (!name || busy) return;
+    void createCollectionMut.mutate(name);
   }
 
-  async function renameCollection(id: string) {
-    if (!renameValue.trim()) return;
-    setBusy(true);
-    try {
-      const r = await patchJsonSafe<CollectionItem & { error?: string }>(`/api/posts/collections/${id}`, {
-        name: renameValue.trim(),
-      });
-      if (!r.ok) {
-        toast.error(r.error ?? "重命名失败");
-        return;
-      }
-      const col = r.data;
-      if (!col?.id) {
-        toast.error("重命名失败");
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
-      setRenamingId(null);
-    } finally {
-      setBusy(false);
-    }
+  function renameCollection(id: string) {
+    const name = renameValue.trim();
+    if (!name) return;
+    void renameCollectionMut.mutate({ id, name });
   }
 
-  async function deleteCollection(id: string) {
+  function deleteCollection(id: string) {
     if (!window.confirm("删除目录？目录内文章将移至「未分类」。")) return;
-    setBusy(true);
-    try {
-      const r = await deleteJsonSafe(`/api/posts/collections/${id}`);
-      if (!r.ok) {
-        toast.error("删除失败");
-        return;
-      }
-      void queryClient.invalidateQueries({ queryKey: queryKeys.collections() });
-    } finally {
-      setBusy(false);
-    }
+    void deleteCollectionMut.mutate(id);
   }
-
-  const uncategorized = posts.filter((p) => !p.collectionId);
 
   const folderRow = (id: string | null, label: string, empty?: boolean) => {
     const open = openFolders[id ?? "none"] ?? false;
@@ -193,6 +193,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
       <div key={id ?? "none"}>
         <div
           role="treeitem"
+          aria-selected={false}
           aria-expanded={open}
           tabIndex={0}
           onClick={() => setOpenFolders((f) => ({ ...f, [id ?? "none"]: !open }))}
@@ -211,7 +212,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") void renameCollection(id!);
+                  if (e.key === "Enter") renameCollection(id!);
                   if (e.key === "Escape") setRenamingId(null);
                 }}
                 className="h-6 w-full min-w-0 rounded border border-input bg-card px-1 text-sm outline-none"
@@ -221,7 +222,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                 aria-label="确认重命名"
                 onClick={(e) => {
                   e.stopPropagation();
-                  void renameCollection(id!);
+                  renameCollection(id!);
                 }}
                 className="text-muted-foreground hover:text-foreground"
               >
@@ -252,7 +253,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                   disabled={busy}
                   onClick={(e) => {
                     e.stopPropagation();
-                    void createPost(id);
+                    createPost(id);
                   }}
                   className="rounded p-0.5 text-muted-foreground hover:bg-[var(--selected)] hover:text-foreground"
                 >
@@ -276,7 +277,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                   disabled={busy}
                   onClick={(e) => {
                     e.stopPropagation();
-                    void deleteCollection(id!);
+                    deleteCollection(id!);
                   }}
                   className="rounded p-0.5 text-muted-foreground hover:bg-[var(--selected)] hover:text-destructive"
                 >
@@ -329,7 +330,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
           aria-label="新建文章"
           title="新建文章"
           disabled={busy || creating}
-          onClick={() => void createPost(null)}
+          onClick={() => createPost(null)}
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground"
         >
           <Plus className="size-4" />
@@ -352,7 +353,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") void createCollection();
+                    if (e.key === "Enter") createCollection();
                     if (e.key === "Escape") {
                       setCreating(false);
                       setNewName("");
@@ -364,7 +365,7 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
                 <button
                   type="button"
                   aria-label="确认创建目录"
-                  onClick={() => void createCollection()}
+                  onClick={() => createCollection()}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <Check className="size-3.5" />

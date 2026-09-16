@@ -41,14 +41,31 @@ const bodySchema = z.object({
   ),
 });
 
+/**
+ * ratelimit.buckets 的精确值校验：桶名 → { limit, windowSec }（其余键维持
+ * 现状只查白名单，不扩散范围）。窗口上限 86400s（一天）、阈值上限 1e5。
+ */
+const bucketsValueSchema = z.record(
+  z.string(),
+  z
+    .object({
+      limit: z.number().int().min(1).max(100000),
+      windowSec: z.number().int().min(1).max(86400),
+    })
+    .strict(),
+);
+
 /** POST /api/admin/settings — persist a whitelist of setting entries. */
 export async function POST(req: Request) {
   return withAdmin(req, async ({ user }) => {
     const body = parseOrThrow(bodySchema, await jsonBody(req));
 
-    for (const key of Object.keys(body.entries)) {
+    for (const [key, value] of Object.entries(body.entries)) {
       if (!KNOWN_KEYS.has(key)) {
         throw new AppError(`未知的设置项 / Unknown setting key: ${key}`, 400, "bad_key");
+      }
+      if (key === "ratelimit.buckets" && !bucketsValueSchema.safeParse(value).success) {
+        throw new AppError(`设置项的值不合法 / Invalid value for setting: ${key}`, 400, "bad_value");
       }
     }
 

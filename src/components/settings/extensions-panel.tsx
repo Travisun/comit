@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import {
@@ -9,6 +8,7 @@ import {
   SettingsSection,
   SettingsSectionHeader,
 } from "@/components/ui/settings";
+import { useApiMutation } from "@/lib/query/mutation";
 import { apiRequest } from "./client";
 import type { SettingsData } from "./types";
 import { EXTENSION_MANIFESTS } from "@/extensions/_boot/manifests";
@@ -95,18 +95,15 @@ function ExtensionForm({
   initial: Record<string, unknown>;
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(initial);
-  const [saving, setSaving] = useState(false);
 
-  async function save() {
-    setSaving(true);
-    try {
-      await apiRequest(`/api/me/ext/${id}/settings`, "PUT", values);
-      toast.success("已保存");
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  // 保存扩展设置 — pending 驱动按钮；成功/失败 toast 由统一契约处理
+  const saveMutation = useApiMutation(
+    (payload: Record<string, unknown>) => apiRequest(`/api/me/ext/${id}/settings`, "PUT", payload),
+    { successToast: "已保存" },
+  );
+
+  function save() {
+    void saveMutation.mutate(values);
   }
 
   return (
@@ -124,8 +121,8 @@ function ExtensionForm({
           )}
         </div>
       ))}
-      <Button size="sm" onClick={() => void save()} disabled={saving}>
-        {saving ? "保存中…" : "保存"}
+      <Button size="sm" onClick={() => save()} disabled={saveMutation.pending}>
+        {saveMutation.pending ? "保存中…" : "保存"}
       </Button>
     </div>
   );

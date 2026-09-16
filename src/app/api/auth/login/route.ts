@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError, forbidden } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
@@ -25,7 +26,7 @@ const schema = z.object({
 
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`login:${clientIp(req)}`, 10, 60_000);
+    await rateLimitBucket("auth.login", clientIp(req));
     const body = await parseJsonBody(req, schema);
 
     const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);

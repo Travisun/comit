@@ -1,80 +1,97 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Check, X } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge, Skeleton } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/admin/bits";
 import { RejectDialog } from "@/components/admin/post-actions";
-import { api } from "@/components/admin/client";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface QueueItem {
-  id: string;
-  title: string | null;
-  summary: string;
-  content: string;
-  type: string;
-  createdAt: string;
-  rejectReason: string | null;
-  moderation: {
-    keyword?: { severity: string; hits: string[] };
-    llm?: { approved: boolean; score?: number; reason?: string };
-    reviewedAt?: string;
-    reviewedBy?: string;
-  } | null;
-  author: { username: string; displayName: string };
-}
+/* -------------------------------- schema --------------------------------- */
+
+const queueItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  summary: z.string(),
+  content: z.string(),
+  type: z.string(),
+  createdAt: z.string(),
+  rejectReason: z.string().nullable(),
+  // posts.moderation jsonb — 机审上下文，键均可选，整体可空
+  moderation: z
+    .object({
+      keyword: z.object({ severity: z.string(), hits: z.array(z.string()) }).optional(),
+      llm: z
+        .object({
+          approved: z.boolean(),
+          score: z.number().optional(),
+          reason: z.string().optional(),
+        })
+        .optional(),
+      reviewedAt: z.string().optional(),
+      reviewedBy: z.string().optional(),
+    })
+    .nullable(),
+  author: z.object({ username: z.string(), displayName: z.string() }),
+});
+
+const queueSchema = z.object({ items: z.array(queueItemSchema) });
+
+type QueueItem = z.infer<typeof queueItemSchema>;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；通过/驳回后失效重取。 */
+const QUEUE_KEY = ["admin", "moderation", "queue"] as const;
 
 /** 待审队列：pending_review 文章卡片 + 通过 / 驳回操作。 */
 export function ModerationQueueTab() {
   const { locale } = useI18n();
-  const [items, setItems] = useState<QueueItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<QueueItem | null>(null);
 
-  const load = useCallback(() => {
-    api<{ items: QueueItem[] }>("/api/admin/moderation/queue?limit=20")
-      .then((d) => setItems(d.items))
-      .catch((err: Error) => setError(err.message));
-  }, []);
+  // 队列查询 — 通过/驳回后 invalidate 重取，等价原 load()
+  const queueQ = useQuery(
+    apiQueryOptions({
+      queryKey: QUEUE_KEY,
+      url: "/api/admin/moderation/queue?limit=20",
+      schema: queueSchema,
+    }),
+  );
+  const items = queueQ.data?.items;
+  const error = queueQ.error instanceof Error ? queueQ.error.message : null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // pendingId 只服务「目标行按钮禁用」的行级 UI（useApiMutation 的 pending 是全局的）
+  const approveMutation = useApiMutation(
+    (item: QueueItem) => postJson(`/api/admin/posts/${item.id}/approve`, {}),
+    {
+      refresh: false,
+      invalidate: [QUEUE_KEY],
+      successToast: "已通过审核并发布",
+      onSuccess: () => setPendingId(null),
+      onError: () => setPendingId(null),
+    },
+  );
 
-  async function approve(item: QueueItem) {
-    setPendingId(item.id);
-    try {
-      await api(`/api/admin/posts/${item.id}/approve`, { method: "POST" });
-      toast.success("已通过审核并发布");
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function reject(item: QueueItem, reason: string) {
-    setPendingId(item.id);
-    try {
-      await api(`/api/admin/posts/${item.id}/reject`, {
-        method: "POST",
-        body: JSON.stringify({ reason }),
-      });
-      toast.success("已驳回");
-      setRejectTarget(null);
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    } finally {
-      setPendingId(null);
-    }
-  }
+  const rejectMutation = useApiMutation(
+    (input: { item: QueueItem; reason: string }) =>
+      postJson(`/api/admin/posts/${input.item.id}/reject`, { reason: input.reason }),
+    {
+      refresh: false,
+      invalidate: [QUEUE_KEY],
+      successToast: "已驳回",
+      onSuccess: () => {
+        setRejectTarget(null);
+        setPendingId(null);
+      },
+      onError: () => setPendingId(null),
+    },
+  );
 
   if (error) return <EmptyState title="加载失败" hint={error} />;
   if (!items)
@@ -119,7 +136,14 @@ export function ModerationQueueTab() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-2">
-                  <Button size="sm" disabled={pendingId === item.id} onClick={() => approve(item)}>
+                  <Button
+                    size="sm"
+                    disabled={pendingId === item.id}
+                    onClick={() => {
+                      setPendingId(item.id);
+                      void approveMutation.mutate(item);
+                    }}
+                  >
                     <Check className="size-3.5" />
                     通过
                   </Button>
@@ -177,7 +201,10 @@ export function ModerationQueueTab() {
         }}
         pending={pendingId !== null}
         onSubmit={(reason) => {
-          if (rejectTarget) reject(rejectTarget, reason);
+          if (rejectTarget) {
+            setPendingId(rejectTarget.id);
+            void rejectMutation.mutate({ item: rejectTarget, reason });
+          }
         }}
       />
     </>

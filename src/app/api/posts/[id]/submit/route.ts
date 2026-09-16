@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { posts } from "@/db/schema";
 import { AppError } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { blockedResponse, getAuthorPost, parseWith, runSubmitCheck } from "../../_shared";
 
 /**
@@ -15,6 +16,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   return withUser(req, async (auth) => {
     const { id } = await ctx.params;
     parseWith(z.uuid(), id);
+    // 桶 write.post：per-user 默认 10 次/小时，与发帖共用额度
+    await rateLimitBucket("write.post", auth.user.id);
     const post = await getAuthorPost(id, auth.user.id);
 
     if (post.status === "published") {

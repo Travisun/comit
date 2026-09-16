@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { CalendarPlus, Copy, HardDrive, Images, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -24,34 +26,46 @@ import {
   StatCard,
   TableSkeleton,
 } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { formatBytes, timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { deleteJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface MediaItem {
-  id: string;
-  userId: string;
-  path: string;
-  filename: string;
-  mime: string;
-  size: number;
-  width: number;
-  height: number;
-  kind: string;
-  alt: string;
-  createdAt: string;
-  ownerUsername: string;
-  ownerDisplayName: string;
-  ownerAvatar: string | null;
-}
+/* -------------------------------- schema --------------------------------- */
 
-interface MediaData {
-  items: MediaItem[];
-  total: number;
-  stats: { files: number; bytes: number; monthFiles: number };
-}
+const mediaItemSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  path: z.string(),
+  filename: z.string(),
+  mime: z.string(),
+  size: z.number(),
+  width: z.number(),
+  height: z.number(),
+  kind: z.string(),
+  alt: z.string(),
+  createdAt: z.string(),
+  ownerUsername: z.string(),
+  ownerDisplayName: z.string(),
+  ownerAvatar: z.string().nullable(),
+});
+
+const mediaPageSchema = z.object({
+  items: z.array(mediaItemSchema),
+  total: z.number(),
+  stats: z.object({ files: z.number(), bytes: z.number(), monthFiles: z.number() }),
+});
+
+type MediaItem = z.infer<typeof mediaItemSchema>;
 
 const PAGE_SIZE = 30;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），类型/搜索/分页全进键。 */
+const mediaKey = (kind: string, query: string, offset: number) =>
+  ["admin", "media", kind, query, offset] as const;
+/** 删除后按前缀失效全部筛选组合的列表（stats 随列表响应一起更新） */
+const MEDIA_PREFIX = ["admin", "media"] as const;
 
 const KIND_OPTIONS = [
   { value: "", label: "全部类型" },
@@ -77,58 +91,47 @@ function StatTile({ children }: { children: ReactNode }) {
   return <div className="rounded-lg border border-border bg-card p-4">{children}</div>;
 }
 
-/** Fetches and renders one page of media; remounted (via key) on query change. */
+/** Fetches and renders one page of media; query key carries kind/query/offset. */
 function MediaGrid({
   kind,
   query,
   offset,
   onPage,
-  onChanged,
 }: {
   kind: string;
   query: string;
   offset: number;
   onPage: (next: number) => void;
-  onChanged: () => void;
 }) {
   const { locale } = useI18n();
-  const [data, setData] = useState<MediaData | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [viewing, setViewing] = useState<MediaItem | null>(null);
   const [deleting, setDeleting] = useState<MediaItem | null>(null);
-  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (kind) params.set("kind", kind);
-    if (query) params.set("q", query);
-    api<MediaData>(`/api/admin/media?${params}`)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [kind, query, offset, onChanged]);
+  // 列表查询 — placeholderData 保留上一页数据，翻页/筛选不闪骨架
+  const mediaQ = useQuery({
+    ...apiQueryOptions({
+      queryKey: mediaKey(kind, query, offset),
+      url: `/api/admin/media?limit=${PAGE_SIZE}&offset=${offset}${kind ? `&kind=${encodeURIComponent(kind)}` : ""}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+      schema: mediaPageSchema,
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const data = mediaQ.data;
+  const error = mediaQ.error instanceof Error ? mediaQ.error.message : null;
 
-  async function remove(item: MediaItem) {
-    setPending(true);
-    try {
-      await api(`/api/admin/media/${item.id}`, { method: "DELETE" });
-      toast.success(`已删除 ${item.filename}`);
-      setDeleting(null);
-      setViewing(null);
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
-    } finally {
-      setPending(false);
-    }
-  }
+  // 删除媒体 — pending 驱动确认按钮；失效本页列表家族替代原 onChanged 重挂
+  const deleteMutation = useApiMutation(
+    (item: MediaItem) => deleteJson(`/api/admin/media/${item.id}`),
+    {
+      refresh: false,
+      invalidate: [MEDIA_PREFIX],
+      onSuccess: (_data, item) => {
+        toast.success(`已删除 ${item.filename}`);
+        setDeleting(null);
+        setViewing(null);
+      },
+    },
+  );
 
   if (error) return <EmptyState title="加载失败" hint={error} />;
   if (!data) return <TableSkeleton rows={6} cols={4} />;
@@ -215,7 +218,10 @@ function MediaGrid({
                     {viewing.ownerDisplayName} (@{viewing.ownerUsername})
                   </a>
                 </p>
-                <p>上传时间：{new Date(viewing.createdAt).toLocaleString("zh-CN")}</p>
+                <p>
+                  上传时间：
+                  {new Date(viewing.createdAt).toLocaleString(locale === "zh" ? "zh-CN" : "en-US")}
+                </p>
                 <p className="break-all font-mono text-xs">/api/media/file/{viewing.path}</p>
               </div>
               <DialogFooter className="sm:justify-between">
@@ -233,7 +239,7 @@ function MediaGrid({
                 </Button>
                 <Button
                   variant="destructive"
-                  disabled={pending}
+                  disabled={deleteMutation.pending}
                   onClick={() => {
                     setViewing(null);
                     setDeleting(viewing);
@@ -261,9 +267,9 @@ function MediaGrid({
         }
         confirmText="确认删除"
         destructive
-        pending={pending}
+        pending={deleteMutation.pending}
         onConfirm={() => {
-          if (deleting) void remove(deleting);
+          if (deleting) void deleteMutation.mutate(deleting);
         }}
       />
     </>
@@ -275,8 +281,8 @@ function MediaInner() {
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
-  const [version, setVersion] = useState(0);
 
+  // 搜索防抖：输入先入 q，350ms 后同步进 queryKey 并回到第一页
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(q.trim());
@@ -285,8 +291,7 @@ function MediaInner() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const onPage = useCallback((next: number) => setOffset(next), []);
+  const onPage = (next: number) => setOffset(next);
 
   return (
     <div>
@@ -313,14 +318,7 @@ function MediaInner() {
         />
       </div>
 
-      <MediaGrid
-        key={`${kind}|${query}|${offset}|${version}`}
-        kind={kind}
-        query={query}
-        offset={offset}
-        onPage={onPage}
-        onChanged={bump}
-      />
+      <MediaGrid kind={kind} query={query} offset={offset} onPage={onPage} />
     </div>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,76 +23,104 @@ import {
   TableWrap,
 } from "@/components/admin/bits";
 import { ConfirmDialog } from "@/components/admin/post-actions";
-import { api } from "@/components/admin/client";
 import { formatDate } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { deleteJson, postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface KeywordItem {
-  id: string;
-  word: string;
-  severity: "block" | "warn";
-  category: string;
-  createdAt: string;
-}
+/* -------------------------------- schema --------------------------------- */
+
+const keywordItemSchema = z.object({
+  id: z.string(),
+  word: z.string(),
+  severity: z.enum(["block", "warn"]),
+  category: z.string(),
+  createdAt: z.string(),
+});
+
+const keywordsSchema = z.object({ items: z.array(keywordItemSchema) });
+
+type KeywordItem = z.infer<typeof keywordItemSchema>;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；增/删/导入后失效重取。 */
+const KEYWORDS_KEY = ["admin", "keywords"] as const;
 
 /** 关键词黑名单：列表 + 添加 + 批量导入 + 删除。 */
 export function ModerationKeywordsTab() {
   const { locale } = useI18n();
-  const [items, setItems] = useState<KeywordItem[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [word, setWord] = useState("");
   const [severity, setSeverity] = useState<"block" | "warn">("block");
   const [category, setCategory] = useState("");
-  const [adding, setAdding] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<KeywordItem | null>(null);
 
   // bulk import dialog
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState("");
   const [bulkSeverity, setBulkSeverity] = useState<"block" | "warn">("block");
-  const [bulkBusy, setBulkBusy] = useState(false);
 
-  const load = useCallback(() => {
-    api<{ items: KeywordItem[] }>("/api/admin/keywords?limit=100")
-      .then((d) => setItems(d.items))
-      .catch((err: Error) => setError(err.message));
-  }, []);
+  // 列表查询 — 增删导入后 invalidate 重取，等价原 load()
+  const keywordsQ = useQuery(
+    apiQueryOptions({
+      queryKey: KEYWORDS_KEY,
+      url: "/api/admin/keywords?limit=100",
+      schema: keywordsSchema,
+    }),
+  );
+  const items = keywordsQ.data?.items;
+  const error = keywordsQ.error instanceof Error ? keywordsQ.error.message : null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // 添加 — pending 驱动按钮；成功清空输入
+  const addMutation = useApiMutation(
+    (payload: { word: string; severity: "block" | "warn"; category?: string }) =>
+      postJson("/api/admin/keywords", payload),
+    {
+      refresh: false,
+      invalidate: [KEYWORDS_KEY],
+      successToast: "关键词已添加",
+      onSuccess: () => {
+        setWord("");
+        setCategory("");
+      },
+    },
+  );
 
-  async function add() {
+  // 删除 — pending 驱动确认按钮
+  const removeMutation = useApiMutation(
+    (kw: KeywordItem) => deleteJson(`/api/admin/keywords/${kw.id}`),
+    {
+      refresh: false,
+      invalidate: [KEYWORDS_KEY],
+      successToast: "已删除",
+      onSuccess: () => setDeleteTarget(null),
+    },
+  );
+
+  // 批量导入 — 成功文案带服务端统计
+  const bulkMutation = useApiMutation(
+    (payload: { words: string[]; severity: "block" | "warn" }) =>
+      postJson<{ inserted: number; skipped: number }>("/api/admin/keywords/bulk", payload),
+    {
+      refresh: false,
+      invalidate: [KEYWORDS_KEY],
+      successToast: (res) => `导入完成：新增 ${res.inserted} 个，跳过重复 ${res.skipped} 个`,
+      onSuccess: () => {
+        setBulkOpen(false);
+        setBulkText("");
+      },
+    },
+  );
+
+  function add() {
     if (!word.trim()) return;
-    setAdding(true);
-    try {
-      await api("/api/admin/keywords", {
-        method: "POST",
-        body: JSON.stringify({ word: word.trim(), severity, category: category.trim() || undefined }),
-      });
-      toast.success("关键词已添加");
-      setWord("");
-      setCategory("");
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "添加失败");
-    } finally {
-      setAdding(false);
-    }
+    void addMutation.mutate({
+      word: word.trim(),
+      severity,
+      category: category.trim() || undefined,
+    });
   }
 
-  async function remove(kw: KeywordItem) {
-    try {
-      await api(`/api/admin/keywords/${kw.id}`, { method: "DELETE" });
-      toast.success("已删除");
-      setDeleteTarget(null);
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "删除失败");
-    }
-  }
-
-  async function bulkImport() {
+  function bulkImport() {
     const words = bulkText
       .split("\n")
       .map((w) => w.trim())
@@ -99,21 +129,7 @@ export function ModerationKeywordsTab() {
       toast.error("请输入至少一个关键词");
       return;
     }
-    setBulkBusy(true);
-    try {
-      const res = await api<{ inserted: number; skipped: number }>("/api/admin/keywords/bulk", {
-        method: "POST",
-        body: JSON.stringify({ words, severity: bulkSeverity }),
-      });
-      toast.success(`导入完成：新增 ${res.inserted} 个，跳过重复 ${res.skipped} 个`);
-      setBulkOpen(false);
-      setBulkText("");
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "导入失败");
-    } finally {
-      setBulkBusy(false);
-    }
+    void bulkMutation.mutate({ words, severity: bulkSeverity });
   }
 
   return (
@@ -157,8 +173,8 @@ export function ModerationKeywordsTab() {
           <Label className="mb-1 block text-xs text-muted-foreground">分类（可选）</Label>
           <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="general" />
         </div>
-        <Button onClick={add} disabled={adding || !word.trim()}>
-          {adding ? "添加中…" : "添加"}
+        <Button onClick={add} disabled={addMutation.pending || !word.trim()}>
+          {addMutation.pending ? "添加中…" : "添加"}
         </Button>
       </div>
 
@@ -237,11 +253,11 @@ export function ModerationKeywordsTab() {
             </select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={bulkBusy}>
+            <Button variant="outline" onClick={() => setBulkOpen(false)} disabled={bulkMutation.pending}>
               取消
             </Button>
-            <Button onClick={bulkImport} disabled={bulkBusy || !bulkText.trim()}>
-              {bulkBusy ? "导入中…" : "导入"}
+            <Button onClick={bulkImport} disabled={bulkMutation.pending || !bulkText.trim()}>
+              {bulkMutation.pending ? "导入中…" : "导入"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -256,9 +272,9 @@ export function ModerationKeywordsTab() {
         description={deleteTarget ? `「${deleteTarget.word}」将从黑名单移除。` : undefined}
         confirmText="删除"
         destructive
-        pending={false}
+        pending={removeMutation.pending}
         onConfirm={() => {
-          if (deleteTarget) remove(deleteTarget);
+          if (deleteTarget) void removeMutation.mutate(deleteTarget);
         }}
       />
     </div>

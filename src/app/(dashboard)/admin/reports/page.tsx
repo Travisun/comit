@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import {
   Check,
   ExternalLink,
@@ -12,7 +14,6 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import {
@@ -32,44 +33,57 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, FilterChips, PageHeader, Pagination, TableSkeleton } from "@/components/admin/bits";
-import { ConfirmDialog } from "@/components/admin/post-actions";
+import { ADMIN_POSTS_KEY_PREFIX, ConfirmDialog } from "@/components/admin/post-actions";
 import {
   PermanentBanDialog,
   TimedBanDialog,
   WarnDialog,
-  toastError,
 } from "@/components/admin/user-modals";
-import { api } from "@/components/admin/client";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
+import { postJson } from "@/lib/client/api";
 import { timeAgo, truncate } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 
-interface TargetPreview {
-  kind: "post" | "comment" | "user";
-  url: string;
-  title: string;
-  excerpt?: string;
-  postStatus?: string;
-  postId?: string;
-  postTitle?: string;
-  username?: string;
-  displayName?: string;
-  avatarPath?: string | null;
-  userStatus?: string;
-  postCount?: number;
-  createdAt?: string;
-  missing?: boolean;
-}
+/** admin 举报列表键前缀 — 暂未入厂（keys.ts 冻结），admin 域就地字面量 */
+const ADMIN_REPORTS_KEY_PREFIX = ["admin", "reports"] as const;
 
-interface ReportItem {
-  id: string;
-  targetType: "post" | "comment" | "user";
-  targetId: string;
-  reason: string;
-  status: "open" | "resolved" | "dismissed";
-  createdAt: string;
-  reporter: { username: string; displayName: string };
-  targetPreview: TargetPreview;
-}
+// 就地 zod schema：/api/admin/reports 响应无现成 schema，进缓存前校验把关
+const targetPreviewSchema = z.object({
+  kind: z.enum(["post", "comment", "user"]),
+  url: z.string(),
+  title: z.string(),
+  excerpt: z.string().optional(),
+  postStatus: z.string().optional(),
+  postId: z.string().optional(),
+  postTitle: z.string().optional(),
+  username: z.string().optional(),
+  displayName: z.string().optional(),
+  avatarPath: z.string().nullable().optional(),
+  userStatus: z.string().optional(),
+  postCount: z.number().optional(),
+  createdAt: z.string().optional(),
+  missing: z.boolean().optional(),
+});
+
+const reportItemSchema = z.object({
+  id: z.string(),
+  targetType: z.enum(["post", "comment", "user"]),
+  targetId: z.string(),
+  reason: z.string(),
+  status: z.enum(["open", "resolved", "dismissed"]),
+  createdAt: z.string(),
+  reporter: z.object({ username: z.string(), displayName: z.string() }),
+  targetPreview: targetPreviewSchema,
+});
+
+const reportsListSchema = z.object({
+  items: z.array(reportItemSchema),
+  total: z.number(),
+});
+
+type TargetPreview = z.infer<typeof targetPreviewSchema>;
+type ReportItem = z.infer<typeof reportItemSchema>;
 
 const PAGE_SIZE = 30;
 
@@ -109,6 +123,7 @@ function postStatusBadge(status?: string) {
 /* ---------------------------- target preview ----------------------------- */
 
 function TargetPreviewCard({ p }: { p: TargetPreview }) {
+  const { locale } = useI18n();
   if (p.missing) {
     return (
       <div className="rounded-md bg-[var(--muted)] p-3 text-sm text-muted-foreground">
@@ -169,7 +184,7 @@ function TargetPreviewCard({ p }: { p: TargetPreview }) {
         <p className="text-xs text-muted-foreground">
           发帖 {p.postCount ?? 0} 篇
           {p.createdAt
-            ? ` · 注册于 ${new Date(p.createdAt).toLocaleDateString("zh-CN")}`
+            ? ` · 注册于 ${new Date(p.createdAt).toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US")}`
             : ""}
         </p>
       </div>
@@ -186,6 +201,25 @@ type ReportAction =
   | { kind: "ban_timed"; days: number; reason: string }
   | { kind: "ban_permanent"; reason: string }
   | { kind: "warn"; message: string };
+
+/** 把判别联合的处置动作映射为 action 接口的请求体。 */
+function buildActionBody(action: ReportAction, note: string): Record<string, unknown> {
+  const body: Record<string, unknown> = { note: note || undefined };
+  if (typeof action === "string") {
+    body.action = action;
+  } else if (action.kind === "warn") {
+    body.action = "warn_author";
+    body.message = action.message;
+  } else if (action.kind === "ban_timed") {
+    body.action = "ban_author";
+    body.banDays = action.days;
+    body.reason = action.reason;
+  } else {
+    body.action = "ban_author";
+    body.reason = action.reason;
+  }
+  return body;
+}
 
 function ReportDetail({
   report,
@@ -382,76 +416,66 @@ function ReportsWorkbench({
   type,
   offset,
   onPage,
-  onChanged,
 }: {
   status: string;
   type: string;
   offset: number;
   onPage: (next: number) => void;
-  onChanged: () => void;
 }) {
   const { locale } = useI18n();
-  const [data, setData] = useState<{ items: ReportItem[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<ReportItem | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (status !== "all") params.set("status", status);
-    if (type) params.set("type", type);
-    api<{ items: ReportItem[]; total: number }>(`/api/admin/reports?${params}`)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, type, offset, onChanged]);
+  // 队列查询 — key 随筛选/分页变化天然隔离（原 remount-by-key 防竞态 hack
+  // 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
+  const reportsQ = useQuery(
+    apiQueryOptions({
+      queryKey: [...ADMIN_REPORTS_KEY_PREFIX, status, type, offset],
+      url: `/api/admin/reports?${new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        ...(status !== "all" ? { status } : {}),
+        ...(type ? { type } : {}),
+      })}`,
+      schema: reportsListSchema,
+      placeholderData: keepPreviousData,
+    }),
+  );
+  const items = reportsQ.data?.items ?? [];
+  const total = reportsQ.data?.total ?? 0;
 
-  async function runAction(report: ReportItem, action: ReportAction, note: string) {
-    setPending(true);
-    try {
-      const body: Record<string, unknown> = { note: note || undefined };
-      if (typeof action === "string") {
-        body.action = action;
-      } else if (action.kind === "warn") {
-        body.action = "warn_author";
-        body.message = action.message;
-      } else if (action.kind === "ban_timed") {
-        body.action = "ban_author";
-        body.banDays = action.days;
-        body.reason = action.reason;
-      } else {
-        body.action = "ban_author";
-        body.reason = action.reason;
-      }
-      await api(`/api/admin/reports/${report.id}/action`, {
-        method: "POST",
-        body: JSON.stringify(body),
-      });
-      toast.success("处置完成");
-      setSelected(null);
-      onChanged();
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setPending(false);
-    }
-  }
+  // 处置动作 — 成功后失效举报列表 + 相关内容键（删除内容/封禁会影响文章
+  // 列表视图）；refresh:false 维持操作台不整页 RSC 重验；错误 toast 文案
+  // 与原 toastError 一致
+  const actionMutation = useApiMutation(
+    (input: { report: ReportItem; action: ReportAction; note: string }) =>
+      postJson(
+        `/api/admin/reports/${input.report.id}/action`,
+        buildActionBody(input.action, input.note),
+      ),
+    {
+      refresh: false,
+      invalidate: [ADMIN_REPORTS_KEY_PREFIX, ADMIN_POSTS_KEY_PREFIX],
+      successToast: "处置完成",
+      onSuccess: () => setSelected(null),
+    },
+  );
 
-  if (error) return <EmptyState title="加载失败" hint={error} />;
-  if (!data) return <TableSkeleton rows={6} cols={4} />;
-  if (data.items.length === 0)
+  const runAction = (report: ReportItem, action: ReportAction, note: string) =>
+    actionMutation.mutate({ report, action, note });
+
+  if (reportsQ.error) return <EmptyState title="加载失败" hint={reportsQ.error.message} />;
+  if (reportsQ.isPending) return <TableSkeleton rows={6} cols={4} />;
+  if (items.length === 0)
     return <EmptyState title="没有符合条件的举报" hint="一切正常，保持下去" />;
 
   const detail = selected ? (
-    <ReportDetail key={selected.id} report={selected} onAction={(a, n) => runAction(selected, a, n)} pending={pending} />
+    <ReportDetail
+      key={selected.id}
+      report={selected}
+      onAction={(a, n) => void runAction(selected, a, n)}
+      pending={actionMutation.pending}
+    />
   ) : (
     <EmptyState title="选择左侧举报查看详情" hint="点击任意一条举报开始处置" />
   );
@@ -463,7 +487,7 @@ function ReportsWorkbench({
         <div className="space-y-3">
           <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="divide-y divide-border">
-              {data.items.map((r) => {
+              {items.map((r) => {
                 const active = selected?.id === r.id;
                 return (
                   <button
@@ -500,7 +524,7 @@ function ReportsWorkbench({
               })}
             </div>
           </div>
-          <Pagination offset={offset} limit={PAGE_SIZE} total={data.total} onPage={onPage} />
+          <Pagination offset={offset} limit={PAGE_SIZE} total={total} onPage={onPage} />
         </div>
 
         {/* detail (desktop) */}
@@ -516,10 +540,12 @@ function ReportsWorkbench({
             <ReportDetail
               key={selected.id}
               report={selected}
-              onAction={(a, n) => {
-                void runAction(selected, a, n).then(() => setMobileOpen(false));
+              onAction={async (a, n) => {
+                // mutate 失败不抛出；移动端弹层在动作收尾后关闭（与原行为一致）
+                await runAction(selected, a, n);
+                setMobileOpen(false);
               }}
-              pending={pending}
+              pending={actionMutation.pending}
             />
           ) : null}
         </DialogContent>
@@ -532,10 +558,8 @@ export default function AdminReportsPage() {
   const [status, setStatus] = useState("open");
   const [type, setType] = useState("");
   const [offset, setOffset] = useState(0);
-  const [version, setVersion] = useState(0);
 
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const onPage = useCallback((next: number) => setOffset(next), []);
+  const onPage = (next: number) => setOffset(next);
 
   return (
     <div>
@@ -560,14 +584,7 @@ export default function AdminReportsPage() {
         />
       </div>
 
-      <ReportsWorkbench
-        key={`${status}|${type}|${offset}|${version}`}
-        status={status}
-        type={type}
-        offset={offset}
-        onPage={onPage}
-        onChanged={bump}
-      />
+      <ReportsWorkbench status={status} type={type} offset={offset} onPage={onPage} />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DEFAULT_CHANNELS } from "@/extensions/notifications/server";
@@ -18,7 +19,8 @@ const EVENT_KEYS = NOTIFICATION_EVENTS.map((e) => e.key);
 export async function GET(req: Request) {
   return withApi(req, async () => {
     const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "请先登录 / Sign in required" }, { status: 401 });
+    // 复用统一错误工具 → { error, code: "unauthorized" } envelope（withApi 兜底转换）
+    if (!user) throw unauthorized();
     return ok({
       availableChannels: [...channels.values()].map((c) => ({ id: c.id, label: c.label })),
       availableEvents: NOTIFICATION_EVENTS,

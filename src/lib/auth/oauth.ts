@@ -18,6 +18,14 @@ export interface FederatedProfile {
   username?: string;
   avatarUrl?: string;
   emailVerified?: boolean;
+  /**
+   * 合成邮箱：provider 未提供真实邮箱、由本方用账号句柄拼出的唯一 noreply
+   * 地址（如 X 的 @users.noreply.x.com）。身份由 provider 证明，但邮箱本身
+   * 收不到验证邮件 —— 自动注册时视同已验证（否则用户 100% 被验证门槛锁死），
+   * 但按邮箱自动绑定仍由 emailVerified 单独门控，合成邮箱永远不允许绑入
+   * 既有账户。
+   */
+  emailSynthetic?: boolean;
 }
 
 /* ---------------------------- OAuth2 (arctic) --------------------------- */
@@ -138,6 +146,9 @@ async function normalizeProfile(
 ): Promise<FederatedProfile> {
   if (provider === "github") {
     let email = (json.email as string | null) ?? null;
+    // /user 的 email 是用户公开展示邮箱，GitHub 仅允许已验证邮箱设为公开，
+    // 因此该路径可视为已验证；/user/emails 兜底则必须看 verified 标志。
+    let verified = email != null;
     if (!email) {
       // private emails fallback
       const r = await fetch("https://api.github.com/user/emails", {
@@ -145,7 +156,16 @@ async function normalizeProfile(
       });
       if (r.ok) {
         const emails = (await r.json()) as { email: string; primary: boolean; verified: boolean }[];
-        email = emails.find((e) => e.primary && e.verified)?.email ?? emails[0]?.email ?? null;
+        const primaryVerified = emails.find((e) => e.primary && e.verified);
+        if (primaryVerified) {
+          email = primaryVerified.email;
+          verified = true;
+        } else {
+          // 兜底可能是未验证的次要邮箱：email 仅作注册占位，
+          // emailVerified=false —— 不允许据此按邮箱自动绑定既有账户
+          email = emails[0]?.email ?? null;
+          verified = false;
+        }
       }
     }
     if (!email) throw forbidden("GitHub 账号没有可用的邮箱 / GitHub account has no accessible email");
@@ -156,7 +176,7 @@ async function normalizeProfile(
       displayName: (json.name as string) ?? (json.login as string),
       username: json.login as string,
       avatarUrl: json.avatar_url as string,
-      emailVerified: true,
+      emailVerified: verified,
     };
   }
   if (provider === "google") {
@@ -177,7 +197,8 @@ async function normalizeProfile(
       displayName: (json.name as string) ?? (json.username as string),
       username: json.username as string,
       avatarUrl: (json.avatar_url as string) ?? undefined,
-      // linux.do 账号要求激活；信任级别 ≥1 视为已验证邮箱
+      // linux.do 账号要求激活；trust_level>=1 是替代信任信号（surrogate
+      // trust signal）：平台侧已用其他方式确认账号可信，视同邮箱已验证
       emailVerified: Boolean(json.active) || Number(json.trust_level ?? 0) >= 1,
     };
   }
@@ -191,6 +212,8 @@ async function normalizeProfile(
     username: data.username,
     avatarUrl: data.profile_image_url,
     emailVerified: false,
+    // 合成 noreply 地址：身份由 X 证明，但邮箱本身无法完成验证流程
+    emailSynthetic: true,
   };
 }
 

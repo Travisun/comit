@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Flag } from "lucide-react";
-import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +16,7 @@ import {
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 
 /** 常用举报原因（单选）；「其他」时需填写自定义说明。 */
 export const REPORT_REASONS = [
@@ -40,25 +40,27 @@ export function ReportDialog({
   const [open, setOpen] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  async function submit() {
-    if (!preset || busy) return;
+  // 提交举报 — pending 驱动按钮；成功 toast + 关闭重置，失败 toast
+  // 直接透出服务端 message（含 422 审核拦截文案，语义与原一致）
+  const submitMutation = useApiMutation(
+    (reason: string) => postJson("/api/reports", { targetType, targetId, reason }),
+    {
+      successToast: t("post.reported"),
+      onSuccess: () => {
+        setOpen(false);
+        setPreset(null);
+        setDetail("");
+      },
+    },
+  );
+
+  function submit() {
+    if (!preset || submitMutation.pending) return;
     const extra = detail.trim();
     const text = preset === "其他问题" ? extra : extra ? `${preset} — ${extra}` : preset;
     if (!text) return;
-    setBusy(true);
-    try {
-      await postJson("/api/reports", { targetType, targetId, reason: text });
-      toast.success(t("post.reported"));
-      setOpen(false);
-      setPreset(null);
-      setDetail("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setBusy(false);
-    }
+    void submitMutation.mutate(text);
   }
 
   return (
@@ -131,8 +133,8 @@ export function ReportDialog({
             {t("common.cancelAction")}
           </Button>
           <Button
-            onClick={() => void submit()}
-            disabled={busy || !preset || (preset === "其他问题" && !detail.trim())}
+            onClick={() => submit()}
+            disabled={submitMutation.pending || !preset || (preset === "其他问题" && !detail.trim())}
           >
             {t("post.report")}
           </Button>

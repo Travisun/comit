@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
+import { startTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/primitives";
 import { deleteJson, postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
@@ -31,33 +32,39 @@ export function PreviewBanner({
   className?: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  // 恢复 / 彻底删除（回收站两个快捷动作共用一个 mutation，busy 即 pending）
+  const quickMutation = useApiMutation(
+    (action: "restore" | "purge") =>
+      action === "purge"
+        ? deleteJson(`/api/posts/${postId}?purge=true`)
+        : postJson(`/api/posts/${postId}/restore`, {}),
+    {
+      // refresh 关闭：跳转与刷新必须在同一 transition 内派发（见下），不用
+      // 统一重验通道以免与 push 的 RSC 流交叠
+      refresh: false,
+      silent: true,
+      onError: (err) => toast.error(err instanceof Error && err.message ? err.message : "操作失败"),
+      onSuccess: (_message, action) => {
+        toast.success(action === "purge" ? "已彻底删除" : "已恢复");
+        // 同一 transition 内派发：push 与 refresh 的两次 RSC 更新由 React 合并应用，
+        // 避免两个飞行中的 RSC 流交叠触发 flight 客户端竞态（enqueueModel 崩溃）
+        startTransition(() => {
+          router.push("/write/posts?tab=trash");
+          router.refresh();
+        });
+      },
+    },
+  );
+  const busy = quickMutation.pending;
   if (status === "published") return null;
 
   const deleted = status === "deleted";
   const label = STATUS_LABEL[status] ?? status;
 
-  async function quick(action: "restore" | "purge") {
+  function quick(action: "restore" | "purge") {
     if (busy) return;
     if (action === "purge" && !window.confirm("彻底删除？此操作不可恢复。")) return;
-    setBusy(true);
-    try {
-      const message = action === "purge"
-        ? await deleteJson(`/api/posts/${postId}?purge=true`)
-        : await postJson(`/api/posts/${postId}/restore`, {});
-      toast.success(action === "purge" ? "已彻底删除" : "已恢复");
-      // 同一 transition 内派发：push 与 refresh 的两次 RSC 更新由 React 合并应用，
-      // 避免两个飞行中的 RSC 流交叠触发 flight 客户端竞态（enqueueModel 崩溃）
-      startTransition(() => {
-        router.push("/write/posts?tab=trash");
-        router.refresh();
-      });
-      return message;
-    } catch (err) {
-      toast.error(err instanceof Error && err.message ? err.message : "操作失败");
-    } finally {
-      setBusy(false);
-    }
+    void quickMutation.mutate(action);
   }
 
   return (
@@ -80,7 +87,7 @@ export function PreviewBanner({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void quick("restore")}
+              onClick={() => quick("restore")}
               className="font-medium text-primary hover:underline disabled:opacity-50"
             >
               恢复
@@ -88,7 +95,7 @@ export function PreviewBanner({
             <button
               type="button"
               disabled={busy}
-              onClick={() => void quick("purge")}
+              onClick={() => quick("purge")}
               className="font-medium text-destructive hover:underline disabled:opacity-50"
             >
               彻底删除

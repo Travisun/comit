@@ -120,7 +120,20 @@ export function emit<K extends keyof AppEventPayloads>(
 
 /**
  * Emit a domain event **via the queue**（Laravel ShouldQueue listener 语义）：
- * 监听器在 worker 进程异步消费，请求路径零阻塞。监听方式与同步事件一致。
+ * 监听器在 worker 进程异步消费，请求路径零阻塞。监听方式与同步事件一致
+ * （event.dispatch worker 把 payloadJson 还原为 bus.emit，见 core/workers.ts）。
+ *
+ * 设计意图：为「重副作用」监听器提供 off-load 通道 —— emit 方一行换成
+ * `await emitQueued(...)`，监听侧零改动即可整体挪进 worker。
+ *
+ * 当前全库零调用（各 emit 点保持同步 `emit`）的原因（评估结论，勿盲改）：
+ *  1) 监听器里真正的慢 I/O 已经二次入队：notifications 扩展 mail 通道渲染后
+ *     `queue.send("mail.send")`，nodemailer 实际在 workers.ts 的 mail.send
+ *     worker 执行 —— 监听器内只剩轻量 DB 读 + 模板渲染 + 入队，同步成本可控；
+ *  2) 在扩展监听器内部改用 emitQueued 重发同一事件会经 event.dispatch worker
+ *     还原成 bus.emit 再次触发自身 → 无限循环，需 payload 打标去重，得不偿失；
+ *  3) 逐 emit 调用点（api 路由 / lib actions）迁移属业务侧改造，待出现
+ *     「监听器过重阻塞请求」的真实事件再逐点接入。
  */
 export async function emitQueued<K extends keyof AppEventPayloads>(
   name: K,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/client/api";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
@@ -25,24 +26,33 @@ export function TopicInput({
 }) {
   const { t } = useI18n();
   const [input, setInput] = useState("");
-  const [suggestions, setSuggestions] = useState<{ name: string; count: number }[]>([]);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // 联想防抖：输入先入 input，250ms 后把去空格的词同步进 queryKey（驱动重查）
+  const [debouncedQ, setDebouncedQ] = useState("");
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      const q = input.trim();
-      if (!q) {
-        setSuggestions([]);
-        return;
-      }
-      apiGet<{ items?: { name: string; count: number }[] }>(`/api/posts/topics?q=${encodeURIComponent(q)}`)
-        .then((data) => setSuggestions(data.items ?? []))
-        .catch(() => setSuggestions([]));
-    }, 250);
+    const timer = window.setTimeout(() => setDebouncedQ(input.trim()), 250);
     return () => window.clearTimeout(timer);
   }, [input]);
+
+  // 话题联想 — 防抖值进 queryKey；空词 enabled 门控不发请求（下拉随之隐藏）。
+  // placeholderData 让继续输入时旧联想保留到新结果到达（原手管行为）。
+  const suggestionsQ = useQuery({
+    // keys.ts 冻结期内就地字面量（暂未入厂）；与 TopicPopover 共享同一份缓存
+    queryKey: ["topics", "search", debouncedQ],
+    queryFn: async () => {
+      const data = await apiGet<{ items?: { name: string; count: number }[] }>(
+        `/api/posts/topics?q=${encodeURIComponent(debouncedQ)}`,
+      );
+      return data.items ?? [];
+    },
+    enabled: debouncedQ.length > 0,
+    placeholderData: keepPreviousData,
+  });
+  // 空词显式清空（placeholderData 会保留上一关键词的数据，需在此拦下）
+  const suggestions = debouncedQ.length > 0 ? (suggestionsQ.data ?? []) : [];
 
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {

@@ -2,6 +2,7 @@ import { inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
+import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createInvite, listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
@@ -14,7 +15,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   return withApi(req, async () => {
     const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "请先登录 / Sign in required" }, { status: 401 });
+    // 复用统一错误工具 → { error, code: "unauthorized" } envelope（withApi 兜底转换）
+    if (!user) throw unauthorized();
 
     const rows = await listInvites(user.id);
     const usedBy = rows.map((r) => r.usedBy).filter((v): v is string => Boolean(v));
@@ -31,6 +33,7 @@ export async function GET(req: Request) {
     return ok({
       codes: rows.map((r) => ({
         code: r.code,
+        createdAt: r.createdAt,
         usedAt: r.usedAt,
         usedByUsername: r.usedBy ? nameById.get(r.usedBy) ?? null : null,
       })),

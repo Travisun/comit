@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import {
   MessageSquareWarning,
   RotateCcw,
@@ -42,33 +44,46 @@ import {
   TableWrap,
 } from "@/components/admin/bits";
 import {
+  ADMIN_USERS_KEY_PREFIX,
   PermanentBanDialog,
   TimedBanDialog,
   WarnDialog,
-  toastError,
+  useUserModerationMutation,
   type ModalityTarget,
 } from "@/components/admin/user-modals";
-import { api } from "@/components/admin/client";
+import { useApiMutation, useQueryClient } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
+import { patchJson } from "@/lib/client/api";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 
-interface UserItem {
-  id: string;
-  username: string;
-  displayName: string;
-  avatarPath: string | null;
+// 就地 zod schema：/api/admin/users 响应无现成 schema，进缓存前校验把关
+const userItemSchema = z.object({
+  id: z.string(),
+  username: z.string(),
+  displayName: z.string(),
+  avatarPath: z.string().nullable(),
   /** widened to include "editor" for forward-compat with the permissions model */
-  role: "user" | "admin" | "editor";
-  status: "active" | "suspended" | "deleted";
-  email: string;
-  tier: number;
-  verified: { type: string; label: string; approvedAt: string } | null;
-  bannedUntil: string | null;
-  banReason: string | null;
-  isBanned: boolean;
-  postCount: number;
-  createdAt: string;
-}
+  role: z.enum(["user", "admin", "editor"]),
+  status: z.enum(["active", "suspended", "deleted"]),
+  email: z.string(),
+  tier: z.number(),
+  verified: z
+    .object({ type: z.string(), label: z.string(), approvedAt: z.string() })
+    .nullable(),
+  bannedUntil: z.string().nullable(),
+  banReason: z.string().nullable(),
+  isBanned: z.boolean(),
+  postCount: z.number(),
+  createdAt: z.string(),
+});
+
+const usersListSchema = z.object({
+  items: z.array(userItemSchema),
+  total: z.number(),
+});
+
+type UserItem = z.infer<typeof userItemSchema>;
 
 const PAGE_SIZE = 25;
 
@@ -141,257 +156,18 @@ function BanStateCell({ u }: { u: UserItem }) {
   );
 }
 
-/** Fetches and renders one page of users; remounted (via key) on query change. */
-function UserList({
-  query,
-  filter,
-  offset,
-  onPage,
-  onChanged,
-  onExpiredLoaded,
-}: {
-  query: string;
-  filter: string;
-  offset: number;
-  onPage: (next: number) => void;
-  onChanged: () => void;
-  onExpiredLoaded: (usernames: string[]) => void;
-}) {
+export default function AdminUsersPage() {
   const { locale } = useI18n();
-  const [data, setData] = useState<{ items: UserItem[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<string>("all");
+  const [offset, setOffset] = useState(0);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [warnTarget, setWarnTarget] = useState<UserItem | null>(null);
   const [timedTarget, setTimedTarget] = useState<UserItem | null>(null);
   const [permTarget, setPermTarget] = useState<UserItem | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (query) params.set("q", query);
-    if (filter !== "all") params.set("filter", filter);
-    api<{ items: UserItem[]; total: number }>(`/api/admin/users?${params}`)
-      .then((d) => {
-        if (cancelled) return;
-        setData(d);
-        onExpiredLoaded(
-          d.items
-            .filter(
-              (u) =>
-                u.status === "suspended" &&
-                u.bannedUntil &&
-                new Date(u.bannedUntil).getTime() <= Date.now(),
-            )
-            .map((u) => u.id),
-        );
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [query, filter, offset, onChanged, onExpiredLoaded]);
-
-  async function patchUser(user: UserItem, patch: Record<string, unknown>, success: string) {
-    setPendingId(user.id);
-    try {
-      await api(`/api/admin/users/${user.id}`, { method: "PATCH", body: JSON.stringify(patch) });
-      toast.success(success);
-      onChanged();
-    } catch (err) {
-      toastError(err);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  if (error) return <EmptyState title="加载失败" hint={error} />;
-  if (!data) return <TableSkeleton rows={8} cols={6} />;
-  if (data.items.length === 0) return <EmptyState title="没有匹配的用户" hint="试试其他筛选或搜索词" />;
-
-  return (
-    <>
-      <TableWrap>
-        <thead>
-          <tr>
-            <th>用户</th>
-            <th>邮箱</th>
-            <th>角色</th>
-            <th>状态</th>
-            <th className="text-right">文章数</th>
-            <th className="text-right">注册时间</th>
-            <th className="w-12" />
-          </tr>
-        </thead>
-        <tbody>
-          {data.items.map((u) => (
-            <tr key={u.id}>
-              <td>
-                <a
-                  href={`/u/${u.username}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2.5 hover:underline"
-                >
-                  <Avatar className="size-8">
-                    {u.avatarPath ? <AvatarImage src={`/api/media/file/${u.avatarPath}`} /> : null}
-                    <AvatarFallback>{u.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                  </Avatar>
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate font-medium">{u.displayName}</span>
-                      {u.verified ? (
-                        <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
-                          {u.verified.label}
-                        </Badge>
-                      ) : null}
-                    </span>
-                    <span className="block truncate text-xs text-muted-foreground">@{u.username}</span>
-                  </span>
-                </a>
-              </td>
-              <td className="font-mono text-xs text-muted-foreground">{u.email}</td>
-              <td>
-                <RoleBadge role={u.role} />
-              </td>
-              <td>
-                <BanStateCell u={u} />
-              </td>
-              <td className="text-right tabular-nums">{u.postCount}</td>
-              <td className="whitespace-nowrap text-right text-xs text-muted-foreground">
-                {timeAgo(u.createdAt, locale)}
-              </td>
-              <td className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      disabled={pendingId === u.id}
-                      aria-label="更多操作"
-                    >
-                      <UserCog className="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-44">
-                    <DropdownMenuItem onSelect={() => setWarnTarget(u)}>
-                      <MessageSquareWarning />
-                      警告…
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => setTimedTarget(u)}>
-                      <Timer />
-                      限时封禁…
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="text-destructive focus:text-destructive"
-                      onSelect={() => setPermTarget(u)}
-                    >
-                      <ShieldAlert />
-                      永久封禁…
-                    </DropdownMenuItem>
-                    {u.status === "suspended" ? (
-                      <DropdownMenuItem
-                        onSelect={() => patchUser(u, { action: "unban" }, `已解封 @${u.username}`)}
-                      >
-                        <UserRoundCheck />
-                        解封
-                      </DropdownMenuItem>
-                    ) : null}
-                    <DropdownMenuSeparator />
-                    {u.role !== "admin" ? (
-                      <DropdownMenuItem
-                        onSelect={() => patchUser(u, { role: "admin" }, `已将 @${u.username} 设为管理员`)}
-                      >
-                        <ShieldCheck />
-                        设为管理员
-                      </DropdownMenuItem>
-                    ) : null}
-                    {u.role !== "editor" ? (
-                      <DropdownMenuItem
-                        onSelect={() => patchUser(u, { role: "editor" }, `已将 @${u.username} 设为编辑`)}
-                      >
-                        <ShieldOff />
-                        设为编辑
-                      </DropdownMenuItem>
-                    ) : null}
-                    {u.role !== "user" ? (
-                      <DropdownMenuItem
-                        onSelect={() => patchUser(u, { role: "user" }, `已将 @${u.username} 设为普通用户`)}
-                      >
-                        <User />
-                        设为普通用户
-                      </DropdownMenuItem>
-                    ) : null}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </TableWrap>
-      <Pagination offset={offset} limit={PAGE_SIZE} total={data.total} onPage={onPage} />
-
-      <WarnDialog
-        target={warnTarget as ModalityTarget | null}
-        open={warnTarget !== null}
-        onOpenChange={(v) => {
-          if (!v) setWarnTarget(null);
-        }}
-        pending={false}
-        onSubmit={async (message) => {
-          const t = warnTarget;
-          if (!t) return;
-          setWarnTarget(null);
-          await patchUser(t, { action: "warn", message }, `已向 @${t.username} 发送警告`);
-        }}
-      />
-      <TimedBanDialog
-        target={timedTarget as ModalityTarget | null}
-        open={timedTarget !== null}
-        onOpenChange={(v) => {
-          if (!v) setTimedTarget(null);
-        }}
-        pending={false}
-        onSubmit={async (days, reason) => {
-          const t = timedTarget;
-          if (!t) return;
-          setTimedTarget(null);
-          await patchUser(
-            t,
-            { action: "ban_timed", days, reason },
-            `已封禁 @${t.username} ${days} 天`,
-          );
-        }}
-      />
-      <PermanentBanDialog
-        target={permTarget as ModalityTarget | null}
-        open={permTarget !== null}
-        onOpenChange={(v) => {
-          if (!v) setPermTarget(null);
-        }}
-        pending={false}
-        onSubmit={async (reason) => {
-          const t = permTarget;
-          if (!t) return;
-          setPermTarget(null);
-          await patchUser(t, { action: "ban_permanent", reason }, `已永久封禁 @${t.username}`);
-        }}
-      />
-    </>
-  );
-}
-
-export default function AdminUsersPage() {
-  const [q, setQ] = useState("");
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<string>("all");
-  const [offset, setOffset] = useState(0);
-  const [version, setVersion] = useState(0);
-  const [expiredIds, setExpiredIds] = useState<string[]>([]);
-  const [restoring, setRestoring] = useState(false);
-
+  // 搜索防抖：qInput → query（驱动 queryKey 重查）；新搜索词重置分页
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(q.trim());
@@ -400,30 +176,68 @@ export default function AdminUsersPage() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const onPage = useCallback((next: number) => setOffset(next), []);
-  const onExpiredLoaded = useCallback((ids: string[]) => setExpiredIds(ids), []);
+  // 列表查询 — key 随筛选/搜索/分页变化天然隔离（原 remount-by-key 防竞态
+  // hack 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
+  const usersQ = useQuery(
+    apiQueryOptions({
+      queryKey: [...ADMIN_USERS_KEY_PREFIX, filter, query, offset],
+      url: `/api/admin/users?${new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        ...(query ? { q: query } : {}),
+        ...(filter !== "all" ? { filter } : {}),
+      })}`,
+      schema: usersListSchema,
+      placeholderData: keepPreviousData,
+    }),
+  );
+  const items = useMemo(() => usersQ.data?.items ?? [], [usersQ.data]);
+  const total = usersQ.data?.total ?? 0;
 
-  /** One-click restore: unban every expired timed-ban on the current page. */
+  // 到期未解封账号（当前页）—「一键恢复」的输入；以数据快照时间
+  // （dataUpdatedAt）为「当前时间」锚点，保持渲染纯度且随数据刷新而更新
+  const snapshotNow = usersQ.dataUpdatedAt;
+  const expiredIds = items
+    .filter(
+      (u) =>
+        u.status === "suspended" &&
+        u.bannedUntil &&
+        new Date(u.bannedUntil).getTime() <= snapshotNow,
+    )
+    .map((u) => u.id);
+
+  // 单用户处置（解封/角色/警告/封禁）— 成功后失效用户列表缓存；错误 toast
+  // 由统一封装给出（文案与原 toastError 一致），成功提示随动作动态拼
+  const moderation = useUserModerationMutation((input) =>
+    toast.success(input.successMessage),
+  );
+
+  async function runUserAction(user: UserItem, patch: Record<string, unknown>, success: string) {
+    setPendingId(user.id);
+    // mutate 失败不抛出（错误 toast 已由统一封装兜底）
+    await moderation.mutate({ userId: user.id, patch, successMessage: success });
+    setPendingId(null);
+  }
+
+  const queryClient = useQueryClient();
+  // 一键恢复到期账号：逐个静默提交（失败跳过、不弹错），结束后统一失效
+  // 一次列表 — 等价于原实现的批量 PATCH + 单次 reload
+  const restoreBatch = useApiMutation(
+    (userId: string) => patchJson(`/api/admin/users/${userId}`, { action: "unban" }),
+    { refresh: false, silent: true },
+  );
+
   async function restoreExpired() {
-    if (expiredIds.length === 0 || restoring) return;
-    setRestoring(true);
+    if (expiredIds.length === 0 || restoreBatch.pending) return;
     let okCount = 0;
     for (const id of expiredIds) {
-      try {
-        await api(`/api/admin/users/${id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ action: "unban" }),
-        });
-        okCount += 1;
-      } catch {
-        /* keep going; failures stay suspended */
-      }
+      if ((await restoreBatch.mutate(id)) !== undefined) okCount += 1;
     }
-    setRestoring(false);
     toast.success(`已恢复 ${okCount} 个到期账号`);
-    bump();
+    void queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY_PREFIX });
   }
+
+  const onPage = (next: number) => setOffset(next);
 
   return (
     <div>
@@ -432,9 +246,9 @@ export default function AdminUsersPage() {
         description="角色、警告、限时/永久封禁与账号状态管理"
         actions={
           expiredIds.length > 0 ? (
-            <Button variant="outline" size="sm" onClick={restoreExpired} disabled={restoring}>
+            <Button variant="outline" size="sm" onClick={restoreExpired} disabled={restoreBatch.pending}>
               <RotateCcw />
-              {restoring ? "恢复中…" : `一键恢复已到期 (${expiredIds.length})`}
+              {restoreBatch.pending ? "恢复中…" : `一键恢复已到期 (${expiredIds.length})`}
             </Button>
           ) : undefined
         }
@@ -455,15 +269,191 @@ export default function AdminUsersPage() {
         </div>
       </div>
 
-      <UserList
-        key={`${query}|${filter}|${offset}|${version}`}
-        query={query}
-        filter={filter}
-        offset={offset}
-        onPage={onPage}
-        onChanged={bump}
-        onExpiredLoaded={onExpiredLoaded}
-      />
+      {usersQ.error ? (
+        <EmptyState title="加载失败" hint={usersQ.error.message} />
+      ) : usersQ.isPending ? (
+        <TableSkeleton rows={8} cols={6} />
+      ) : items.length === 0 ? (
+        <EmptyState title="没有匹配的用户" hint="试试其他筛选或搜索词" />
+      ) : (
+        <>
+          <TableWrap>
+            <thead>
+              <tr>
+                <th>用户</th>
+                <th>邮箱</th>
+                <th>角色</th>
+                <th>状态</th>
+                <th className="text-right">文章数</th>
+                <th className="text-right">注册时间</th>
+                <th className="w-12" />
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((u) => (
+                <tr key={u.id}>
+                  <td>
+                    <a
+                      href={`/u/${u.username}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2.5 hover:underline"
+                    >
+                      <Avatar className="size-8">
+                        {u.avatarPath ? <AvatarImage src={`/api/media/file/${u.avatarPath}`} /> : null}
+                        <AvatarFallback>{u.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate font-medium">{u.displayName}</span>
+                          {u.verified ? (
+                            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+                              {u.verified.label}
+                            </Badge>
+                          ) : null}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">@{u.username}</span>
+                      </span>
+                    </a>
+                  </td>
+                  <td className="font-mono text-xs text-muted-foreground">{u.email}</td>
+                  <td>
+                    <RoleBadge role={u.role} />
+                  </td>
+                  <td>
+                    <BanStateCell u={u} />
+                  </td>
+                  <td className="text-right tabular-nums">{u.postCount}</td>
+                  <td className="whitespace-nowrap text-right text-xs text-muted-foreground">
+                    {timeAgo(u.createdAt, locale)}
+                  </td>
+                  <td className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={pendingId === u.id}
+                          aria-label="更多操作"
+                        >
+                          <UserCog className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-44">
+                        <DropdownMenuItem onSelect={() => setWarnTarget(u)}>
+                          <MessageSquareWarning />
+                          警告…
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setTimedTarget(u)}>
+                          <Timer />
+                          限时封禁…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => setPermTarget(u)}
+                        >
+                          <ShieldAlert />
+                          永久封禁…
+                        </DropdownMenuItem>
+                        {u.status === "suspended" ? (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              void runUserAction(u, { action: "unban" }, `已解封 @${u.username}`)
+                            }
+                          >
+                            <UserRoundCheck />
+                            解封
+                          </DropdownMenuItem>
+                        ) : null}
+                        <DropdownMenuSeparator />
+                        {u.role !== "admin" ? (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              void runUserAction(u, { role: "admin" }, `已将 @${u.username} 设为管理员`)
+                            }
+                          >
+                            <ShieldCheck />
+                            设为管理员
+                          </DropdownMenuItem>
+                        ) : null}
+                        {u.role !== "editor" ? (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              void runUserAction(u, { role: "editor" }, `已将 @${u.username} 设为编辑`)
+                            }
+                          >
+                            <ShieldOff />
+                            设为编辑
+                          </DropdownMenuItem>
+                        ) : null}
+                        {u.role !== "user" ? (
+                          <DropdownMenuItem
+                            onSelect={() =>
+                              void runUserAction(u, { role: "user" }, `已将 @${u.username} 设为普通用户`)
+                            }
+                          >
+                            <User />
+                            设为普通用户
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </TableWrap>
+          <Pagination offset={offset} limit={PAGE_SIZE} total={total} onPage={onPage} />
+
+          <WarnDialog
+            target={warnTarget as ModalityTarget | null}
+            open={warnTarget !== null}
+            onOpenChange={(v) => {
+              if (!v) setWarnTarget(null);
+            }}
+            pending={false}
+            onSubmit={async (message) => {
+              const t = warnTarget;
+              if (!t) return;
+              setWarnTarget(null);
+              await runUserAction(t, { action: "warn", message }, `已向 @${t.username} 发送警告`);
+            }}
+          />
+          <TimedBanDialog
+            target={timedTarget as ModalityTarget | null}
+            open={timedTarget !== null}
+            onOpenChange={(v) => {
+              if (!v) setTimedTarget(null);
+            }}
+            pending={false}
+            onSubmit={async (days, reason) => {
+              const t = timedTarget;
+              if (!t) return;
+              setTimedTarget(null);
+              await runUserAction(
+                t,
+                { action: "ban_timed", days, reason },
+                `已封禁 @${t.username} ${days} 天`,
+              );
+            }}
+          />
+          <PermanentBanDialog
+            target={permTarget as ModalityTarget | null}
+            open={permTarget !== null}
+            onOpenChange={(v) => {
+              if (!v) setPermTarget(null);
+            }}
+            pending={false}
+            onSubmit={async (reason) => {
+              const t = permTarget;
+              if (!t) return;
+              setPermTarget(null);
+              await runUserAction(t, { action: "ban_permanent", reason }, `已永久封禁 @${t.username}`);
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

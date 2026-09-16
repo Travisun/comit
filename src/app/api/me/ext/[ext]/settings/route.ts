@@ -35,16 +35,22 @@ export async function PUT(req: Request, ctx: Ctx) {
     const body = await jsonBody<Record<string, unknown>>(req);
     const settings = coerceExtSettings(manifest, body);
 
-    const [row] = await db
-      .select({ extSettings: users.extSettings })
-      .from(users)
-      .where(eq(users.id, auth.user.id))
-      .limit(1);
-    const merged = {
-      ...((row?.extSettings as object) ?? {}),
-      [ext]: settings,
-    };
-    await db.update(users).set({ extSettings: merged }).where(eq(users.id, auth.user.id));
+    // users.extSettings 是整段 jsonb 的读-改-写：并发保存两个不同扩展的设置
+    // 会互相覆盖。事务 + FOR UPDATE 行锁串行化同一用户行的合并，锁内重读
+    // 拿到最新值再合并写回。
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .select({ extSettings: users.extSettings })
+        .from(users)
+        .where(eq(users.id, auth.user.id))
+        .limit(1)
+        .for("update");
+      const merged = {
+        ...((row?.extSettings as Record<string, Record<string, unknown>> | null) ?? {}),
+        [ext]: settings,
+      };
+      await tx.update(users).set({ extSettings: merged }).where(eq(users.id, auth.user.id));
+    });
     return ok({ settings });
   });
 }

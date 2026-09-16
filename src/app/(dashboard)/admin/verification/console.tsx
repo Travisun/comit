@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { toast } from "sonner";
 import {
   BadgeCheck,
@@ -33,25 +35,64 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/admin/bits";
 import { ConfirmDialog, RejectDialog } from "@/components/admin/post-actions";
-import { api } from "@/components/admin/client";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { tierLabel } from "@/lib/tiers";
+import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 import {
   VERIFICATION_BADGE_FALLBACK,
   VERIFICATION_BADGE_STYLES,
   VERIFICATION_TYPE_MAP,
-  type AdminVerificationRequestView,
 } from "@/lib/verification";
 import { VerifiedBadge } from "@/components/user-space/verified-badge";
 
+/* -------------------------------- schema --------------------------------- */
+
+const adminVerificationItemSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  label: z.string(),
+  description: z.string(),
+  attachments: z.array(z.string()),
+  status: z.enum(["pending", "approved", "rejected"]),
+  rejectReason: z.string().nullable(),
+  reviewedAt: z.string().nullable(),
+  createdAt: z.string(),
+  userId: z.string(),
+  user: z.object({
+    username: z.string(),
+    displayName: z.string(),
+    avatarPath: z.string().nullable(),
+    tier: z.number(),
+    verified: z
+      .object({ type: z.string(), label: z.string(), approvedAt: z.string() })
+      .nullable(),
+  }),
+});
+
+const verificationPageSchema = z.object({
+  items: z.array(adminVerificationItemSchema),
+  total: z.number(),
+});
+
+type AdminVerificationItem = z.infer<typeof adminVerificationItemSchema>;
+
 type TabKey = "pending" | "approved" | "rejected";
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），tab/搜索词进键。 */
+const verifKey = (status: TabKey, q: string) => ["admin", "verification", status, q] as const;
+/** 审核动作后按前缀失效三个 tab 的列表 */
+const VERIFICATION_PREFIX = ["admin", "verification"] as const;
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: "pending", label: "待审", icon: <Hourglass /> },
   { key: "approved", label: "已通过", icon: <BadgeCheck /> },
   { key: "rejected", label: "已驳回", icon: <X /> },
 ];
+
+type VerdictAction = "approve" | "reject" | "revoke";
 
 /** 认证审核台：待审 / 已通过 / 已驳回 三个 Tab + 通过 / 驳回 / 撤销认证。 */
 export function VerificationConsole() {
@@ -102,48 +143,46 @@ export function VerificationConsole() {
 
 function RequestList({ status, q }: { status: TabKey; q: string }) {
   const { locale } = useI18n();
-  const [items, setItems] = useState<AdminVerificationRequestView[] | null>(null);
-  const [total, setTotal] = useState(0);
-  const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<AdminVerificationRequestView | null>(null);
-  const [revokeTarget, setRevokeTarget] = useState<AdminVerificationRequestView | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<AdminVerificationItem | null>(null);
+  const [revokeTarget, setRevokeTarget] = useState<AdminVerificationItem | null>(null);
 
-  const load = useCallback(() => {
-    api<{ items: AdminVerificationRequestView[]; total: number }>(
-      `/api/admin/verification?status=${status}&limit=50&q=${encodeURIComponent(q)}`,
-    )
-      .then((d) => {
-        setItems(d.items);
-        setTotal(d.total);
-      })
-      .catch((err: Error) => setError(err.message));
-  }, [status, q]);
+  // 列表查询 — tab/搜索词进 queryKey；placeholderData 保留上一页数据
+  const listQ = useQuery({
+    ...apiQueryOptions({
+      queryKey: verifKey(status, q),
+      url: `/api/admin/verification?status=${status}&limit=50&q=${encodeURIComponent(q)}`,
+      schema: verificationPageSchema,
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const items = listQ.data?.items;
+  const total = listQ.data?.total ?? 0;
+  const error = listQ.error instanceof Error ? listQ.error.message : null;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // 审核动作（通过/驳回/撤销）— 失效整个认证列表家族；busyId 只服务
+  // 「目标行按钮禁用」的行级 UI（useApiMutation 的 pending 是全局的）
+  const actMutation = useApiMutation(
+    (input: { id: string; action: VerdictAction; body?: Record<string, unknown> }) =>
+      postJson(`/api/admin/verification/${input.id}/${input.action}`, input.body ?? {}),
+    {
+      refresh: false,
+      invalidate: [VERIFICATION_PREFIX],
+      onSuccess: (_data, input) => {
+        toast.success(
+          input.action === "approve" ? "已通过认证" : input.action === "reject" ? "已驳回" : "已撤销认证",
+        );
+        if (input.action === "reject") setRejectTarget(null);
+        if (input.action === "revoke") setRevokeTarget(null);
+        setBusyId(null);
+      },
+      onError: () => setBusyId(null),
+    },
+  );
 
-  async function act(
-    id: string,
-    action: "approve" | "reject" | "revoke",
-    body?: Record<string, unknown>,
-    done?: () => void,
-  ) {
+  function act(id: string, action: VerdictAction, body?: Record<string, unknown>) {
     setBusyId(id);
-    try {
-      await api(`/api/admin/verification/${id}/${action}`, {
-        method: "POST",
-        ...(body ? { body: JSON.stringify(body) } : {}),
-      });
-      toast.success(action === "approve" ? "已通过认证" : action === "reject" ? "已驳回" : "已撤销认证");
-      done?.();
-      load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    } finally {
-      setBusyId(null);
-    }
+    void actMutation.mutate({ id, action, body });
   }
 
   if (error) return <EmptyState title="加载失败" hint={error} />;
@@ -209,7 +248,7 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
                   <div className="flex shrink-0 items-center gap-2">
                     {item.status === "pending" ? (
                       <>
-                        <Button size="sm" disabled={busyId === item.id} onClick={() => void act(item.id, "approve")}>
+                        <Button size="sm" disabled={busyId === item.id} onClick={() => act(item.id, "approve")}>
                           <Check className="size-3.5" />
                           通过
                         </Button>
@@ -272,7 +311,7 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
         }}
         pending={busyId !== null}
         onSubmit={(reason) => {
-          if (rejectTarget) void act(rejectTarget.id, "reject", { reason }, () => setRejectTarget(null));
+          if (rejectTarget) act(rejectTarget.id, "reject", { reason });
         }}
       />
       <ConfirmDialog
@@ -292,7 +331,7 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
         destructive
         pending={busyId !== null}
         onConfirm={() => {
-          if (revokeTarget) void act(revokeTarget.id, "revoke", undefined, () => setRevokeTarget(null));
+          if (revokeTarget) act(revokeTarget.id, "revoke");
         }}
       />
     </>

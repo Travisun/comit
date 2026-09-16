@@ -7,6 +7,7 @@ import { emit } from "@/core/events";
 import { hooks } from "@/core/hooks";
 import { broadcast } from "@/core/capabilities/broadcast";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { assertNotBlocked, isFollowing } from "@/lib/users";
 
 const querySchema = z.object({
@@ -156,6 +157,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ userId: string
 
     const parsed = postSchema.safeParse(await jsonBody(req));
     if (!parsed.success) throw new AppError("消息内容不能为空 / Empty message", 400, "bad_request");
+
+    // 桶 message.send：per-user 默认 30 次/分钟，zod 校验通过后再计数
+    await rateLimitBucket("message.send", me);
 
     const other = await getOtherUser(userId);
     if (!other || other.status !== "active") {

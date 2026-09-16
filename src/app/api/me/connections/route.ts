@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { oauthAccounts, users } from "@/db/schema";
+import { oauthAccounts } from "@/db/schema";
 import { forbidden } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
 import { oauthEnabled } from "@/lib/auth/oauth";
@@ -15,7 +15,10 @@ function ssoKey(provider: string): "sso.github" | "sso.google" | "sso.linuxdo" {
   return provider === "google" ? "sso.google" : provider === "linuxdo" ? "sso.linuxdo" : "sso.github";
 }
 
-/** GET /api/me/connections — 各 OAuth 登录方式的启用与绑定状态。 */
+/** GET /api/me/connections — 各 OAuth 登录方式的启用与绑定状态。
+ * 响应契约固定为 { provider, enabled, linked }：label/desc 展示文案属
+ * i18n 展示层，由客户端 connections-panel 的 PROVIDER_META 按 locale 渲染
+ * （服务端不维护第二份显示名注册表，避免双源漂移）。 */
 export async function GET(req: Request) {
   return withUser(req, async (auth) => {
     const links = await db

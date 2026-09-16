@@ -13,7 +13,8 @@ import type { FederatedProfile } from "@/lib/auth/oauth";
  *   1. (provider, providerAccountId) already linked → that user
  *   2. email matches an existing account → link + that user
  *      （仅当 provider 侧邮箱已验证才允许自动绑定；X 的合成/未验证邮箱一律不绑）
- *   3. otherwise auto-register (emailVerifiedAt mirrors the provider's claim)
+ *   3. otherwise auto-register (emailVerifiedAt mirrors the provider's claim;
+ *      provider 合成 noreply 邮箱亦视同已验证，见下方步骤 3 注释)
  */
 
 export interface FederatedIdentity {
@@ -68,8 +69,12 @@ export async function findOrCreateFederatedUser(
     return { user: existing, created: false };
   }
 
-  // 3. auto-register — 只有 provider 明确验证过邮箱才写 emailVerifiedAt，
-  //    否则留 null（后续走常规邮箱验证流程）
+  // 3. auto-register —— provider 明确验证过邮箱，或邮箱是 provider 侧的合成
+  //    noreply 地址（emailSynthetic，如 X：身份由 provider 证明、验证邮件
+  //    不可能送达）才写 emailVerifiedAt，否则留 null（走常规邮箱验证流程）。
+  //    按邮箱自动绑定不受此影响：仍由 profile.emailVerified 单独门控，
+  //    合成邮箱（emailVerified=false）永远不允许绑入既有账户。
+  const emailRecognized = profile.emailVerified === true || profile.emailSynthetic === true;
   const username = await pickAvailableUsername(profile.username || email.split("@")[0] || "user");
   const [user] = await db
     .insert(users)
@@ -77,7 +82,7 @@ export async function findOrCreateFederatedUser(
       email,
       username,
       displayName: (profile.displayName || username).slice(0, 80),
-      emailVerifiedAt: profile.emailVerified === true ? new Date() : null,
+      emailVerifiedAt: emailRecognized ? new Date() : null,
       locale: "zh",
     })
     .returning();

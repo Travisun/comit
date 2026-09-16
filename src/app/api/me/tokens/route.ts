@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createApiToken, listApiTokens, TOKEN_SCOPES } from "@/lib/tokens";
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   return withApi(req, async () => {
     const user = await getCurrentUser();
-    if (!user) return Response.json({ error: "请先登录 / Sign in required" }, { status: 401 });
+    // 复用统一错误工具 → { error, code: "unauthorized" } envelope（withApi 兜底转换）
+    if (!user) throw unauthorized();
     return ok({
       tokens: await listApiTokens(user.id),
       availableScopes: TOKEN_SCOPES,

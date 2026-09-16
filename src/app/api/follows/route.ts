@@ -5,6 +5,7 @@ import { follows } from "@/db/schema";
 import { AppError, conflict } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getUserByUsername } from "@/lib/users";
 
 const bodySchema = z.object({
@@ -40,6 +41,8 @@ export async function POST(req: Request) {
     const parsed = bodySchema.safeParse(await jsonBody(req));
     if (!parsed.success) throw new AppError("参数错误 / Invalid payload", 400, "bad_request");
 
+    // 桶 action.social：per-user 默认 60 次/60s，覆盖 toggle 高频场景
+    await rateLimitBucket("action.social", auth.user.id);
     const target = await getUserByUsername(parsed.data.username);
     if (target.id === auth.user.id) {
       throw conflict("不能关注自己 / You cannot follow yourself");

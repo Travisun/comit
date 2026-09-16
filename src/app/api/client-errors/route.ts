@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { logger } from "@/core/logger";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,9 +24,9 @@ const bodySchema = z.object({
  */
 export async function POST(req: Request) {
   try {
-    // 复用全局限流器（自带 MAX_KEYS+prune，无泄漏且键不可由客户端伪造）：
-    // 每 IP 每分钟 30 条，超限抛 429 由下方 catch 静默吞掉 → 依旧返回 ok
-    rateLimit(`client-error:${clientIp(req)}`, 30, 60_000);
+    // 命名桶 client.error（默认每 IP 每分钟 30 条，后台可调；键不可由客户端
+    // 伪造）：超限抛 429 由下方 catch 静默吞掉 → 依旧返回 ok
+    await rateLimitBucket("client.error", clientIp(req));
 
     const raw = await req.json().catch(() => null);
     const parsed = bodySchema.safeParse(raw);

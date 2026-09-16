@@ -7,7 +7,8 @@ import { follows, invites, users, type User } from "@/db/schema";
 import { AppError, conflict, forbidden } from "@/core/errors";
 import { routes, absolute } from "@/core/routes";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getSetting } from "@/lib/settings";
 import { assertUsernameAvailable } from "@/lib/users";
 import { hashPassword, isValidPassword } from "@/lib/auth/password";
@@ -49,7 +50,7 @@ function localeFromRequest(req: Request): Locale {
 
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`register:${clientIp(req)}`, 5, 60_000);
+    await rateLimitBucket("auth.register", clientIp(req));
     const body = await parseJsonBody(req, schema);
 
     if (!(await getSetting("site.registrationOpen"))) {

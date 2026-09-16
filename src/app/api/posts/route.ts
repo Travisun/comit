@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { polls, posts, type Post } from "@/db/schema";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { AppError, conflict } from "@/core/errors";
 import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
@@ -78,6 +79,8 @@ function isUniqueViolation(err: unknown): boolean {
 export async function POST(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
     const body = parseWith(createSchema, await jsonBody(req));
+    // 桶 write.post：per-user 默认 10 次/小时，zod 校验通过后再计数
+    await rateLimitBucket("write.post", auth.user.id);
     const type = body.type;
     const title = body.title?.trim() || null;
 

@@ -110,6 +110,10 @@ export async function startWorkers(): Promise<void> {
       const purged = await purgeExpiredRows(spec);
       if (purged > 0) console.log(`[cron:maintenance.retention] purged ${purged} rows from ${spec.table}`);
     }
+    // rate_limits（分布式限流，src/lib/rate-limit.ts）：窗口起点早于 24h 的行
+    // 已不可能命中当前窗口（限流窗口最长为分钟级），批量删除防表无限增长
+    const ratePurged = await purgeRateLimits();
+    if (ratePurged > 0) console.log(`[cron:maintenance.retention] purged ${ratePurged} rows from rate_limits`);
   });
 
   console.log("[workers] queue workers registered");
@@ -154,6 +158,27 @@ async function purgeExpiredRows(
             WHERE ${column} < now() - interval '${sql.raw(String(spec.days))} days'
             LIMIT ${batchSize}
           ) RETURNING id`,
+    );
+    const deleted = res.rows.length;
+    total += deleted;
+    if (deleted < batchSize) break;
+  }
+  return total;
+}
+
+/**
+ * rate_limits 专用清理：主键是 key（无 id 列），按 key IN 子查询批量删除
+ * window_start 早于 24h 前的行，风格与 purgeExpiredRows 一致。幂等。
+ */
+async function purgeRateLimits(batchSize = 1000): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const res = await db.execute(
+      sql`DELETE FROM rate_limits WHERE key IN (
+            SELECT key FROM rate_limits
+            WHERE window_start < now() - interval '24 hours'
+            LIMIT ${batchSize}
+          ) RETURNING key`,
     );
     const deleted = res.rows.length;
     total += deleted;

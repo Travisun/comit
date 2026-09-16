@@ -5,7 +5,8 @@ import { users } from "@/db/schema";
 import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { absolute } from "@/core/routes";
 import { ok, withApi, withUser } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { verifyPassword } from "@/lib/auth/password";
 import { issueAuthToken } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
 /** POST /api/me/email — 申请换绑：校验密码 → 记录待确认地址 → 发确认邮件。 */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {
-    rateLimit(`email-change:${clientIp(req)}`, 5, 300_000);
+    await rateLimitBucket("auth.email", clientIp(req));
     const body = parseOrThrow(postSchema, await req.json().catch(() => null));
 
     const newEmail = body.newEmail;

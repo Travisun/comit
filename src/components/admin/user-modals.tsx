@@ -12,6 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { patchJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 
 /**
  * Shared user-moderation dialogs (warn / timed ban / permanent ban).
@@ -20,6 +22,35 @@ import {
  * (POST /api/admin/reports/[id]/action with action=warn_author/ban_author).
  * Field state is reset on close/submit (event-driven, no effects).
  */
+
+/**
+ * admin 用户列表键前缀 — 暂未入厂（keys.ts 冻结）；用户页查询与处置
+ * mutation 的失效共用此前缀（invalidate 按前缀批量命中）。
+ */
+export const ADMIN_USERS_KEY_PREFIX = ["admin", "users"] as const;
+
+interface UserModerationInput {
+  userId: string;
+  patch: Record<string, unknown>;
+  /** 成功提示文案由动作决定（含目标用户名），成功后由调用方 toast */
+  successMessage: string;
+}
+
+/**
+ * 用户处置提交（解封/角色调整/警告/限时与永久封禁）— 统一走
+ * useApiMutation：错误 toast 与原 toastError 文案一致，成功后失效用户
+ * 列表缓存；refresh:false，列表数据靠 invalidate 回流。
+ */
+export function useUserModerationMutation(
+  onSuccess?: (input: UserModerationInput) => void,
+) {
+  // 显式标注泛型：TOutput 为 unknown，避免 onSuccess 形参误导推断
+  return useApiMutation<UserModerationInput, unknown>(
+    ({ userId, patch }: UserModerationInput) =>
+      patchJson(`/api/admin/users/${userId}`, patch),
+    { refresh: false, invalidate: [ADMIN_USERS_KEY_PREFIX], onSuccess: (_data, input) => onSuccess?.(input) },
+  );
+}
 
 export interface ModalityTarget {
   id: string;

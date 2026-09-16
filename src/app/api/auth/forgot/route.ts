@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { routes, absolute } from "@/core/routes";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { emit } from "@/core/events";
 import { issueAuthToken } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
@@ -20,7 +21,7 @@ const schema = z.object({
 /** Always returns ok — never reveals whether the address is registered. */
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`forgot:${clientIp(req)}`, 5, 60_000);
+    await rateLimitBucket("auth.password", clientIp(req));
     const body = await parseJsonBody(req, schema);
 
     const [user] = await db

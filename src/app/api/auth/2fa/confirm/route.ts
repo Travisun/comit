@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AppError, unauthorized } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { verifyTotpCode } from "@/lib/auth/totp";
 import { parseJsonBody } from "../../_lib/validate";
@@ -15,7 +16,7 @@ const schema = z.object({
 /** Confirm TOTP enrollment; activates the account's 2FA and clears pending. */
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`2fa-confirm:${clientIp(req)}`, 10, 60_000);
+    await rateLimitBucket("auth.twofa", clientIp(req));
     const auth = await getAuth();
     if (!auth) throw unauthorized("请先登录 / Please sign in");
     const { code } = await parseJsonBody(req, schema);

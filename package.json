@@ -44,6 +44,7 @@
     "emittery": "^1.2.1",
     "feed": "^6.0.0",
     "hookable": "^6.1.1",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.12",
     "katex": "^0.18.7",
     "lucide-react": "^1.44.0",

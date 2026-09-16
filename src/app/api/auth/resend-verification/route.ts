@@ -4,7 +4,8 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { routes, absolute } from "@/core/routes";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { issueAuthToken } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
 import type { Locale } from "@/lib/i18n";
@@ -19,7 +20,7 @@ const schema = z.object({
 /** Always returns ok — never reveals whether the address is registered. */
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`resend:${clientIp(req)}`, 5, 60_000);
+    await rateLimitBucket("auth.email", clientIp(req));
     const body = await parseJsonBody(req, schema);
     const generic = { ok: true, message: "如果该邮箱存在，验证邮件已重新发送 / If that email exists, a verification email has been resent" };
 

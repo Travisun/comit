@@ -18,6 +18,22 @@ export interface AuthContext {
   pending2fa: boolean;
 }
 
+/**
+ * Cookie 签发寿命（365 天）。cookie 只是票据载体，真实有效期由 DB
+ * sessions.expires_at 管辖：登出/封禁删除会话行后 cookie 即成废票，安全性不降。
+ * 给足寿命是因为 getAuth 的滑动续期只能延长 DB（RSC 中不能 Set-Cookie，无法
+ * 每请求续签 cookie），固定 30d cookie 会先于滑动后的 DB 过期把用户登出。
+ * 旧 30d cookie 自然过渡：仍可用，下次登录时换发 365d cookie，不破坏现有会话。
+ */
+const SESSION_COOKIE_MAX_DAYS = 365;
+
+/**
+ * 滑动续期阈值：会话剩余寿命不足 1 天（即已消耗 >1 天）时顺延至完整
+ * sessionDays。写放大控制：每会话至多每天 1 次 UPDATE；getAuth 有 React
+ * cache 每请求去重，同请求多次调用不会重复写。
+ */
+const SESSION_SLIDE_THRESHOLD_DAYS = 1;
+
 export async function createSession(
   userId: string,
   opts: { pending2fa?: boolean; ip?: string; userAgent?: string } = {},
@@ -36,12 +52,13 @@ export async function createSession(
     })
     .returning({ id: sessions.id });
   const store = await cookies();
+  // cookie 有效期给足 365 天（见 SESSION_COOKIE_MAX_DAYS 注释）；DB 仍按 sessionDays 记账
   store.set(config.auth.sessionCookie, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: config.app.isProd,
     path: "/",
-    expires: expiresAt,
+    expires: new Date(Date.now() + SESSION_COOKIE_MAX_DAYS * 86400_000),
   });
   await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, userId));
   return row.id;
@@ -87,6 +104,16 @@ export const getAuth = cache(async (): Promise<AuthContext | null> => {
     )
     .limit(1);
   if (!row) return null;
+  // 滑动续期（sliding renewal）：会话有效但剩余寿命 < sessionDays-1 天 ⇒ 顺延
+  // 至完整 sessionDays，长活跃用户不再被 30 天硬过期随机登出。DB 内仍带
+  // expiresAt > now() 守卫（select 与 update 之间会话不过期）。只续 DB 不续
+  // cookie —— RSC 不能 Set-Cookie，cookie 在签发点已给足寿命（见文件顶部常量）。
+  if (row.session.expiresAt.getTime() - Date.now() < SESSION_SLIDE_THRESHOLD_DAYS * 86400_000) {
+    await db
+      .update(sessions)
+      .set({ expiresAt: new Date(Date.now() + config.auth.sessionDays * 86400_000) })
+      .where(and(eq(sessions.id, row.session.id), gt(sessions.expiresAt, new Date())));
+  }
   return { user: row.user, sessionId: row.session.id, pending2fa: row.session.pending2fa };
 });
 

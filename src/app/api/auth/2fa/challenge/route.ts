@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { AppError, unauthorized } from "@/core/errors";
 import { withApi, ok } from "@/lib/http";
-import { rateLimit, clientIp } from "@/lib/rate-limit";
+import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { consumeRecoveryCode, hasConfirmedTotp, verifyTotpCode } from "@/lib/auth/totp";
 import { emit } from "@/core/events";
@@ -21,7 +22,7 @@ const schema = z
 /** Solve the mandatory 2FA challenge with a TOTP code or a recovery code. */
 export async function POST(req: Request) {
   return withApi(req, async () => {
-    rateLimit(`2fa-challenge:${clientIp(req)}`, 10, 60_000);
+    await rateLimitBucket("auth.twofa", clientIp(req));
     const auth = await getAuth();
     if (!auth) throw unauthorized("请先登录 / Please sign in");
     const body = await parseJsonBody(req, schema);

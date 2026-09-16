@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/primitives";
@@ -13,6 +12,7 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { apiRequest } from "./client";
 import { NOTIFICATION_EVENTS, type ChannelOption } from "./types";
 
@@ -31,7 +31,6 @@ export function NotificationsPanel({
     }
     return base;
   });
-  const [saving, setSaving] = useState(false);
   const dirty = NOTIFICATION_EVENTS.some((e) => {
     const cur = [...(prefs[e.key] ?? [])].sort().join(",");
     const init = [...(initialPrefs[e.key] ?? ["database"])].sort().join(",");
@@ -48,16 +47,16 @@ export function NotificationsPanel({
     });
   }
 
-  async function save() {
-    setSaving(true);
-    try {
-      await apiRequest("/api/me/notifications", "PUT", { prefs });
-      toast.success(t("settings.profile.saved"));
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  // 保存通知偏好 — pending 驱动按钮；成功/失败 toast 由统一契约处理
+  // （成功文案 t("settings.profile.saved") 与原一致）
+  const saveMutation = useApiMutation(
+    (payload: Record<string, string[]>) => apiRequest("/api/me/notifications", "PUT", { prefs: payload }),
+    { successToast: t("settings.profile.saved") },
+  );
+
+  function save() {
+    if (saveMutation.pending) return;
+    void saveMutation.mutate(prefs);
   }
 
   return (
@@ -98,9 +97,9 @@ export function NotificationsPanel({
             : locale === "zh" ? "没有未保存的更改" : "No unsaved changes"
         }
       >
-        <Button onClick={save} disabled={saving || !dirty}>
-          {saving && <Loader2 className="animate-spin" />}
-          {saving ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
+        <Button onClick={save} disabled={saveMutation.pending || !dirty}>
+          {saveMutation.pending && <Loader2 className="animate-spin" />}
+          {saveMutation.pending ? (locale === "zh" ? "保存中…" : "Saving…") : t("common.save")}
         </Button>
       </SettingsFooter>
     </SettingsSection>

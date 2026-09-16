@@ -1,7 +1,9 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Eye, Heart, MessageSquare, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,24 +16,30 @@ import {
   TableSkeleton,
   TableWrap,
 } from "@/components/admin/bits";
-import { PostRowActions } from "@/components/admin/post-actions";
-import { api } from "@/components/admin/client";
+import { ADMIN_POSTS_KEY_PREFIX, PostRowActions } from "@/components/admin/post-actions";
+import { apiQueryOptions } from "@/lib/query/options";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 
-interface PostItem {
-  id: string;
-  title: string | null;
-  type: "article" | "short";
-  status: "draft" | "pending_review" | "published" | "rejected";
-  views: number;
-  likeCount: number;
-  commentCount: number;
-  publishedAt: string | null;
-  createdAt: string;
-  rejectReason: string | null;
-  author: { username: string; displayName: string };
-}
+// 就地 zod schema：/api/admin/posts 响应无现成 schema，进缓存前校验把关
+const postItemSchema = z.object({
+  id: z.string(),
+  title: z.string().nullable(),
+  type: z.enum(["article", "short"]),
+  status: z.enum(["draft", "pending_review", "published", "rejected"]),
+  views: z.number(),
+  likeCount: z.number(),
+  commentCount: z.number(),
+  publishedAt: z.string().nullable(),
+  createdAt: z.string(),
+  rejectReason: z.string().nullable(),
+  author: z.object({ username: z.string(), displayName: z.string() }),
+});
+
+const postsListSchema = z.object({
+  items: z.array(postItemSchema),
+  total: z.number(),
+});
 
 const PAGE_SIZE = 25;
 
@@ -43,44 +51,40 @@ const STATUS_OPTIONS = [
   { value: "draft", label: "草稿" },
 ];
 
-/** Fetches and renders one page of posts; remounted (via key) on filter change. */
+/** Fetches and renders one page of posts; keyed by filter state via queryKey. */
 function ArticleList({
   status,
   query,
   offset,
-  onChanged,
   onPage,
 }: {
   status: string;
   query: string;
   offset: number;
-  onChanged: () => void;
   onPage: (next: number) => void;
 }) {
   const { locale } = useI18n();
-  const [data, setData] = useState<{ items: PostItem[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // 列表查询 — key 随筛选/搜索/分页变化天然隔离（原 remount-by-key 防竞态
+  // hack 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
+  const postsQ = useQuery(
+    apiQueryOptions({
+      queryKey: [...ADMIN_POSTS_KEY_PREFIX, status, query, offset],
+      url: `/api/admin/posts?${new URLSearchParams({
+        limit: String(PAGE_SIZE),
+        offset: String(offset),
+        ...(status ? { status } : {}),
+        ...(query ? { q: query } : {}),
+      })}`,
+      schema: postsListSchema,
+      placeholderData: keepPreviousData,
+    }),
+  );
+  const items = useMemo(() => postsQ.data?.items ?? [], [postsQ.data]);
+  const total = postsQ.data?.total ?? 0;
 
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (status) params.set("status", status);
-    if (query) params.set("q", query);
-    api<{ items: PostItem[]; total: number }>(`/api/admin/posts?${params}`)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [status, query, offset, onChanged]);
-
-  if (error) return <EmptyState title="加载失败" hint={error} />;
-  if (!data) return <TableSkeleton rows={8} cols={6} />;
-  if (data.items.length === 0)
+  if (postsQ.error) return <EmptyState title="加载失败" hint={postsQ.error.message} />;
+  if (postsQ.isPending) return <TableSkeleton rows={8} cols={6} />;
+  if (items.length === 0)
     return <EmptyState title="没有匹配的文章" hint="试试调整筛选条件或搜索词" />;
 
   return (
@@ -98,7 +102,7 @@ function ArticleList({
           </tr>
         </thead>
         <tbody>
-          {data.items.map((p) => (
+          {items.map((p) => (
             <tr key={p.id}>
               <td className="max-w-72">
                 <a
@@ -142,7 +146,7 @@ function ArticleList({
                 {timeAgo(p.publishedAt ?? p.createdAt, locale)}
               </td>
               <td className="text-right">
-                <PostRowActions post={p} onChanged={onChanged} />
+                <PostRowActions post={p} />
               </td>
             </tr>
           ))}
@@ -151,7 +155,7 @@ function ArticleList({
       <Pagination
         offset={offset}
         limit={PAGE_SIZE}
-        total={data.total}
+        total={total}
         onPage={onPage}
       />
     </>
@@ -164,7 +168,6 @@ function ArticlesInner() {
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
-  const [version, setVersion] = useState(0);
 
   // debounce the search box; a new query resets pagination
   useEffect(() => {
@@ -175,8 +178,7 @@ function ArticlesInner() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const onPage = useCallback((next: number) => setOffset(next), []);
+  const onPage = (next: number) => setOffset(next);
 
   return (
     <div>
@@ -203,14 +205,7 @@ function ArticlesInner() {
         />
       </div>
 
-      <ArticleList
-        key={`${status}|${query}|${offset}|${version}`}
-        status={status}
-        query={query}
-        offset={offset}
-        onChanged={bump}
-        onPage={onPage}
-      />
+      <ArticleList status={status} query={query} offset={offset} onPage={onPage} />
     </div>
   );
 }

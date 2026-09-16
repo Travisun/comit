@@ -1,5 +1,4 @@
 import { cache } from "react";
-import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { settings } from "@/db/schema";
 
@@ -41,6 +40,11 @@ export const SETTINGS_DEFAULTS = {
       "只返回 JSON：{\"approved\": true/false, \"score\": 0-100, \"reason\": \"简短中文理由\"}",
   },
   "notify.emailEnabled": true,
+  /**
+   * 限流桶覆写（见 @/lib/rate-limit/buckets 的 RATE_BUCKETS）：键为桶名
+   * （BucketName），未列出的桶用代码内默认值；admin 路由对该键做精确校验
+   */
+  "ratelimit.buckets": {} as Partial<Record<string, { limit: number; windowSec: number }>>,
 } as const;
 
 export type SettingsKey = keyof typeof SETTINGS_DEFAULTS;

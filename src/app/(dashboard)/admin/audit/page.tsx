@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { History } from "lucide-react";
 import {
   Avatar,
@@ -10,25 +12,40 @@ import {
   Badge,
 } from "@/components/ui/primitives";
 import { EmptyState, PageHeader, Pagination, TableSkeleton, TableWrap } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface AuditItem {
-  id: string;
-  action: string;
-  targetType: string;
-  targetId: string | null;
-  targetUsername: string | null;
-  note: string | null;
-  createdAt: string;
-  adminId: string | null;
-  adminUsername: string | null;
-  adminDisplayName: string | null;
-  adminAvatar: string | null;
-}
+/* -------------------------------- schema --------------------------------- */
+
+const auditItemSchema = z.object({
+  id: z.string(),
+  action: z.string(),
+  targetType: z.string(),
+  targetId: z.string().nullable(),
+  targetUsername: z.string().nullable(),
+  note: z.string().nullable(),
+  createdAt: z.string(),
+  adminId: z.string().nullable(),
+  // 系统 actor 的审计行 adminId 为 null（leftJoin），三个 admin* 字段随之可空
+  adminUsername: z.string().nullable(),
+  adminDisplayName: z.string().nullable(),
+  adminAvatar: z.string().nullable(),
+});
+
+const auditPageSchema = z.object({
+  items: z.array(auditItemSchema),
+  total: z.number(),
+  // 动作分面（全局统计）随每页响应一起返回，供筛选下拉合并
+  actions: z.array(z.object({ action: z.string(), count: z.number() })),
+});
+
+type AuditItem = z.infer<typeof auditItemSchema>;
 
 const PAGE_SIZE = 40;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），action/offset 进键驱动重查。 */
+const auditKey = (action: string, offset: number) => ["admin", "audit", action, offset] as const;
 
 /** Common action groups keep the dropdown readable even with many action types. */
 const COMMON_ACTIONS = [
@@ -108,33 +125,17 @@ function TargetCell({ row }: { row: AuditItem }) {
 }
 
 function AuditTable({
-  action,
+  data,
+  error,
   offset,
   onPage,
 }: {
-  action: string;
+  data: { items: AuditItem[]; total: number } | undefined;
+  error: string | null;
   offset: number;
   onPage: (next: number) => void;
 }) {
   const { locale } = useI18n();
-  const [data, setData] = useState<{ items: AuditItem[]; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
-    if (action) params.set("action", action);
-    api<{ items: AuditItem[]; total: number }>(`/api/admin/audit?${params}`)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [action, offset]);
 
   if (error) return <EmptyState title="加载失败" hint={error} />;
   if (!data) return <TableSkeleton rows={8} cols={5} />;
@@ -195,28 +196,24 @@ function AuditTable({
 export default function AdminAuditPage() {
   const [action, setAction] = useState("");
   const [offset, setOffset] = useState(0);
-  const [extra, setExtra] = useState<{ value: string; label: string }[]>([]);
 
   const onPage = useCallback((next: number) => setOffset(next), []);
 
-  // merge actions discovered in the data (beyond the common groups) into the dropdown
-  useEffect(() => {
-    let cancelled = false;
-    api<{ actions: { action: string; count: number }[] }>(`/api/admin/audit?limit=1`)
-      .then((d) => {
-        if (cancelled) return;
-        setExtra(
-          d.actions
-            .filter((a) => !COMMON_ACTIONS.some((c) => c.value === a.action))
-            .map((a) => ({ value: a.action, label: `${a.action} (${a.count})` })),
-        );
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // 列表 + 动作分面一次取回（服务端每页都带全局 actions 统计，替代原 limit=1 探测请求）
+  const auditQ = useQuery({
+    ...apiQueryOptions({
+      queryKey: auditKey(action, offset),
+      url: `/api/admin/audit?limit=${PAGE_SIZE}&offset=${offset}${action ? `&action=${encodeURIComponent(action)}` : ""}`,
+      schema: auditPageSchema,
+    }),
+    // 筛选/翻页时保留上一页数据，避免表格闪烁回骨架
+    placeholderData: keepPreviousData,
+  });
 
+  // merge actions discovered in the data (beyond the common groups) into the dropdown
+  const extra = (auditQ.data?.actions ?? [])
+    .filter((a) => !COMMON_ACTIONS.some((c) => c.value === a.action))
+    .map((a) => ({ value: a.action, label: `${a.action} (${a.count})` }));
   const options = [...COMMON_ACTIONS, ...extra];
 
   return (
@@ -247,7 +244,12 @@ export default function AdminAuditPage() {
         </div>
       </div>
 
-      <AuditTable key={`${action}|${offset}`} action={action} offset={offset} onPage={onPage} />
+      <AuditTable
+        data={auditQ.data}
+        error={auditQ.error instanceof Error ? auditQ.error.message : null}
+        offset={offset}
+        onPage={onPage}
+      />
     </div>
   );
 }

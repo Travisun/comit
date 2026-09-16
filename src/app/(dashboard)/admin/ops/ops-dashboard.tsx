@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import {
   Activity,
   Database,
@@ -27,8 +28,9 @@ import {
   DataTableNum,
 } from "@/components/ui/table";
 import { EmptyState, PageHeader, StatCard } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { formatBytes } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/client";
+import { apiQueryOptions } from "@/lib/query/options";
 
 /**
  * Ops panel — pulls /api/admin/ops (read-only snapshot). Refresh is manual
@@ -39,44 +41,51 @@ import { formatBytes } from "@/lib/utils";
  * stat tiles, hairline data tables — no card-in-card panels, no shadows.
  */
 
-interface OpsData {
-  process: {
-    worker: string;
-    pid: number;
-    uptimeSec: number;
-    rss: number;
-    heapUsed: number;
-    heapTotal: number;
-    nodeVersion: string;
-  };
-  db: {
-    users: number;
-    posts: number;
-    comments: number;
-    media: number;
-    notifications: number;
-    webhookDeliveries: number;
-    reports: number;
-    exportJobs: number;
-  };
-  queue: {
-    byState: { queue: string; state: string; n: number }[];
-    createdLast24h: number;
-    statesHint: string[];
-  };
-  content: {
-    pendingReview: number;
-    openReports: number;
-    newUsers24h: number;
-    newPosts24h: number;
-  };
-  storage: {
-    media: { bytes: number; files: number; complete: boolean };
-    exports: { bytes: number; files: number; complete: boolean };
-    budgetMs: number;
-  };
-  collectedInMs: number;
-}
+/* -------------------------------- schema --------------------------------- */
+
+const opsSchema = z.object({
+  process: z.object({
+    worker: z.string(),
+    pid: z.number(),
+    uptimeSec: z.number(),
+    rss: z.number(),
+    heapUsed: z.number(),
+    heapTotal: z.number(),
+    nodeVersion: z.string(),
+  }),
+  db: z.object({
+    users: z.number(),
+    posts: z.number(),
+    comments: z.number(),
+    media: z.number(),
+    notifications: z.number(),
+    webhookDeliveries: z.number(),
+    reports: z.number(),
+    exportJobs: z.number(),
+  }),
+  queue: z.object({
+    byState: z.array(z.object({ queue: z.string(), state: z.string(), n: z.number() })),
+    createdLast24h: z.number(),
+    statesHint: z.array(z.string()),
+  }),
+  content: z.object({
+    pendingReview: z.number(),
+    openReports: z.number(),
+    newUsers24h: z.number(),
+    newPosts24h: z.number(),
+  }),
+  storage: z.object({
+    media: z.object({ bytes: z.number(), files: z.number(), complete: z.boolean() }),
+    exports: z.object({ bytes: z.number(), files: z.number(), complete: z.boolean() }),
+    budgetMs: z.number(),
+  }),
+  collectedInMs: z.number(),
+});
+
+type OpsData = z.infer<typeof opsSchema>;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；手动刷新走 refetch()。 */
+const OPS_KEY = ["admin", "ops"] as const;
 
 interface QueueRow {
   queue: string;
@@ -164,29 +173,25 @@ function Code({ children }: { children: ReactNode }) {
 /* ------------------------------ dashboard ------------------------------- */
 
 export function OpsDashboard() {
-  const [data, setData] = useState<OpsData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshedAt, setRefreshedAt] = useState<string | null>(null);
+  const { locale } = useI18n();
 
-  const load = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      const d = await api<OpsData>("/api/admin/ops");
-      setData(d);
-      setError(null);
-      setRefreshedAt(new Date().toLocaleTimeString("zh-CN", { hour12: false }));
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const t = setTimeout(() => void load(), 0);
-    return () => clearTimeout(t);
-  }, [load]);
+  // 快照查询 — 不自动轮询；「刷新」按钮走 refetch()，isFetching 覆盖首次加载
+  // staleTime 用全局默认（15s），手动 refetch 不受 staleTime 约束
+  const opsQ = useQuery(
+    apiQueryOptions({
+      queryKey: OPS_KEY,
+      url: "/api/admin/ops",
+      schema: opsSchema,
+    }),
+  );
+  const data = opsQ.data;
+  const error = opsQ.error instanceof Error ? opsQ.error.message : null;
+  const refreshing = opsQ.isFetching;
+  const refreshedAt = opsQ.dataUpdatedAt
+    ? new Date(opsQ.dataUpdatedAt).toLocaleTimeString(locale === "zh" ? "zh-CN" : "en-US", {
+        hour12: false,
+      })
+    : null;
 
   const queues = data ? aggregateQueues(data.queue.byState) : [];
   const totalPending = queues.reduce((s, q) => s + q.pending, 0);
@@ -203,7 +208,12 @@ export function OpsDashboard() {
             {refreshedAt ? (
               <span className="text-xs text-muted-foreground tabular-nums">更新于 {refreshedAt}</span>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => void load()} disabled={refreshing}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void opsQ.refetch()}
+              disabled={refreshing}
+            >
               <RefreshCw className={refreshing ? "animate-spin" : undefined} />
               刷新
             </Button>

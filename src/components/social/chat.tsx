@@ -10,7 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { ArrowLeft, ImagePlus, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
@@ -42,12 +42,21 @@ export function ChatClient({ other }: { other: ChatPartner }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
-  // 会话消息：SSE 实时推送为主（见下方 useRealtime），60s 轮询仅作兜底
-  // （SSE 断线/不可用时保底收新消息），由 TanStack Query 托管（后台标签页自动暂停）
-  const threadQ = useQuery({
+  // 会话消息：无限分页（反向游标，fetchNextPage 加载更早消息）+ SSE 实时推送
+  // 为主（见下方 useRealtime），60s 轮询仅作兜底（SSE 断线/不可用时保底收
+  // 新消息），由 TanStack Query 托管（后台标签页自动暂停）
+  const threadQ = useInfiniteQuery({
     queryKey: queryKeys.messages(other.id),
-    queryFn: async () =>
-      messagesPageSchema.parse(await apiGet<unknown>(`/api/messages/${other.id}`)),
+    queryFn: async ({ pageParam }) =>
+      messagesPageSchema.parse(
+        await apiGet<unknown>(
+          pageParam
+            ? `/api/messages/${other.id}?cursor=${encodeURIComponent(pageParam)}`
+            : `/api/messages/${other.id}`,
+        ),
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
@@ -75,18 +84,8 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     }
   });
 
-  // 更早的消息（反向游标翻页）——服务端只给首页游标，本地累积合并。
-  // 携带 userId：换会话时在渲染期重置（React 官方「props 变化调整状态」模式）
-  const [older, setOlder] = useState<{ userId: string; pages: MessagesPage[] }>({
-    userId: other.id,
-    pages: [],
-  });
-  if (older.userId !== other.id) setOlder({ userId: other.id, pages: [] });
-  const olderCursor =
-    older.pages.length > 0
-      ? (older.pages[older.pages.length - 1]?.nextCursor ?? null)
-      : (threadQ.data?.nextCursor ?? null);
-  const [loadingOlder, setLoadingOlder] = useState(false);
+  // 末页游标 — 还有更早消息时头部显示「加载更多」
+  const olderCursor = threadQ.data?.pages[threadQ.data.pages.length - 1]?.nextCursor ?? null;
   const [input, setInput] = useState("");
   const [uploading, setUploading] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -99,15 +98,14 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     bottomAnchor.current?.scrollIntoView({ behavior, block: "end" });
   }, []);
 
-  // 合并：首页（查询缓存）+ 本地累积的更早消息，按时间排序去重
+  // 合并全部已加载页（首页 + fetchNextPage 拉到的更早消息），按时间排序去重
   const items = useMemo(() => {
     const map = new Map<string, MessageItem>();
-    for (const m of threadQ.data?.items ?? []) map.set(m.id, m);
-    for (const page of older.pages) {
-      for (const m of page.items) if (!map.has(m.id)) map.set(m.id, m);
+    for (const page of threadQ.data?.pages ?? []) {
+      for (const m of page.items) map.set(m.id, m);
     }
     return [...map.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  }, [threadQ.data, older]);
+  }, [threadQ.data]);
 
   // 首次加载数据后滚到底部
   useEffect(() => {
@@ -130,29 +128,24 @@ export function ChatClient({ other }: { other: ChatPartner }) {
     atBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }
 
+  // 加载更早消息（fetchNextPage 收编原手工翻页）：加载完成后补偿高度差，
+  // 让视口停留在原消息位置（滚动跟随）
   async function loadOlder() {
-    if (!olderCursor || loadingOlder) return;
-    const el = containerRef.current;
-    const prevHeight = el?.scrollHeight ?? 0;
-    setLoadingOlder(true);
-    try {
-      const r = await messagesPageSchema.parse(
-        await apiGet<unknown>(`/api/messages/${other.id}?cursor=${encodeURIComponent(olderCursor)}`),
-      );
-      setOlder((o) => ({ ...o, pages: [...o.pages, r] }));
-      requestAnimationFrame(() => {
-        const el2 = containerRef.current;
-        if (el2) el2.scrollTop += el2.scrollHeight - prevHeight;
-      });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setLoadingOlder(false);
+    if (!olderCursor || threadQ.isFetchingNextPage) return;
+    const prevHeight = containerRef.current?.scrollHeight ?? 0;
+    const res = await threadQ.fetchNextPage();
+    if (res.isError) {
+      toast.error(res.error instanceof Error ? res.error.message : t("common.error"));
+      return;
     }
+    requestAnimationFrame(() => {
+      const el = containerRef.current;
+      if (el) el.scrollTop += el.scrollHeight - prevHeight;
+    });
   }
 
   // 发消息（mutation 收编）：静默失败（onError 自行 toast + 登录跳转），
-  // 成功后 setQueryData 把新消息增量插入 thread 缓存（对齐 comments.tsx
+  // 成功后 setQueryData 把新消息增量插入 thread 缓存末页（对齐 comments.tsx
   // 的提交模式）→ items 派生更新 → 底部跟随滚动；refresh 关闭（本页无
   // RSC 关系数据），仅失效会话列表让预览/未读同步推进。
   const sendMutation = useApiMutation(
@@ -163,8 +156,15 @@ export function ChatClient({ other }: { other: ChatPartner }) {
       refresh: false,
       invalidate: [queryKeys.conversations()],
       onSuccess: (created) => {
-        queryClient.setQueryData<MessagesPage>(queryKeys.messages(other.id), (prev) =>
-          prev ? { ...prev, items: [...prev.items, created] } : prev,
+        queryClient.setQueryData<InfiniteData<MessagesPage>>(queryKeys.messages(other.id), (prev) =>
+          prev
+            ? {
+                ...prev,
+                pages: prev.pages.map((p, i) =>
+                  i === prev.pages.length - 1 ? { ...p, items: [...p.items, created] } : p,
+                ),
+              }
+            : prev,
         );
         atBottomRef.current = true;
         requestAnimationFrame(() => scrollToBottom("smooth"));
@@ -257,9 +257,9 @@ export function ChatClient({ other }: { other: ChatPartner }) {
               variant="outline"
               size="sm"
               onClick={() => void loadOlder()}
-              disabled={loadingOlder}
+              disabled={threadQ.isFetchingNextPage}
             >
-              {loadingOlder && <Loader2 className="size-3.5 animate-spin" />}
+              {threadQ.isFetchingNextPage && <Loader2 className="size-3.5 animate-spin" />}
               {t("comments.loadMore")}
             </Button>
           </div>

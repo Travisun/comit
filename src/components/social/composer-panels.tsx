@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { createPortal } from "react-dom";
 import { CalendarClock, ListPlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
@@ -121,9 +122,8 @@ export function TopicPopover({
   onPick: (name: string) => void;
 }) {
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<TopicItem[]>([]);
-  // 首帧即 loading；输入防抖后旧结果保留到新结果到达
-  const [loading, setLoading] = useState(true);
+  // 搜索防抖：输入先入 q，180ms 后同步进 queryKey（驱动 useQuery 重查）
+  const [debouncedQ, setDebouncedQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -131,25 +131,27 @@ export function TopicPopover({
   }, []);
 
   useEffect(() => {
-    if (!open) return;
-    let dead = false;
-    const timer = setTimeout(() => {
-      apiGet<{ items?: TopicItem[] }>(`/api/posts/topics?q=${encodeURIComponent(q.trim())}`)
-        .then((d) => {
-          if (!dead) setItems(d.items ?? []);
-        })
-        .catch(() => {
-          if (!dead) setItems([]);
-        })
-        .finally(() => {
-          if (!dead) setLoading(false);
-        });
-    }, 180);
-    return () => {
-      dead = true;
-      clearTimeout(timer);
-    };
-  }, [q, open]);
+    const timer = setTimeout(() => setDebouncedQ(q.trim()), 180);
+    return () => clearTimeout(timer);
+  }, [q]);
+
+  // 话题搜索 — 防抖值进 queryKey；面板关闭时 enabled 门控不发请求。
+  // placeholderData 让切换搜索词时旧结果保留到新结果到达（原手管行为），
+  // isPending 仅在首帧（还没有任何结果）时为 true。
+  const topicsQ = useQuery({
+    // keys.ts 冻结期内就地字面量（暂未入厂）；与 TopicInput 共享同一份缓存
+    queryKey: ["topics", "search", debouncedQ],
+    queryFn: async () => {
+      const d = await apiGet<{ items?: TopicItem[] }>(
+        `/api/posts/topics?q=${encodeURIComponent(debouncedQ)}`,
+      );
+      return d.items ?? [];
+    },
+    enabled: open,
+    placeholderData: keepPreviousData,
+  });
+  const items = topicsQ.data ?? [];
+  const loading = topicsQ.isPending;
 
   const query = q.trim();
   const exact = items.some((t) => t.name.toLowerCase() === query.toLowerCase());

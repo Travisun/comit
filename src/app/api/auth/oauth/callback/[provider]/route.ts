@@ -18,8 +18,13 @@ const STATE_COOKIE = "mb_oauth_state";
 const LINK_COOKIE = "mb_oauth_link";
 const VERIFIER_COOKIE = "mb_oauth_verifier";
 
-/** 绑定模式出口：无论成败都清掉三个流程 cookie，避免残留被后续回调复用 */
-function bindExit(url: string): NextResponse {
+/**
+ * 统一出口：离开回调前清掉三个流程 cookie。bind 模式成败与所有错误出口共用 ——
+ * 残留的 mb_oauth_link（600s maxAge）会把下一次非 bind 登录误判成 bind 尝试；
+ * state/verifier 残留同理可能被复用。login 模式的正常成功出口单独保留
+ * （只清 STATE/VERIFIER，语义不变，见 GET 内成功分支）。
+ */
+function flowExit(url: string): NextResponse {
   const res = NextResponse.redirect(url);
   res.cookies.delete(LINK_COOKIE);
   res.cookies.delete(STATE_COOKIE);
@@ -46,7 +51,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
       !PROVIDERS.has(provider) ||
       !oauthEnabled(provider)
     ) {
-      return NextResponse.redirect(loginError);
+      return flowExit(loginError);
     }
 
     const profile = await exchangeOAuthCode(provider, code, verifier);
@@ -58,7 +63,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     if (linkUserId) {
       const auth = await getAuth();
       if (!auth || auth.pending2fa || auth.user.id !== linkUserId) {
-        return bindExit(absolute(`${routes.login}?error=session`));
+        return flowExit(absolute(`${routes.login}?error=session`));
       }
       const [clash] = await db
         .select({ userId: oauthAccounts.userId })
@@ -71,7 +76,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
         )
         .limit(1);
       if (clash && clash.userId !== linkUserId) {
-        return bindExit(absolute("/settings/connections?error=taken"));
+        return flowExit(absolute("/settings/connections?error=taken"));
       }
       await db
         .insert(oauthAccounts)
@@ -81,7 +86,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
           providerAccountId: profile.providerAccountId,
         })
         .onConflictDoNothing();
-      return bindExit(absolute(`/settings/connections?linked=${provider}`));
+      return flowExit(absolute(`/settings/connections?linked=${provider}`));
     }
 
     const { user } = await findOrCreateFederatedUser(profile);
@@ -100,8 +105,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     console.error("[auth/oauth] callback failed:", err);
     // provider 邮箱未验证却撞上现有账户 → 用独立错误码，区别于笼统 oauth
     if (err instanceof AppError && err.code === "oauth_email_conflict") {
-      return NextResponse.redirect(absolute(`${routes.login}?error=oauth_email`));
+      return flowExit(absolute(`${routes.login}?error=oauth_email`));
     }
-    return NextResponse.redirect(loginError);
+    return flowExit(loginError);
   }
 }

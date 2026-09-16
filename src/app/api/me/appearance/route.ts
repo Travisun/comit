@@ -27,25 +27,37 @@ export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
     const body = parseOrThrow(bodySchema, await req.json().catch(() => null));
 
-    if (body.appearance) {
-      const current = auth.user.appearance ?? {};
-      const next = { ...current };
-      for (const [k, v] of Object.entries(body.appearance)) {
-        (next as Record<string, unknown>)[k] = v ?? null;
-      }
-      await db
-        .update(users)
-        .set({ appearance: next, updatedAt: new Date() })
-        .where(eq(users.id, auth.user.id));
-    }
-
-    if (body.widgets) {
+    if (body.appearance || body.widgets) {
       const valid = new Set(WIDGET_CATALOG.map((w) => w.id));
-      const widgets = [...new Set(body.widgets)].filter((id) => valid.has(id));
-      await db
-        .update(users)
-        .set({ widgets, updatedAt: new Date() })
-        .where(eq(users.id, auth.user.id));
+      const widgets = body.widgets
+        ? [...new Set(body.widgets)].filter((id) => valid.has(id))
+        : undefined;
+
+      // appearance / widgets 同在 users 行的 jsonb 列，读-改-写并发保存会互相
+      // 覆盖。事务 + FOR UPDATE 行锁串行化；锁内重读最新值（auth.user.appearance
+      // 只是会话快照，可能滞后），两列合一次 UPDATE 写回。
+      await db.transaction(async (tx) => {
+        const [row] = await tx
+          .select({ appearance: users.appearance })
+          .from(users)
+          .where(eq(users.id, auth.user.id))
+          .limit(1)
+          .for("update");
+
+        let appearance: typeof users.$inferSelect["appearance"] | undefined;
+        if (body.appearance) {
+          const next = { ...(row?.appearance ?? {}) };
+          for (const [k, v] of Object.entries(body.appearance)) {
+            (next as Record<string, unknown>)[k] = v ?? null;
+          }
+          appearance = next;
+        }
+
+        await tx
+          .update(users)
+          .set({ appearance, widgets, updatedAt: new Date() })
+          .where(eq(users.id, auth.user.id));
+      });
     }
 
     return ok();

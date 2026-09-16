@@ -17,7 +17,9 @@ import { callHook } from "@/core/hooks";
  * Server-side Markdown → HTML pipeline.
  *
  * remark-parse → gfm → math → hast → raw HTML (trusted set, sanitized hard)
- * → sanitize (XSS/iframe-proof) → KaTeX → Shiki code highlight → mermaid
+ * → sanitize (XSS/iframe-proof) → style 收紧（pre/code 内保留更宽的低危白名单、
+ * 但值层面高危声明同样剥除，见 rehypeTightenStyles）→ KaTeX → Shiki code
+ * highlight → mermaid
  * block marker → external-link guard (nofollow + target=_blank) → string.
  *
  * Mermaid blocks (```mermaid …```) are emitted as <div class="mermaid-block">
@@ -83,11 +85,114 @@ const sanitizeSchema = {
   },
   protocols: {
     ...defaultSchema.protocols,
-    src: ["http", "https", "data"],
+    // img/video/source src 只放行 http(s)。data: 已移除 —— 调查结论：管线内
+    // 无任何 data: URI 图片生产者（mermaid 是客户端渲染占位符 <div class=
+    // "mermaid-block" data-diagram=base64>，见 rehypeMermaidBlocks；KaTeX html
+    // 输出走 span+CSS 字体；shiki 输出 span）。保留 data: 反而给像素追踪
+    // （1x1 data: img 外带请求）和内容伪装留口子。
+    src: ["http", "https"],
     href: ["http", "https", "mailto", "#", "/"],
   },
   strip: [],
 };
+
+/**
+ * Style 收紧（在 sanitize 之后、KaTeX/Shiki 之前执行）：
+ *
+ * sanitize 层仍放行 style 属性（不能全局删 —— rehype-pretty-code/shiki 的行内
+ * 高亮依赖 style，且它在 sanitize 之后才注入，见下方管线顺序），这里做二次收紧：
+ * - <pre>/<code> 子树：低危属性放行范围更宽（shiki 高亮与用户自定义代码块配色
+ *   需要；prettyCode 在本 transform 之后运行本就不受影响，宽口径是防御管线
+ *   顺序变化，也保住用户手写的代码块内联样式），但**并非完全豁免** —— 值层面
+ *   的高危声明（url()/expression()/覆盖式定位/视口单位）同样剥除，否则 raw
+ *   HTML 可借 <pre><span style="position:fixed…"> 做全屏覆盖钓鱼或
+ *   background:url() 像素追踪；
+ * - 其余元素的 style 仅保留安全声明子集：color / background-color /
+ *   font-weight / font-style。
+ *
+ * 攻击面（attack surface）：position:fixed/absolute 等覆盖式钓鱼（浮层冒充
+ * 站点 UI 诱导输入/点击）、background-image:url() 像素追踪与访客 IP 外泄。
+ * 白名单属性本身无法携带 url()，值层面再做 url(/expression() 双保险过滤。
+ */
+const SAFE_STYLE_PROPS = new Set(["color", "background-color", "font-weight", "font-style"]);
+
+/**
+ * 任何上下文（含 pre/code 子树）都禁止的覆盖式声明属性：全屏定位、位移、
+ * 尺寸类 —— 是覆盖钓鱼（overlay phishing）的最小工具集。shiki 高亮所需的
+ * color/background-color/display/--shiki-* 等均不在列，不受影响。
+ */
+const DANGEROUS_STYLE_PROPS = new Set([
+  "position",
+  "top",
+  "right",
+  "bottom",
+  "left",
+  "inset",
+  "z-index",
+  "transform",
+  "translate",
+  "rotate",
+  "scale",
+  "width",
+  "height",
+  "min-width",
+  "max-width",
+  "min-height",
+  "max-height",
+]);
+
+/** 值层面高危模式：url()/expression()（外带请求/旧 IE 脚本）与 vh/vw 等
+ *  视口单位（配合尺寸类属性可撑满全屏）。要求数字前缀避免误伤字体名等。 */
+const DANGEROUS_STYLE_VALUE = /url\s*\(|expression\s*\(|\d(?:\.\d+)?\s*(?:vh|vw|vmin|vmax)\b/i;
+
+function rehypeTightenStyles() {
+  // 严格白名单（pre/code 之外）：仅保留颜色/字重子集
+  const strictStyle = (style: string): string =>
+    style
+      .split(";")
+      .map((decl) => decl.trim())
+      .filter((decl) => {
+        const i = decl.indexOf(":");
+        if (i <= 0) return false;
+        // 双保险：即使白名单误放行，含 url()/expression() 的声明一律丢弃
+        if (/url\s*\(|expression\s*\(/i.test(decl)) return false;
+        return SAFE_STYLE_PROPS.has(decl.slice(0, i).trim().toLowerCase());
+      })
+      .join("; ");
+  // pre/code 子树：属性白名单放宽（保留 --shiki-* 自定义属性、display 等
+  // 低危声明），但高危属性与高危值一律剥除 —— 内外差别只是"低危放行更宽"
+  const codeStyle = (style: string): string =>
+    style
+      .split(";")
+      .map((decl) => decl.trim())
+      .filter((decl) => {
+        const i = decl.indexOf(":");
+        if (i <= 0) return false;
+        const prop = decl.slice(0, i).trim().toLowerCase();
+        if (prop.startsWith("--")) return true; // CSS 自定义属性（如 shiki 的 --shiki-*）
+        if (DANGEROUS_STYLE_PROPS.has(prop)) return false;
+        if (DANGEROUS_STYLE_VALUE.test(decl)) return false;
+        return true;
+      })
+      .join("; ");
+  return (tree: Root) => {
+    // 先标记 <pre>/<code> 子树（含自身）—— 走更宽的 codeStyle，而非完全豁免
+    const inCode = new WeakSet<Element>();
+    visit(tree, "element", (node) => {
+      if (node.tagName !== "pre" && node.tagName !== "code") return;
+      visit(node, "element", (desc) => {
+        inCode.add(desc);
+      });
+    });
+    visit(tree, "element", (node) => {
+      const style = node.properties?.style;
+      if (typeof style !== "string" || !style) return;
+      const next = (inCode.has(node) ? codeStyle : strictStyle)(style);
+      if (next) node.properties.style = next;
+      else delete node.properties.style;
+    });
+  };
+}
 
 function rehypeMermaidBlocks() {
   const prop = (el: Element, a: string, b: string): unknown =>
@@ -187,6 +292,7 @@ const processor = unified()
   .use(rehypeRaw)
   .use(rehypeDropDangerous)
   .use(rehypeSanitize, sanitizeSchema as never)
+  .use(rehypeTightenStyles)
   .use(rehypeKatex, { output: "html", strict: false, trust: false })
   .use(rehypePrettyCode, {
     theme: { dark: "github-dark-dimmed", light: "github-light" },

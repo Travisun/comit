@@ -1,22 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { apiGet, postJsonSafe } from "@/lib/client/api";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
+import { apiGet, postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
+import { useApiMutation } from "@/lib/query/mutation";
 import { Check, FolderPlus, Loader2 } from "lucide-react";
-import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-interface CollectionItem {
-  id: string;
-  name: string;
-}
 
 /**
  * Collection picker for the publish-settings panel: loads the user's
  * collections (GET /api/posts/collections), supports inline creation
  * (POST /api/posts/collections). `value` is collectionId | null.
+ *
+ * 读取与 post-tree / pinned-composer 共用 queryKeys.collections() 同一份
+ * 查询缓存；创建走 useApiMutation，成功后失效该键让三处同步可见。
  */
 export function CollectionSelect({
   value,
@@ -26,44 +27,43 @@ export function CollectionSelect({
   onChange: (id: string | null) => void;
 }) {
   const { t } = useI18n();
-  const [items, setItems] = useState<CollectionItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    let alive = true;
-    apiGet<{ items?: CollectionItem[] }>("/api/posts/collections")
-      .then((data) => {
-        if (alive) setItems(data.items ?? []);
-      })
-      .catch(() => undefined)
-      .finally(() => alive && setLoading(false));
-    return () => {
-      alive = false;
-    };
-  }, []);
+  const collectionsQ = useQuery({
+    queryKey: queryKeys.collections(),
+    queryFn: async () =>
+      z
+        .object({ items: z.array(z.object({ id: z.string(), name: z.string() })) })
+        .parse(await apiGet<unknown>("/api/posts/collections")).items,
+  });
+  const items = collectionsQ.data ?? [];
+  const loading = collectionsQ.isLoading;
 
-  const create = async () => {
+  const createMutation = useApiMutation(
+    async (trimmed: string) => {
+      const data = await postJson<{ id: string; name: string }>("/api/posts/collections", {
+        name: trimmed,
+      });
+      if (!data?.id) throw new Error(t("common.error"));
+      return data;
+    },
+    {
+      refresh: false, // 合集不在 RSC 树上，查询缓存失效即可
+      invalidate: [queryKeys.collections()],
+      onSuccess: (data) => {
+        onChange(data.id);
+        setCreating(false);
+        setName("");
+      },
+    },
+  );
+
+  function create() {
     const trimmed = name.trim();
-    if (!trimmed) return;
-    setSaving(true);
-    try {
-      const r = await postJsonSafe<CollectionItem>("/api/posts/collections", { name: trimmed });
-      if (!r.ok) throw new Error(r.error ?? t("common.error"));
-      if (!r.data?.id) throw new Error(t("common.error"));
-      const data = r.data;
-      setItems((prev) => [data, ...prev.filter((c) => c.id !== data.id)]);
-      onChange(data.id);
-      setCreating(false);
-      setName("");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("common.error"));
-    } finally {
-      setSaving(false);
-    }
-  };
+    if (!trimmed || createMutation.pending) return;
+    void createMutation.mutate(trimmed);
+  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -77,15 +77,20 @@ export function CollectionSelect({
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                void create();
+                create();
               } else if (e.key === "Escape") {
                 setCreating(false);
                 setName("");
               }
             }}
           />
-          <Button type="button" size="icon-sm" disabled={saving || !name.trim()} onClick={() => void create()}>
-            {saving ? <Loader2 className="animate-spin" /> : <Check />}
+          <Button
+            type="button"
+            size="icon-sm"
+            disabled={createMutation.pending || !name.trim()}
+            onClick={create}
+          >
+            {createMutation.pending ? <Loader2 className="animate-spin" /> : <Check />}
           </Button>
         </div>
       ) : (

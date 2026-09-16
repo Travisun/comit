@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { toast } from "sonner";
 import { Check, Link2, Loader2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -12,19 +13,29 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
 import { apiRequest } from "./client";
 import { useI18n } from "@/lib/i18n/client";
 
-interface Connection {
-  provider: "github" | "google" | "linuxdo";
-  label: string;
-  desc: string;
-  enabled: boolean;
-  linked: boolean;
-}
+/**
+ * 服务端 /api/me/connections 只返回 provider/enabled/linked —— 展示文案
+ * （label/desc）是纯 i18n 展示层信息，统一由本文件的 PROVIDER_META 提供，
+ * 响应模型在边界用 zod 收敛（apiQueryOptions）。
+ */
+const connectionSchema = z.object({
+  provider: z.enum(["github", "google", "linuxdo"]),
+  enabled: z.boolean(),
+  linked: z.boolean(),
+});
 
-const PROVIDER_META: Record<string, { label: string; desc: { zh: string; en: string } }> = {
+const connectionsResponseSchema = z.object({
+  connections: z.array(connectionSchema),
+});
+
+type Connection = z.infer<typeof connectionSchema>;
+
+const PROVIDER_META: Record<Connection["provider"], { label: string; desc: { zh: string; en: string } }> = {
   github: { label: "GitHub", desc: { zh: "使用 GitHub 账号登录", en: "Sign in with GitHub" } },
   google: { label: "Google", desc: { zh: "使用 Google 账号登录", en: "Sign in with Google" } },
   linuxdo: { label: "Linux.do", desc: { zh: "使用 Linux.do 账号登录（L 站社区账号）", en: "Sign in with your Linux.do account" } },
@@ -36,12 +47,14 @@ export function ConnectionsPanel() {
   const zh = locale === "zh";
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
 
-  const connectionsQ = useQuery({
-    queryKey: queryKeys.connections(),
-    queryFn: async () =>
-      (await apiRequest<{ connections: Connection[] }>("/api/me/connections", "GET")).connections,
-  });
-  const connections = connectionsQ.data;
+  const connectionsQ = useQuery(
+    apiQueryOptions({
+      queryKey: queryKeys.connections(),
+      url: "/api/me/connections",
+      schema: connectionsResponseSchema,
+    }),
+  );
+  const connections = connectionsQ.data?.connections;
 
   // 解绑 — pending 驱动禁用态；busyProvider 仅用于定位是哪一行在转圈
   const unbindMutation = useApiMutation(
@@ -96,7 +109,7 @@ export function ConnectionsPanel() {
             icon={<Link2 className="size-4" />}
             title={
               <span className="flex items-center gap-2">
-                {conn.label}
+                {PROVIDER_META[conn.provider].label}
                 {conn.linked && (
                   <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
                     <Check className="size-3.5" /> {zh ? "已绑定" : "Linked"}
@@ -104,7 +117,7 @@ export function ConnectionsPanel() {
                 )}
               </span>
             }
-            description={PROVIDER_META[conn.provider]?.desc?.[zh ? "zh" : "en"] ?? ""}
+            description={PROVIDER_META[conn.provider].desc[zh ? "zh" : "en"]}
             control={
               conn.linked ? (
                 <Button

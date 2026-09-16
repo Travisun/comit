@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { AppError } from "@/core/errors";
 import { ok, withUser } from "@/lib/http";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { isSupportedImage, processAndSaveImage, type MediaKind } from "@/lib/media";
 import { routes } from "@/core/routes";
 import { runMediaProcessors } from "@/core/capabilities/media";
@@ -20,8 +20,8 @@ const kindSchema = z.enum(["inline", "avatar", "cover", "featured"]);
 
 export async function POST(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
-    // per-user 限流：20 次/分钟（对齐 auth 组的 rateLimit 用法）
-    rateLimit(`upload:${auth.user.id}`, 20, 60_000);
+    // 桶 write.upload：per-user 限流，默认 20 次/分钟
+    await rateLimitBucket("write.upload", auth.user.id);
 
     // 解析 formData 前先按 Content-Length 短路，避免超大 body 白白占用内存
     const declaredLength = Number(req.headers.get("content-length"));

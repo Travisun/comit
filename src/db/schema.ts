@@ -6,6 +6,7 @@ import {
   varchar,
   boolean,
   integer,
+  bigint,
   timestamp,
   jsonb,
   index,
@@ -185,6 +186,15 @@ export const totpSecrets = pgTable("totp_secrets", {
   confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
   /** sha256 hashes of unused recovery codes */
   recoveryCodes: jsonb("recovery_codes").$type<string[]>().default([]).notNull(),
+  /** 防重放：最近一次成功使用的 TOTP 时间步（unix epoch / 30）；同一窗口内 code 只允许用一次 */
+  lastUsedStep: bigint("last_used_step", { mode: "number" }),
+});
+
+/** 分布式限流（固定窗口计数；进程内 Map 的 PG 后备，多 worker 共享阈值）— 无外键，过期行由 retention cron 清理 */
+export const rateLimits = pgTable("rate_limits", {
+  key: varchar("key", { length: 200 }).primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  count: integer("count").notNull().default(0),
 });
 
 export const invites = pgTable(

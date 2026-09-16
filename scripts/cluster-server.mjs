@@ -30,11 +30,13 @@ const UV_THREADS = process.env.UV_THREADPOOL_SIZE || "8";
 if (cluster.isPrimary) {
   console.log(`[cluster] master pid=${process.pid} forking ${WORKERS} workers (uv threads=${UV_THREADS})`);
   if (WORKERS > 1) {
-    // 多进程语义告警（不改变行为）：rate-limit 等组件是进程内存态，
-    // 每 worker 各自独立计数 → 有效阈值按 worker 数放大；需要精确全局限流时换 Redis。
+    // 多进程语义告警（不改变行为）：限流已是 PG 共享计数，多 worker 阈值一致，
+    // DB 故障/超时才会短暂退化为进程内计数（阈值按 worker 数暂时放大）；
+    // 缓存与 settings 失效仍为进程内存态，多 worker 间不共享。
     console.warn(
-      `[cluster] WEB_CONCURRENCY=${WORKERS}: in-process rate limiting / caches are per-worker memory — ` +
-        `effective limits scale by worker count; use Redis for exact global limits`,
+      `[cluster] WEB_CONCURRENCY=${WORKERS}: rate limiting is PG-backed (shared across workers; ` +
+        `briefly degrades to per-worker in-process memory if the DB is down) — ` +
+        `caches and settings invalidation remain per-worker in-process memory`,
     );
   }
   for (let i = 0; i < WORKERS; i++) {

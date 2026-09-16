@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { ExternalLink, Check, X, Trash2, MoreHorizontal } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/input";
-import { api } from "./client";
+import { deleteJson, postJson, requestJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
 
 /* ----------------------------- reject dialog ---------------------------- */
 
@@ -124,46 +124,40 @@ export function ConfirmDialog({
 
 /* --------------------------- post row actions --------------------------- */
 
-export interface PostLike {
+interface PostLike {
   id: string;
   title: string | null;
   status: string;
 }
 
+/**
+ * admin 文章列表键前缀 — 暂未入厂（keys.ts 冻结）；列表查询与行内操作
+ * 的失效共用此前缀，同域内保持一致。
+ */
+export const ADMIN_POSTS_KEY_PREFIX = ["admin", "posts"] as const;
+
 /** Dropdown actions for one post: view / approve / reject / delete. */
-export function PostRowActions({ post, onChanged }: { post: PostLike; onChanged: () => void }) {
-  const [pending, setPending] = useState(false);
+export function PostRowActions({ post }: { post: PostLike }) {
   const [rejectOpen, setRejectOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
-  async function run(fn: () => Promise<unknown>, success: string) {
-    setPending(true);
-    try {
-      await fn();
-      toast.success(success);
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "操作失败");
-    } finally {
-      setPending(false);
-    }
-  }
-
-  const approve = () =>
-    run(() => api(`/api/admin/posts/${post.id}/approve`, { method: "POST" }), "已通过审核并发布");
-  const reject = (reason: string) =>
-    run(
-      () =>
-        api(`/api/admin/posts/${post.id}/reject`, {
-          method: "POST",
-          body: JSON.stringify({ reason }),
-        }),
-      "已驳回",
-    ).then(() => setRejectOpen(false));
-  const remove = () =>
-    run(() => api(`/api/admin/posts/${post.id}`, { method: "DELETE" }), "已删除").then(() =>
-      setDeleteOpen(false),
-    );
+  // 提交统一走 useApiMutation：pending 驱动禁用态，成功后失效文章列表
+  // 缓存（refresh:false — 列表靠 invalidate 回流，不触发整页 RSC 重验）
+  const approveMutation = useApiMutation(
+    (p: PostLike) => requestJson(`/api/admin/posts/${p.id}/approve`, { method: "POST" }),
+    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已通过审核并发布" },
+  );
+  const rejectMutation = useApiMutation(
+    (input: { post: PostLike; reason: string }) =>
+      postJson(`/api/admin/posts/${input.post.id}/reject`, { reason: input.reason }),
+    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已驳回" },
+  );
+  const deleteMutation = useApiMutation(
+    (p: PostLike) => deleteJson(`/api/admin/posts/${p.id}`),
+    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已删除" },
+  );
+  const pending =
+    approveMutation.pending || rejectMutation.pending || deleteMutation.pending;
 
   return (
     <>
@@ -179,7 +173,7 @@ export function PostRowActions({ post, onChanged }: { post: PostLike; onChanged:
           </DropdownMenuItem>
           <DropdownMenuItem
             disabled={post.status === "published"}
-            onSelect={() => approve()}
+            onSelect={() => void approveMutation.mutate(post)}
           >
             <Check /> 通过审核
           </DropdownMenuItem>
@@ -199,8 +193,12 @@ export function PostRowActions({ post, onChanged }: { post: PostLike; onChanged:
       <RejectDialog
         open={rejectOpen}
         onOpenChange={setRejectOpen}
-        pending={pending}
-        onSubmit={reject}
+        pending={rejectMutation.pending}
+        onSubmit={async (reason) => {
+          // mutate 失败不抛出（错误 toast 由统一封装兜底），收尾照常关框
+          await rejectMutation.mutate({ post, reason });
+          setRejectOpen(false);
+        }}
       />
       <ConfirmDialog
         open={deleteOpen}
@@ -209,8 +207,11 @@ export function PostRowActions({ post, onChanged }: { post: PostLike; onChanged:
         description={`「${post.title ?? "无标题"}」将被永久删除，评论等关联数据一并移除。`}
         confirmText="永久删除"
         destructive
-        pending={pending}
-        onConfirm={remove}
+        pending={deleteMutation.pending}
+        onConfirm={async () => {
+          await deleteMutation.mutate(post);
+          setDeleteOpen(false);
+        }}
       />
     </>
   );

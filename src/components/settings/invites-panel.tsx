@@ -1,16 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { SettingsData } from "./types";
 
 type InvitesData = SettingsData["invites"];
+
+/** 邀请码键 — keys.ts 冻结期内就地定义（暂未入厂） */
+const INVITES_KEY = ["me", "invites"] as const;
 
 /**
  * 邀请码一览 — 用量概览（额度进度）+ 状态时间线列表。
@@ -19,30 +23,26 @@ type InvitesData = SettingsData["invites"];
  */
 export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: string }) {
   const { t, locale } = useI18n();
-  const [codes, setCodes] = useState(data.codes);
-  const [remaining, setRemaining] = useState(data.remaining);
-  const [busy, setBusy] = useState(false);
+
+  // 邀请数据 — 服务端首屏作 initialData；生成后失效重取（原本地插队等价）
+  const invitesQ = useQuery({
+    queryKey: INVITES_KEY,
+    queryFn: () => apiRequest<InvitesData>("/api/me/invites", "GET"),
+    initialData: data,
+  });
+  const codes = invitesQ.data?.codes ?? [];
+  const remaining = invitesQ.data?.remaining ?? 0;
+
+  // 生成邀请码 — 成功 toast 带新码（与原文案一致），额度/列表由重取回流
+  const generateMutation = useApiMutation(() => apiRequest<{ code: string }>("/api/me/invites", "POST", {}), {
+    refresh: false,
+    invalidate: [INVITES_KEY],
+    successToast: (res) => (locale === "zh" ? `已生成 ${res.code}` : `Generated ${res.code}`),
+  });
 
   const used = codes.filter((c) => c.usedAt).length;
   const total = data.max;
   const usedPct = Math.min(100, Math.round((used / Math.max(1, total)) * 100));
-
-  async function generate() {
-    setBusy(true);
-    try {
-      const res = await apiRequest<{ code: string }>("/api/me/invites", "POST", {});
-      setCodes((prev) => [
-        { code: res.code, createdAt: new Date().toISOString(), usedAt: null, usedByUsername: null },
-        ...prev,
-      ]);
-      setRemaining((r) => Math.max(0, r - 1));
-      toast.success(locale === "zh" ? `已生成 ${res.code}` : `Generated ${res.code}`);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function copyLink(code: string) {
     const link = `${appUrl}/auth/register?invite=${code}`;
@@ -77,8 +77,12 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
                 : `${remaining} invites left`
               : t("settings.invites.limit")}
           </p>
-          <Button size="sm" onClick={generate} disabled={busy || remaining <= 0}>
-            {busy ? <Loader2 className="animate-spin" /> : <Plus />}
+          <Button
+            size="sm"
+            onClick={() => void generateMutation.mutate(undefined)}
+            disabled={generateMutation.pending || remaining <= 0}
+          >
+            {generateMutation.pending ? <Loader2 className="animate-spin" /> : <Plus />}
             {t("settings.invites.generate")}
           </Button>
         </div>

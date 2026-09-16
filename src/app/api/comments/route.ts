@@ -7,6 +7,7 @@ import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { hooks } from "@/core/hooks";
 import { jsonBody, ok, withApi, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
 import { makeExcerpt } from "@/lib/utils";
@@ -37,6 +38,8 @@ export async function POST(req: Request) {
     if (!parsed.success) bad();
     const { postId, body, replyToCommentId } = parsed.data;
     const me = auth.user;
+    // 桶 write.comment：per-user 默认 30 次/分钟，zod 校验通过后再计数
+    await rateLimitBucket("write.comment", me.id);
 
     const [row] = await db
       .select({ post: posts, authorCommentsEnabled: users.commentsEnabled })

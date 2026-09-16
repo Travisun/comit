@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, KeyRound, Loader2, Plus, Plug, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,9 +17,13 @@ import {
 } from "@/components/ui/dialog";
 import { SettingsPanelList, SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { TokenView } from "./types";
+
+/** 令牌列表键 — keys.ts 冻结期内就地定义（暂未入厂） */
+const TOKENS_KEY = ["me", "tokens"] as const;
 
 const SCOPE_LABELS: Record<string, string> = {
   "posts:read": "文章读取 / Read posts",
@@ -88,44 +93,52 @@ export function ApiTokensPanel({
   availableScopes: string[];
 }) {
   const { t, locale } = useI18n();
-  const [tokens, setTokens] = useState(initial);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<string[]>(["posts:read"]);
   const [created, setCreated] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+
+  // 令牌列表 — 服务端首屏作 initialData；创建/吊销后失效重取
+  const tokensQ = useQuery({
+    queryKey: TOKENS_KEY,
+    queryFn: async () => (await apiRequest<{ tokens: TokenView[] }>("/api/me/tokens", "GET")).tokens,
+    initialData: initial,
+  });
+  const tokens = tokensQ.data ?? [];
 
   function toggleScope(s: string) {
     setScopes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
   }
 
-  async function create() {
-    setBusy(true);
-    try {
-      const res = await apiRequest<{ id: string; token: string }>("/api/me/tokens", "POST", {
-        name: name.trim(),
-        scopes,
-      });
-      setCreated(res.token);
-      setOpen(false);
-      setName("");
-      setScopes(["posts:read"]);
-      const list = await apiRequest<{ tokens: TokenView[] }>("/api/me/tokens", "GET");
-      setTokens(list.tokens);
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 创建令牌 — 成功弹一次性明文并失效列表（原「创建后裸 GET 回填」由
+  // invalidate + useQuery 接管）；失败 toast 语义与原一致（err.message）
+  const createMutation = useApiMutation(
+    async (payload: { name: string; scopes: string[] }) => {
+      const res = await apiRequest<{ id: string; token: string }>("/api/me/tokens", "POST", payload);
+      if (!res?.token) throw new Error(t("common.error"));
+      return res.token;
+    },
+    {
+      refresh: false,
+      invalidate: [TOKENS_KEY],
+      onSuccess: (token) => {
+        setCreated(token);
+        setOpen(false);
+        setName("");
+        setScopes(["posts:read"]);
+      },
+    },
+  );
 
-  async function revoke(token: TokenView) {
-    try {
-      await apiRequest(`/api/me/tokens/${token.id}`, "DELETE");
-      setTokens((prev) => prev.map((x) => (x.id === token.id ? { ...x, revokedAt: new Date().toISOString() } : x)));
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
+  // 吊销令牌 — 失效列表让 revokedAt 从服务端数据回流（原本地打点等价）
+  const revokeMutation = useApiMutation((token: TokenView) => apiRequest(`/api/me/tokens/${token.id}`, "DELETE"), {
+    refresh: false,
+    invalidate: [TOKENS_KEY],
+  });
+
+  function create() {
+    if (createMutation.pending || !name.trim() || scopes.length === 0) return;
+    void createMutation.mutate({ name: name.trim(), scopes });
   }
 
   return (
@@ -194,7 +207,13 @@ export function ApiTokensPanel({
                 </div>
                 {!revoked && (
                   <div className="shrink-0">
-                    <Button variant="outline" size="sm" className="text-destructive" onClick={() => void revoke(tk)}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-destructive"
+                      disabled={revokeMutation.pending}
+                      onClick={() => void revokeMutation.mutate(tk)}
+                    >
                       <Trash2 />
                       {t("settings.tokens.revoke")}
                     </Button>
@@ -247,8 +266,8 @@ export function ApiTokensPanel({
             <Button variant="outline" onClick={() => setOpen(false)}>
               {t("common.cancelAction")}
             </Button>
-            <Button onClick={create} disabled={busy || !name.trim() || scopes.length === 0}>
-              {busy && <Loader2 className="animate-spin" />}
+            <Button onClick={create} disabled={createMutation.pending || !name.trim() || scopes.length === 0}>
+              {createMutation.pending && <Loader2 className="animate-spin" />}
               {t("common.confirm")}
             </Button>
           </DialogFooter>

@@ -1,17 +1,15 @@
-import { and, desc, eq, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
+import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { posts, users, media, comments, topics, postTopics, collections } from "@/db/schema";
 import {
   registerMcpTool,
   type McpToolDef,
-  type McpToolContext,
   type Plugin,
 } from "@/core/plugins/types";
 import { emit } from "@/core/events";
-import { uniqueSlug } from "@/lib/users";
-import { makeExcerpt } from "@/lib/utils";
-import { preSubmitCheck, reviewPost } from "@/lib/moderation";
-import { getSetting } from "@/lib/settings";
+import { makeExcerpt, slugifyTitle } from "@/lib/utils";
+import { preSubmitCheck } from "@/lib/moderation";
 
 /**
  * MCP plugin — exposes the platform to LLM agents over the Model Context
@@ -38,6 +36,98 @@ async function postWithAuthor(postId: string) {
     .limit(1);
   return row;
 }
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Resolve a fresh slug for a new article — same semantics as the canonical
+ * `resolveArticleSlug` in src/app/api/posts/_shared.ts: an opaque 10-char
+ * url-safe short id (nanoid), deduped within the author's slug namespace
+ * (matching posts_author_slug_key), with a longer fallback after repeated
+ * clashes. Local copy on purpose: extensions don't import app-route modules.
+ * 与 web 同款：服务端生成的 opaque short id，客户端/工具参数提供的 slug 按设计忽略。
+ */
+async function resolveArticleSlug(tx: Tx, authorId: string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = nanoid(10);
+    const [clash] = await tx
+      .select({ id: posts.id })
+      .from(posts)
+      .where(and(eq(posts.authorId, authorId), eq(posts.slug, candidate)))
+      .limit(1);
+    if (!clash) return candidate;
+  }
+  return nanoid(16);
+}
+
+/**
+ * Topic slug normalization — mirrors `normalizeSlug` in _shared.ts
+ * (slugifyTitle strips CJK → keep the lowercased name as fallback; slug is
+ * CJK-safe). The slug IS the topic identity: same slug reuses the existing
+ * row instead of spawning a duplicate per call (the old Math.random suffix
+ * created a new topic row on every MCP create_article).
+ */
+function normalizeTopicSlug(name: string): string {
+  const fallback = name.trim().toLowerCase().replace(/\s+/g, "-").slice(0, 100);
+  const s = slugifyTitle(name);
+  const out = (s.startsWith("post-") && !name.match(/^[a-z0-9]/i) ? fallback : s).replace(
+    /[^a-z0-9\u4e00-\u9fff-]/gi,
+    "",
+  );
+  return out || fallback || `t-${Date.now().toString(36)}`;
+}
+
+/** Upsert topics by slug (≤5) and link them to the post — `_shared.syncPostTopics` 同款语义. */
+async function syncPostTopics(tx: Tx, postId: string, names: string[]): Promise<void> {
+  const seen = new Set<string>();
+  const cleaned: { name: string; slug: string }[] = [];
+  for (const raw of names) {
+    const name = raw.trim().replace(/\s+/g, " ").slice(0, 60);
+    if (!name) continue;
+    const slug = normalizeTopicSlug(name);
+    if (seen.has(slug)) continue;
+    seen.add(slug);
+    cleaned.push({ name, slug });
+  }
+  for (const t of cleaned) {
+    await tx.insert(topics).values({ slug: t.slug, name: t.name }).onConflictDoNothing({
+      target: topics.slug,
+    });
+  }
+  const rows = cleaned.length
+    ? await tx.select().from(topics).where(inArray(topics.slug, cleaned.map((t) => t.slug)))
+    : [];
+  if (rows.length) {
+    await tx
+      .insert(postTopics)
+      .values(rows.map((r) => ({ postId, topicId: r.id })))
+      .onConflictDoNothing();
+  }
+}
+
+/** 合集归属校验（对照 _shared.assertCollectionOwned：不存在/非本人 → 报错）。 */
+async function assertCollectionOwned(collectionId: string, userId: string): Promise<void> {
+  const [row] = await db
+    .select({ id: collections.id })
+    .from(collections)
+    .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)))
+    .limit(1);
+  if (!row) throw new Error("collection not found or not yours");
+}
+
+/**
+ * 变更类工具名单 — 与上方 TOOLS 定义逐一核对后的写操作集合（写库 / 删文件）：
+ * create_article / update_post / delete_post（posts:write）+ delete_media
+ * （media:write）。其余 list/search/get 类工具均为只读。/api/mcp 路由在站点
+ * 维护期间据此拦截 tools/call（只读工具与 tools/list 等元方法照常放行）。
+ * 名单放在 TOOLS 旁边是有意的：新增写工具时改两处相邻代码，不易漏。
+ */
+export const MCP_MUTATING_TOOLS: ReadonlySet<string> = new Set([
+  "create_article",
+  "update_post",
+  "delete_post",
+  "delete_media",
+]);
 
 const TOOLS: McpToolDef[] = [
   tool(
@@ -100,7 +190,7 @@ const TOOLS: McpToolDef[] = [
   ),
   tool(
     "create_article",
-    "Create a new article (markdown) owned by the authenticated user and submit it through the review pipeline.",
+    "Create a new article (markdown) owned by the authenticated user. publishNow=false saves a draft; otherwise the article enters the same submit/review pipeline as the web editor (pre-submit keyword gate → pending_review → the moderation plugin publishes or queues review).",
     ["posts:write"],
     {
       type: "object",
@@ -116,47 +206,67 @@ const TOOLS: McpToolDef[] = [
       },
     },
     async (args, ctx) => {
-      const title = String(args.title).slice(0, 200);
+      // 与 web POST /api/posts 对齐的基本校验：文章必须有标题与内容
+      const title = String(args.title).trim().slice(0, 200);
       const content = String(args.content);
-      const [post] = await db
-        .insert(posts)
-        .values({
-          authorId: ctx.userId,
-          type: "article",
-          title,
-          slug: await uniqueSlug(ctx.userId, title),
-          summary: String(args.summary ?? "") || makeExcerpt(content),
-          content,
-          status: "draft",
-          visibility: args.visibility === "followers" ? "followers" : "public",
-          collectionId: args.collectionId ? String(args.collectionId) : null,
-        })
-        .returning();
-      const topicNames = (Array.isArray(args.topics) ? args.topics : []).slice(0, 5);
-      for (const name of topicNames) {
-        const slug = String(name).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-|-$/g, "").slice(0, 80) || `t-${Date.now()}`;
-        const [topic] = await db
-          .insert(topics)
-          .values({ slug: `${slug}-${Math.random().toString(36).slice(2, 6)}`, name: String(name) })
-          .onConflictDoNothing()
-          .returning();
-        const t =
-          topic ??
-          (await db.select().from(topics).where(eq(topics.name, String(name))).limit(1))[0];
-        if (t) await db.insert(postTopics).values({ postId: post.id, topicId: t.id }).onConflictDoNothing();
-      }
-      if (args.publishNow !== false) {
-        const check = await preSubmitCheck(title, content);
-        if (check.blocked.length) {
-          await db.update(posts).set({ status: "rejected", rejectReason: `命中黑名单关键词: ${check.blocked.join(", ")}` }).where(eq(posts.id, post.id));
-          return { id: post.id, status: "rejected", blockedKeywords: check.blocked };
+      if (!title) throw new Error("文章必须有标题 / Articles require a title");
+      if (!content.trim()) throw new Error("文章内容不能为空 / Article content cannot be empty");
+      if (args.collectionId) await assertCollectionOwned(String(args.collectionId), ctx.userId);
+
+      const submit = args.publishNow !== false;
+
+      // 硬关键词门禁与 web 创建语义一致：命中即拒绝、不落库（web 为 422，
+      // 工具侧以 error 结果返回，调用方可看到被拦关键词）
+      if (submit) {
+        const { blocked } = await preSubmitCheck(title, content);
+        if (blocked.length) {
+          throw new Error(`内容包含被禁止的关键词：${blocked.join("、")}`);
         }
-        await db.update(posts).set({ status: "pending_review" }).where(eq(posts.id, post.id));
-        const [fresh] = await db.select().from(posts).where(eq(posts.id, post.id)).limit(1);
-        const outcome = await reviewPost(fresh);
-        return { id: post.id, status: outcome.status, reason: outcome.reason };
       }
-      return { id: post.id, status: "draft" };
+
+      const summary = String(args.summary ?? "") || makeExcerpt(content);
+      const topicNames = (Array.isArray(args.topics) ? args.topics : [])
+        .map((n) => String(n))
+        .slice(0, 5);
+
+      // 单事务覆盖 post + topics + 关联，任一失败整体回滚（对照 POST /api/posts）
+      const post = await db.transaction(async (tx) => {
+        const [row] = await tx
+          .insert(posts)
+          .values({
+            authorId: ctx.userId,
+            type: "article",
+            title,
+            slug: await resolveArticleSlug(tx, ctx.userId),
+            summary,
+            content,
+            status: submit ? "pending_review" : "draft",
+            visibility: args.visibility === "followers" ? "followers" : "public",
+            collectionId: args.collectionId ? String(args.collectionId) : null,
+          })
+          .returning();
+        await syncPostTopics(tx, row.id, topicNames);
+        return row;
+      });
+
+      if (!submit) return { id: post.id, slug: post.slug, status: "draft" };
+
+      // 提交流程与 web 一致：只 emit post:submitted，由 moderation 插件决定
+      // 直接发布（reviewMode=off）或入队审核 —— 不在创建路径内联 reviewPost
+      // （旧实现绕过审核流与 post:publishing 钩子，发布口径和 web 不一致）。
+      await emit("post:submitted", {
+        postId: post.id,
+        authorId: ctx.userId,
+        title,
+        needReview: true,
+      });
+      // emit 返回后终态已定（同进程监听器同步执行）：published 或 pending_review
+      const [fresh] = await db
+        .select({ status: posts.status })
+        .from(posts)
+        .where(eq(posts.id, post.id))
+        .limit(1);
+      return { id: post.id, slug: post.slug, status: fresh?.status ?? "pending_review" };
     },
   ),
   tool(
@@ -189,15 +299,37 @@ const TOOLS: McpToolDef[] = [
   ),
   tool(
     "delete_post",
-    "Delete one of the authenticated user's posts permanently.",
+    "Move one of the authenticated user's posts to the recycle bin (soft delete, restorable from the web UI). Posts already in the recycle bin are reported as not found.",
     ["posts:write"],
     { type: "object", required: ["postId"], properties: { postId: { type: "string" } } },
     async (args, ctx) => {
-      const rows = await db
-        .delete(posts)
-        .where(and(eq(posts.id, String(args.postId)), eq(posts.authorId, ctx.userId)))
+      // 与 web DELETE /api/posts/[id]（不带 ?purge=true）同款软删：
+      // status=deleted + preDeleteStatus + deletedAt，保留评论/点赞，可从回收站
+      // 恢复；已删除的行视为不存在（回收站的恢复/彻底清除走 web 专用端点）。
+      //
+      // 条件更新防并发（对照 admin approve 路由的写法）：不做先 select 后
+      // update 的两步写 —— 那样与 web 回收站「恢复」并发时会把已恢复的文章
+      // 再次置 deleted，并以 select 时点的旧状态覆写 preDeleteStatus。改为单条
+      // UPDATE ... WHERE status <> 'deleted' + returning 判空，0 行即「不存在
+      // 或已删除」，与原 not-found 语义一致；preDeleteStatus 在同一语句内引用
+      // status 列旧值（Postgres SET 右侧取更新前的行值），保证快照准确。
+      const [deleted] = await db
+        .update(posts)
+        .set({
+          status: "deleted",
+          preDeleteStatus: sql`${posts.status}`,
+          deletedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(posts.id, String(args.postId)),
+            eq(posts.authorId, ctx.userId),
+            ne(posts.status, "deleted"),
+          ),
+        )
         .returning({ id: posts.id });
-      return { deleted: rows.length > 0 };
+      if (!deleted) throw new Error("post not found or not yours");
+      return { id: deleted.id, deleted: true, status: "deleted" };
     },
   ),
   tool(
@@ -359,7 +491,7 @@ const plugin: Plugin = {
   name: "mcp",
   description: "Model Context Protocol tools for agent access",
   version: "1.0.0",
-  register(ctx) {
+  register() {
     for (const t of TOOLS) registerMcpTool(t);
   },
 };

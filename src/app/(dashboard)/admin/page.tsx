@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Users, FileText, MessageSquare, Flag, ShieldAlert } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
@@ -19,54 +20,64 @@ import {
   TableSkeleton,
   TableWrap,
 } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface StatsResponse {
-  stats: {
-    totalUsers: number;
-    newUsersToday: number;
-    totalPosts: number;
-    pendingPosts: number;
-    totalComments: number;
-    openReports: number;
-  };
-  recentUsers: {
-    id: string;
-    username: string;
-    displayName: string;
-    avatarPath: string | null;
-    createdAt: string;
-  }[];
-  recentPosts: {
-    id: string;
-    title: string | null;
-    type: string;
-    status: string;
-    publishedAt: string | null;
-    createdAt: string;
-    author: { username: string; displayName: string };
-  }[];
-}
+/** admin 概览统计键 — 暂未入厂（keys.ts 冻结），admin 域就地字面量 */
+const ADMIN_STATS_KEY = ["admin", "stats"] as const;
+
+// 就地 zod schema：/api/admin/stats 响应无现成 schema，进缓存前校验把关
+const statsResponseSchema = z.object({
+  stats: z.object({
+    totalUsers: z.number(),
+    newUsersToday: z.number(),
+    totalPosts: z.number(),
+    pendingPosts: z.number(),
+    totalComments: z.number(),
+    openReports: z.number(),
+  }),
+  recentUsers: z.array(
+    z.object({
+      id: z.string(),
+      username: z.string(),
+      displayName: z.string(),
+      avatarPath: z.string().nullable(),
+      createdAt: z.string(),
+    }),
+  ),
+  recentPosts: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable(),
+      type: z.string(),
+      status: z.string(),
+      publishedAt: z.string().nullable(),
+      createdAt: z.string(),
+      author: z.object({ username: z.string(), displayName: z.string() }),
+    }),
+  ),
+});
+type StatsResponse = z.infer<typeof statsResponseSchema>;
 
 export default function AdminOverviewPage() {
   const { locale } = useI18n();
-  const [data, setData] = useState<StatsResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api<StatsResponse>("/api/admin/stats")
-      .then(setData)
-      .catch((err: Error) => setError(err.message));
-  }, []);
+  // 概览统计 — 读数据统一走 TanStack Query，替代 useEffect + useState 手拉
+  const statsQ = useQuery(
+    apiQueryOptions({
+      queryKey: ADMIN_STATS_KEY,
+      url: "/api/admin/stats",
+      schema: statsResponseSchema,
+    }),
+  );
+  const data: StatsResponse | undefined = statsQ.data;
 
   return (
     <div>
       <PageHeader title="概览" description="站点运营数据一览" />
 
-      {error ? (
-        <EmptyState title="加载失败" hint={error} />
+      {statsQ.error ? (
+        <EmptyState title="加载失败" hint={statsQ.error.message} />
       ) : !data ? (
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">

@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
+import { limiterStatus } from "@/lib/rate-limit";
 
 /** Liveness/readiness probe for load balancers and uptime checks. */
 export const dynamic = "force-dynamic";
@@ -25,13 +26,17 @@ async function probeDb(): Promise<boolean> {
 }
 
 export async function GET() {
-  const dbOk = await probeDb();
+  // db 探活与限流器状态并行采集：限流器判定是纯同步配置/客户端状态，不增加时延
+  const [dbOk, limiter] = await Promise.all([probeDb(), limiterStatus()]);
   return Response.json(
     {
       ok: dbOk,
       status: dbOk ? "ok" : "degraded",
       db: dbOk,
       worker: process.env.WORKER_ID ?? "solo",
+      // 限流器驱动链：{ driver: "redis" | "pg" | "memory", redisConfigured }，
+      // driver 为下一次调用将使用的驱动（静态判定，运行时故障降级见限频日志）
+      limiter,
       pid: process.pid,
       uptimeSec: Math.round(process.uptime()),
       ts: new Date().toISOString(),

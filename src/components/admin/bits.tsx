@@ -54,14 +54,6 @@ export function RoleBadge({ role }: { role: string }) {
   return role === "admin" ? <Badge>管理员</Badge> : <Badge variant="secondary">用户</Badge>;
 }
 
-export function UserStatusBadge({ status }: { status: string }) {
-  return status === "active" ? (
-    <Badge variant="success">正常</Badge>
-  ) : (
-    <Badge variant="destructive">已封禁</Badge>
-  );
-}
-
 export function CommentStatusBadge({ status }: { status: string }) {
   switch (status) {
     case "hidden":
@@ -78,6 +70,18 @@ export function SeverityBadge({ severity }: { severity: string }) {
     <Badge variant="destructive">禁止</Badge>
   ) : (
     <Badge variant="warning">警告</Badge>
+  );
+}
+
+/**
+ * 设置项取值来源的区分态 — 管理端覆盖「生效中」vs 出厂「默认」。
+ * 用于限流桶等支持按项覆盖（override）的设置表格。
+ */
+export function OverrideBadge({ overridden }: { overridden: boolean }) {
+  return overridden ? (
+    <Badge variant="success">生效中</Badge>
+  ) : (
+    <Badge variant="secondary">默认</Badge>
   );
 }
 

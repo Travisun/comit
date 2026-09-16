@@ -125,7 +125,11 @@ export interface PluginContext {
   llm: typeof LlmCapability;
   /** 存储抽象（默认本地适配器，可注册远端） */
   storage: typeof storage;
-  /** 授权策略 */
+  /**
+   * 授权策略（对象级 ability，Laravel Gate 语义）。
+   * 路由/页面角色级 action 策略走 lib/permissions 的 registerPolicy —— 模块级函数，
+   * 扩展在自身 server 模块顶层直接调用即可（PluginContext 不重复暴露）。
+   */
   policies: {
     register(ability: string, fn: Parameters<typeof registerPolicy>[1]): void;
     can: typeof policyCan;
@@ -147,7 +151,11 @@ export interface PluginContext {
   broadcast(targets: string[] | "all", event: { type: string; payload?: unknown }): void;
   /** 搜索 Provider 注册 */
   search: { registerProvider(name: string, fn: SearchProvider): void };
-  /** Action 全局中间件注册 */
+  /**
+   * Action 全局中间件注册。
+   * 路由级中间件（手写 route 守卫 + Action 管线共享）走 lib/http/middleware 的
+   * registerRouteMiddleware —— 模块级函数，扩展在自身 server 模块顶层直接调用即可。
+   */
   middleware: { register(m: Middleware): void };
   /** Feature Flags */
   flags: {

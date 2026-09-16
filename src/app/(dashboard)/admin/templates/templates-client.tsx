@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { Eye, Monitor, RotateCcw, Save, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,31 +23,39 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { EmptyState, FilterChips, PageHeader, TableWrap } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { cn } from "@/lib/utils";
+import { postJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-interface OverrideState {
-  subjectZh?: string;
-  subjectEn?: string;
-  bodyZh?: string;
-  bodyEn?: string;
-  enabled: boolean;
-}
+const overrideStateSchema = z.object({
+  subjectZh: z.string().optional(),
+  subjectEn: z.string().optional(),
+  bodyZh: z.string().optional(),
+  bodyEn: z.string().optional(),
+  enabled: z.boolean(),
+});
 
-interface TemplateRow {
-  key: string;
-  name: { zh: string; en: string };
-  description: { zh: string; en: string };
-  variables: string[];
-  locale: "both";
-  override: OverrideState | null;
-  customized: boolean;
-  enabled: boolean;
-}
+const templateRowSchema = z.object({
+  key: z.string(),
+  name: z.object({ zh: z.string(), en: z.string() }),
+  description: z.object({ zh: z.string(), en: z.string() }),
+  variables: z.array(z.string()),
+  locale: z.literal("both"),
+  override: overrideStateSchema.nullable(),
+  customized: z.boolean(),
+  enabled: z.boolean(),
+});
+
+const templatesResponseSchema = z.object({
+  templates: z.array(templateRowSchema),
+});
+
+type TemplateRow = z.infer<typeof templateRowSchema>;
 
 type TextField = "subjectZh" | "subjectEn" | "bodyZh" | "bodyEn";
 
@@ -58,6 +68,9 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = { enabled: true, subjectZh: "", subjectEn: "", bodyZh: "", bodyEn: "" };
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；保存/重置后失效重取。 */
+const TEMPLATES_KEY = ["admin", "templates"] as const;
 
 const SUBJECT_FIELDS: { name: TextField; label: string; placeholder: string }[] = [
   { name: "subjectZh", label: "中文主题", placeholder: "留空使用内置主题" },
@@ -113,43 +126,43 @@ function TemplateStatusBadge({ row }: { row: TemplateRow }) {
 /* ------------------------------------------------------------------ */
 
 export default function TemplatesClient() {
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<TemplateRow[]>([]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [resetting, setResetting] = useState(false);
   const [tab, setTab] = useState<AdminTab>("mail");
 
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLocale, setPreviewLocale] = useState<"zh" | "en">("zh");
   const [previewNarrow, setPreviewNarrow] = useState(false);
-  const [previewLoading, setPreviewLoading] = useState(false);
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
 
   const selectedKeyRef = useRef<string | null>(null);
   const lastFocused = useRef<TextField>("bodyZh");
   const fieldRefs = useRef<Record<string, HTMLInputElement | HTMLTextAreaElement | null>>({});
 
+  // 模板注册表查询 — 保存/重置后 invalidate 重取，等价原 load()
+  const templatesQ = useQuery(
+    apiQueryOptions({
+      queryKey: TEMPLATES_KEY,
+      url: "/api/admin/templates",
+      schema: templatesResponseSchema,
+    }),
+  );
+  const templates = templatesQ.data?.templates;
+  // rows 用 useMemo 稳定标识：避免派生数组每渲染新建导致播种 effect 反复触发
+  const rows = useMemo(() => templates ?? [], [templates]);
+  const loading = templatesQ.isLoading;
+
   const selected = rows.find((r) => r.key === selectedKey);
   const dirty = isDirty(form, selected);
 
-  const applyRows = useCallback((templates: TemplateRow[], wantKey: string | null) => {
-    setRows(templates);
-    const row = templates.find((r) => r.key === wantKey) ?? templates[0];
-    selectedKeyRef.current = row?.key ?? null;
-    setSelectedKey(row?.key ?? null);
-    setForm(row ? formFromRow(row) : EMPTY_FORM);
-  }, []);
-
-  const load = useCallback(async () => {
-    const data = await api<{ templates: TemplateRow[] }>("/api/admin/templates");
-    applyRows(data.templates, selectedKeyRef.current);
-  }, [applyRows]);
-
+  // 选中行播种：数据到达/重取后按 ref 里的选中键恢复选中与表单（等价原 applyRows）
   useEffect(() => {
-    load().catch((err: Error) => toast.error(err.message)).finally(() => setLoading(false));
-  }, [load]);
+    if (rows.length === 0) return;
+    const row = rows.find((r) => r.key === selectedKeyRef.current) ?? rows[0];
+    selectedKeyRef.current = row.key;
+    setSelectedKey(row.key);
+    setForm(formFromRow(row));
+  }, [rows]);
 
   function selectRow(row: TemplateRow) {
     if (row.key === selectedKeyRef.current) return;
@@ -160,69 +173,53 @@ export default function TemplatesClient() {
     setPreview(null);
   }
 
-  async function save() {
-    if (!selected) return;
-    setSaving(true);
-    try {
-      await api(`/api/admin/templates/${selected.key}`, {
-        method: "POST",
-        body: JSON.stringify({
-          subjectZh: form.subjectZh,
-          subjectEn: form.subjectEn,
-          bodyZh: form.bodyZh,
-          bodyEn: form.bodyEn,
-          enabled: form.enabled,
-        }),
-      });
-      toast.success(`模板「${selected.name.zh}」已保存`);
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "保存失败");
-    } finally {
-      setSaving(false);
-    }
-  }
+  // 保存覆盖 — 成功失效模板键（重取 + 表单重播种）
+  const saveMutation = useApiMutation(
+    (input: { key: string; form: FormState }) => postJson(`/api/admin/templates/${input.key}`, input.form),
+    {
+      refresh: false,
+      invalidate: [TEMPLATES_KEY],
+      onSuccess: () => toast.success(selected ? `模板「${selected.name.zh}」已保存` : "模板已保存"),
+    },
+  );
 
-  async function reset() {
+  // 重置为内置 — 同样失效重取
+  const resetMutation = useApiMutation(
+    (key: string) => postJson(`/api/admin/templates/${key}/reset`, {}),
+    {
+      refresh: false,
+      invalidate: [TEMPLATES_KEY],
+      successToast: "已重置为默认模板",
+    },
+  );
+
+  // 预览渲染 — POST 但属临时产物（不上缓存），结果进本地 state
+  const previewMutation = useApiMutation(
+    (input: { key: string; locale: "zh" | "en"; form: FormState }) =>
+      postJson<{ subject: string; html: string }>(`/api/admin/templates/${input.key}/preview`, {
+        locale: input.locale,
+        subjectZh: input.form.subjectZh,
+        subjectEn: input.form.subjectEn,
+        bodyZh: input.form.bodyZh,
+        bodyEn: input.form.bodyEn,
+      }),
+    {
+      refresh: false,
+      onSuccess: (data) => setPreview(data),
+    },
+  );
+
+  function reset() {
     if (!selected) return;
     if (!window.confirm(`确定将「${selected.name.zh}」重置为内置模板吗？`)) return;
-    setResetting(true);
-    try {
-      await api(`/api/admin/templates/${selected.key}/reset`, { method: "POST" });
-      toast.success("已重置为默认模板");
-      await load();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "重置失败");
-    } finally {
-      setResetting(false);
-    }
+    void resetMutation.mutate(selected.key);
   }
 
-  async function renderPreview(locale: "zh" | "en") {
+  function renderPreview(locale: "zh" | "en") {
     if (!selected) return;
     setPreviewOpen(true);
     setPreviewLocale(locale);
-    setPreviewLoading(true);
-    try {
-      const res = await api<{ subject: string; html: string }>(
-        `/api/admin/templates/${selected.key}/preview`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            locale,
-            subjectZh: form.subjectZh,
-            subjectEn: form.subjectEn,
-            bodyZh: form.bodyZh,
-            bodyEn: form.bodyEn,
-          }),
-        },
-      );
-      setPreview(res);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "预览失败");
-    } finally {
-      setPreviewLoading(false);
-    }
+    void previewMutation.mutate({ key: selected.key, locale, form });
   }
 
   /** Insert a `{{variable}}` chip at the caret of the last focused field. */
@@ -338,18 +335,24 @@ export default function TemplatesClient() {
                       variant="outline"
                       size="sm"
                       onClick={() => renderPreview(previewLocale)}
-                      disabled={previewLoading}
+                      disabled={previewMutation.pending}
                     >
                       <Eye className="size-4" />
                       预览
                     </Button>
-                    <Button variant="outline" size="sm" onClick={reset} disabled={resetting}>
+                    <Button variant="outline" size="sm" onClick={reset} disabled={resetMutation.pending}>
                       <RotateCcw className="size-4" />
                       重置为默认
                     </Button>
-                    <Button size="sm" onClick={save} disabled={saving}>
+                    <Button
+                      size="sm"
+                      disabled={saveMutation.pending}
+                      onClick={() => {
+                        if (selected) void saveMutation.mutate({ key: selected.key, form });
+                      }}
+                    >
                       <Save className="size-4" />
-                      {saving ? "保存中…" : "保存"}
+                      {saveMutation.pending ? "保存中…" : "保存"}
                     </Button>
                   </div>
                 }
@@ -499,7 +502,7 @@ export default function TemplatesClient() {
               previewNarrow && "max-w-[375px]",
             )}
           >
-            {previewLoading && !preview ? (
+            {previewMutation.pending && !preview ? (
               <Skeleton className="h-[60vh] w-full rounded-lg" />
             ) : (
               <iframe

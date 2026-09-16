@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { bookmarks } from "@/db/schema";
 import { AppError } from "@/core/errors";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { posts } from "@/db/schema";
 
 export const runtime = "nodejs";
@@ -16,6 +17,9 @@ export async function POST(req: Request) {
   return withUser(req, async (auth) => {
     const parsed = bodySchema.safeParse(await jsonBody(req));
     if (!parsed.success) throw new AppError("参数错误 / Invalid payload", 400, "bad_request");
+
+    // 桶 action.social：per-user 默认 60 次/60s，覆盖 toggle 高频场景
+    await rateLimitBucket("action.social", auth.user.id);
 
     const [post] = await db
       .select({ id: posts.id })

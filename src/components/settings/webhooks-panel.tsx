@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Copy, Loader2, Plus, Send, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -15,9 +16,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n/client";
+import { useApiMutation } from "@/lib/query/mutation";
 import { timeAgo } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { WebhookView } from "./types";
+
+/** Webhook 列表键 — keys.ts 冻结期内就地定义（暂未入厂） */
+const WEBHOOKS_KEY = ["me", "webhooks"] as const;
 
 const EVENT_LABELS: Record<string, string> = {
   "post:published": "文章发布 / Post published",
@@ -37,70 +42,65 @@ export function WebhooksPanel({
   availableEvents: string[];
 }) {
   const { t, locale } = useI18n();
-  const [hooks, setHooks] = useState(initial);
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
   const [events, setEvents] = useState<string[]>(["post:published"]);
   const [created, setCreated] = useState<{ id: string; secret: string } | null>(null);
-  const [busy, setBusy] = useState(false);
 
-  async function refresh() {
-    const res = await apiRequest<{ webhooks: WebhookView[] }>("/api/me/webhooks", "GET");
-    setHooks(res.webhooks);
-  }
+  // Webhook 列表 — 服务端首屏作 initialData；增删改后失效重取
+  // （原 refresh() 裸 GET 回填由 invalidate + useQuery 接管）
+  const webhooksQ = useQuery({
+    queryKey: WEBHOOKS_KEY,
+    queryFn: async () => (await apiRequest<{ webhooks: WebhookView[] }>("/api/me/webhooks", "GET")).webhooks,
+    initialData: initial,
+  });
+  const hooks = webhooksQ.data ?? [];
 
   function toggleEvent(ev: string) {
     setEvents((prev) => (prev.includes(ev) ? prev.filter((e) => e !== ev) : [...prev, ev]));
   }
 
-  async function create() {
-    setBusy(true);
-    try {
-      const res = await apiRequest<{ webhook: { id: string; secret: string } }>(
-        "/api/me/webhooks",
-        "POST",
-        { url: url.trim(), events },
-      );
-      setCreated(res.webhook);
-      setOpen(false);
-      setUrl("");
-      setEvents(["post:published"]);
-      await refresh();
-    } catch (err) {
-      toast.error((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
+  // 创建 — 成功弹一次性 secret 并失效列表
+  const createMutation = useApiMutation(
+    (payload: { url: string; events: string[] }) =>
+      apiRequest<{ webhook: { id: string; secret: string } }>("/api/me/webhooks", "POST", payload),
+    {
+      refresh: false,
+      invalidate: [WEBHOOKS_KEY],
+      onSuccess: (res) => {
+        setCreated(res.webhook);
+        setOpen(false);
+        setUrl("");
+        setEvents(["post:published"]);
+      },
+    },
+  );
 
-  async function toggleActive(hook: WebhookView) {
-    try {
-      await apiRequest(`/api/me/webhooks/${hook.id}`, "PATCH", { active: !hook.active });
-      setHooks((prev) => prev.map((h) => (h.id === hook.id ? { ...h, active: !h.active } : h)));
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  }
+  // 启停 — 失效列表让 active 态从服务端回流（原本地翻转等价）
+  const toggleActiveMutation = useApiMutation(
+    (hook: WebhookView) => apiRequest(`/api/me/webhooks/${hook.id}`, "PATCH", { active: !hook.active }),
+    { refresh: false, invalidate: [WEBHOOKS_KEY] },
+  );
 
-  async function test(hook: WebhookView) {
-    try {
-      await apiRequest(`/api/me/webhooks/${hook.id}/test`, "POST", {});
-      toast.success(
-        locale === "zh" ? "测试事件已投递（异步）" : "Test delivery queued",
-      );
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
-  }
+  // 测试投递 — 只 toast 结果，无需失效任何缓存
+  const testMutation = useApiMutation((hook: WebhookView) => apiRequest(`/api/me/webhooks/${hook.id}/test`, "POST", {}), {
+    refresh: false,
+    successToast: locale === "zh" ? "测试事件已投递（异步）" : "Test delivery queued",
+  });
 
-  async function remove(hook: WebhookView) {
+  const removeMutation = useApiMutation((hook: WebhookView) => apiRequest(`/api/me/webhooks/${hook.id}`, "DELETE"), {
+    refresh: false,
+    invalidate: [WEBHOOKS_KEY],
+  });
+
+  function remove(hook: WebhookView) {
     if (!window.confirm(locale === "zh" ? "确定删除该 Webhook？" : "Delete this webhook?")) return;
-    try {
-      await apiRequest(`/api/me/webhooks/${hook.id}`, "DELETE");
-      setHooks((prev) => prev.filter((h) => h.id !== hook.id));
-    } catch (err) {
-      toast.error((err as Error).message);
-    }
+    void removeMutation.mutate(hook);
+  }
+
+  function create() {
+    if (createMutation.pending || !url.trim() || events.length === 0) return;
+    void createMutation.mutate({ url: url.trim(), events });
   }
 
   return (
@@ -152,11 +152,27 @@ export function WebhooksPanel({
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Switch checked={h.active} onCheckedChange={() => void toggleActive(h)} />
-                    <Button variant="outline" size="icon-sm" title={t("settings.webhooks.test")} onClick={() => void test(h)}>
+                    <Switch
+                      checked={h.active}
+                      disabled={toggleActiveMutation.pending}
+                      onCheckedChange={() => void toggleActiveMutation.mutate(h)}
+                    />
+                    <Button
+                      variant="outline"
+                      size="icon-sm"
+                      title={t("settings.webhooks.test")}
+                      disabled={testMutation.pending}
+                      onClick={() => void testMutation.mutate(h)}
+                    >
                       <Send />
                     </Button>
-                    <Button variant="ghost" size="icon-sm" className="text-destructive" onClick={() => void remove(h)}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-destructive"
+                      disabled={removeMutation.pending}
+                      onClick={() => remove(h)}
+                    >
                       <Trash2 />
                     </Button>
                   </div>
@@ -206,8 +222,8 @@ export function WebhooksPanel({
             <Button variant="outline" onClick={() => setOpen(false)}>
               {t("common.cancelAction")}
             </Button>
-            <Button onClick={create} disabled={busy || !url.trim() || events.length === 0}>
-              {busy && <Loader2 className="animate-spin" />}
+            <Button onClick={create} disabled={createMutation.pending || !url.trim() || events.length === 0}>
+              {createMutation.pending && <Loader2 className="animate-spin" />}
               {t("common.confirm")}
             </Button>
           </DialogFooter>

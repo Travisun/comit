@@ -1,6 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { z } from "zod";
 import { CheckCircle2, CircleDashed, Copy, Search, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,24 +18,42 @@ import {
   TableSkeleton,
   TableWrap,
 } from "@/components/admin/bits";
-import { api } from "@/components/admin/client";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
+import { deleteJson } from "@/lib/client/api";
+import { useApiMutation } from "@/lib/query/mutation";
+import { apiQueryOptions } from "@/lib/query/options";
 
-interface InviteItem {
-  id: string;
-  code: string;
-  createdAt: string;
-  usedAt: string | null;
-  createdBy: string;
-  creatorUsername: string;
-  creatorDisplayName: string;
-  usedBy: string | null;
-  usedByUsername: string | null;
-  usedByDisplayName: string | null;
-}
+/* -------------------------------- schema --------------------------------- */
+
+const inviteItemSchema = z.object({
+  id: z.string(),
+  code: z.string(),
+  createdAt: z.string(),
+  usedAt: z.string().nullable(),
+  createdBy: z.string(),
+  creatorUsername: z.string(),
+  creatorDisplayName: z.string(),
+  usedBy: z.string().nullable(),
+  usedByUsername: z.string().nullable(),
+  usedByDisplayName: z.string().nullable(),
+});
+
+const invitesPageSchema = z.object({
+  items: z.array(inviteItemSchema),
+  total: z.number(),
+  stats: z.object({ used: z.number(), unused: z.number() }),
+});
+
+type InviteItem = z.infer<typeof inviteItemSchema>;
 
 const PAGE_SIZE = 30;
+
+/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），筛选/搜索/分页全进键。 */
+const invitesKey = (filter: string, query: string, offset: number) =>
+  ["admin", "invites", filter, query, offset] as const;
+/** 作废后按前缀失效全部筛选组合的列表 */
+const INVITES_PREFIX = ["admin", "invites"] as const;
 
 const FILTERS = [
   { value: "all", label: "全部" },
@@ -46,59 +66,39 @@ function InvitesTable({
   query,
   offset,
   onPage,
-  onChanged,
 }: {
   filter: string;
   query: string;
   offset: number;
   onPage: (next: number) => void;
-  onChanged: () => void;
 }) {
   const { locale } = useI18n();
-  const [data, setData] = useState<{
-    items: InviteItem[];
-    total: number;
-    stats: { used: number; unused: number };
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [revoking, setRevoking] = useState<InviteItem | null>(null);
-  const [pending, setPending] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const params = new URLSearchParams({
-      filter,
-      limit: String(PAGE_SIZE),
-      offset: String(offset),
-    });
-    if (query) params.set("q", query);
-    api<{ items: InviteItem[]; total: number; stats: { used: number; unused: number } }>(
-      `/api/admin/invites?${params}`,
-    )
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch((err: Error) => {
-        if (!cancelled) setError(err.message);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [filter, query, offset, onChanged]);
+  // 列表查询 — key 随筛选/搜索/分页变化；placeholderData 保留上一页数据防闪
+  const invitesQ = useQuery({
+    ...apiQueryOptions({
+      queryKey: invitesKey(filter, query, offset),
+      url: `/api/admin/invites?filter=${encodeURIComponent(filter)}&limit=${PAGE_SIZE}&offset=${offset}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
+      schema: invitesPageSchema,
+    }),
+    placeholderData: keepPreviousData,
+  });
+  const data = invitesQ.data;
+  const error = invitesQ.error instanceof Error ? invitesQ.error.message : null;
 
-  async function revoke(item: InviteItem) {
-    setPending(true);
-    try {
-      await api(`/api/admin/invites/${item.id}`, { method: "DELETE" });
-      toast.success(`已作废邀请码 ${item.code}`);
-      setRevoking(null);
-      onChanged();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "作废失败");
-    } finally {
-      setPending(false);
-    }
-  }
+  // 作废 — pending 驱动确认按钮；失效本页列表家族替代原 onChanged 重挂
+  const revokeMutation = useApiMutation(
+    (item: InviteItem) => deleteJson(`/api/admin/invites/${item.id}`),
+    {
+      refresh: false,
+      invalidate: [INVITES_PREFIX],
+      onSuccess: (_data, item) => {
+        toast.success(`已作废邀请码 ${item.code}`);
+        setRevoking(null);
+      },
+    },
+  );
 
   if (error) return <EmptyState title="加载失败" hint={error} />;
   if (!data) return <TableSkeleton rows={8} cols={5} />;
@@ -203,9 +203,9 @@ function InvitesTable({
         }
         confirmText="确认作废"
         destructive
-        pending={pending}
+        pending={revokeMutation.pending}
         onConfirm={() => {
-          if (revoking) void revoke(revoking);
+          if (revoking) void revokeMutation.mutate(revoking);
         }}
       />
     </>
@@ -217,8 +217,8 @@ export default function AdminInvitesPage() {
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [offset, setOffset] = useState(0);
-  const [version, setVersion] = useState(0);
 
+  // 搜索防抖：输入先入 q，350ms 后同步进 queryKey 并回到第一页
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(q.trim());
@@ -227,8 +227,7 @@ export default function AdminInvitesPage() {
     return () => clearTimeout(timer);
   }, [q]);
 
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
-  const onPage = useCallback((next: number) => setOffset(next), []);
+  const onPage = (next: number) => setOffset(next);
 
   return (
     <div>
@@ -249,14 +248,7 @@ export default function AdminInvitesPage() {
         </div>
       </div>
 
-      <InvitesTable
-        key={`${filter}|${query}|${offset}|${version}`}
-        filter={filter}
-        query={query}
-        offset={offset}
-        onPage={onPage}
-        onChanged={bump}
-      />
+      <InvitesTable filter={filter} query={query} offset={offset} onPage={onPage} />
     </div>
   );
 }
