@@ -5,7 +5,7 @@ import { TOKEN_SCOPES } from "@/lib/tokens";
 import { getSettingsPageData, isSettingsTab } from "../_data";
 import { TimelineHeader } from "@/components/site-shell";
 import { getT } from "@/lib/i18n";
-import { SettingsPanel } from "@/components/settings/settings-panel";
+
 
 export const dynamic = "force-dynamic";
 

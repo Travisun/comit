@@ -1,4 +1,5 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 
 /**
@@ -12,6 +13,10 @@ export default defineConfig({
     // 数据库相关工厂测试需要 DATABASE_URL；纯函数测试（模型/校验/清单）无外部依赖
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "src") },
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+      // server-only 在 node 直载环境会抛错；测试统一 stub（见 stub 文件说明）
+      "server-only": fileURLToPath(new URL("./src/lib/testing/server-only-stub.ts", import.meta.url)),
+    },
   },
 });

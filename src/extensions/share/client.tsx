@@ -4,7 +4,7 @@ import { Link2 } from "lucide-react";
 import { appToast } from "@/lib/client/toast";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { registerUiPlugin } from "@/lib/plugins/ui";
-import type { ExtensionManifest } from "@/core/capabilities/manifest";
+
 import manifest from "./manifest";
 
 /**

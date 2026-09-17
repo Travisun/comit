@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
 import {
   Activity,
   BadgeCheck,
@@ -79,7 +78,6 @@ export function AdminNav({
   children?: React.ReactNode;
 }) {
   const { t } = useI18n();
-  const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const items = ADMIN_NAV_ITEMS.filter((i) => (i.roles as readonly string[]).includes(role));
@@ -95,16 +93,6 @@ export function AdminNav({
       })).filter((g) => g.items.length > 0),
     [items, t],
   );
-
-  // breadcrumb: first nav item whose route prefix matches the current path
-  const breadcrumb = useMemo(() => {
-    for (const group of groups) {
-      for (const item of group.items) {
-        if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return item.label;
-      }
-    }
-    return undefined;
-  }, [groups, pathname]);
 
   return (
     <div>

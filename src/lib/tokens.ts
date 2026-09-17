@@ -1,4 +1,4 @@
-import { apiTokens, type User } from "@/db/schema";
+import { apiTokens } from "@/db/schema";
 import { db } from "@/db";
 import { and, eq, isNull } from "drizzle-orm";
 import { randomToken, sha256 } from "@/lib/auth/password";

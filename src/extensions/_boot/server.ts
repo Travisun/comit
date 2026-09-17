@@ -96,7 +96,7 @@ registerPolicy("post.delete", (user, target) => {
 let booted: Promise<void> | null = null;
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __mbPluginsBooted: boolean | undefined;
 }
 

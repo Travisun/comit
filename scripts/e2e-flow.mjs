@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 /**
  * Full-flow E2E smoke test against a running server.
  * Usage: node scripts/e2e-flow.mjs [baseUrl]

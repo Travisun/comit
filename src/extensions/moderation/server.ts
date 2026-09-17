@@ -1,6 +1,6 @@
-import { eq, desc, and, gte, lte, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { posts, users } from "@/db/schema";
+import { posts } from "@/db/schema";
 import { queue } from "@/core/queue";
 import { emit } from "@/core/events";
 import { reviewPost } from "@/lib/moderation";

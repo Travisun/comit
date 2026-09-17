@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, type Post } from "@/db/schema";
-import { hooks } from "@/core/hooks";
+
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import type { AuthContext } from "@/lib/auth/session";
 

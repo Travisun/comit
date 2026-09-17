@@ -2,7 +2,7 @@ import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { comments } from "@/db/schema";
-import { withAdmin, ok, jsonBody } from "@/lib/http"
+import { ok, jsonBody } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { notFound } from "@/core/errors";
 import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";

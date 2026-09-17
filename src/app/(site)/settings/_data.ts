@@ -5,7 +5,7 @@ import { USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users"
 import { listApiTokens } from "@/lib/tokens";
 import { listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
-import { getSetting } from "@/lib/settings";
+
 import { bootPlugins, channels } from "@/core/plugins/registry";
 import { config } from "@/core/config";
 import type { SettingsTab, SettingsData } from "@/components/settings/types";
@@ -35,10 +35,7 @@ export function isSettingsTab(v: string | undefined): v is SettingsTab {
   return (SETTINGS_TABS as readonly string[]).includes(v ?? "");
 }
 
-function changesThisYear(at: Date | null): number {
-  if (!at) return 0;
-  return at.getFullYear() === new Date().getFullYear() ? 1 : 0;
-}
+
 
 /** Server-side assembly of every settings panel's initial data. */
 export async function getSettingsPageData(auth: {
@@ -74,8 +71,7 @@ export async function getSettingsPageData(auth: {
   // registry is populated even if instrumentation has not run yet
   if (channels.size === 0) await bootPlugins();
 
-  const [subEnabled, subLocked, twoFactorConfirmed] = await Promise.all([
-    Promise.resolve(false),
+  const [twoFactorConfirmed] = await Promise.all([
     Promise.resolve(false),
     hasConfirmedTotp(u.id),
   ]);

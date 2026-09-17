@@ -3,7 +3,7 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 
 declare global {
-  // eslint-disable-next-line no-var
+   
   var __mbPool: Pool | undefined;
 }
 

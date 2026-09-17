@@ -1,7 +1,7 @@
 import { count, desc, eq, gte, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, posts, reports, users } from "@/db/schema";
-import { withAdmin, ok } from "@/lib/http"
+import { ok } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { pendingReviewCount } from "@/lib/moderation";
 

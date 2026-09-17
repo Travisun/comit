@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+
 import { config } from "@/core/config";
 import { routes, absolute } from "@/core/routes";
 import { getSetting } from "@/lib/settings";

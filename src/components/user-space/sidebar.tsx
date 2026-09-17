@@ -51,7 +51,7 @@ export async function UserSidebar({
                 />
               );
             case "archives":
-              return <ArchivesLazy key={id} userId={user.id} username={user.username} />;
+              return <ArchivesLazy key={id} userId={user.id} />;
             case "hot-posts":
               return <HotPostsWidget key={id} user={user} />;
             case "topic-cloud":
@@ -67,7 +67,7 @@ export async function UserSidebar({
 
 /* ------------------------------- archives -------------------------------- */
 
-async function ArchivesLazy({ userId, username }: { userId: string; username: string }) {
+async function ArchivesLazy({ userId }: { userId: string }) {
   const groups = await getArchives(userId);
   if (groups.length === 0) return null;
   const years = [...new Set(groups.map((g) => g.year))].sort((a, b) => b - a);

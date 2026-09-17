@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { follows, users } from "@/db/schema";
 import { ok, withUser } from "@/lib/http";

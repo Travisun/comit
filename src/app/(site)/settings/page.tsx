@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+
 import {
   AlertTriangle,
   BadgeCheck,
@@ -60,7 +60,7 @@ const GROUPS = [
 
 export default async function SettingsHomePage() {
   const auth = await requireUser();
-  const { t, locale } = await getT();
+  const { locale } = await getT();
   void auth;
   const zh = locale === "zh";
 

@@ -16,7 +16,6 @@ import {
   registerRailWidget,
   registerUserMenuItem,
 } from "@/lib/plugins/registry";
-import manifest from "./manifest";
 
 /**
  * 签名档扩展 · 客户端：导航项 / 用户菜单项 / rail widget / 登录可见打断
