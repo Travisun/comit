@@ -131,6 +131,7 @@ export function bootPlugins(): Promise<void> {
       const { default: mcpPlugin } = await import("@/extensions/mcp/server");
       const { default: exportPlugin } = await import("@/extensions/export/server");
       const { default: signaturePlugin } = await import("@/extensions/signature/server");
+      const { default: pollPlugin } = await import("@/extensions/poll/server");
       const PLUGINS: Plugin[] = [
         notificationsPlugin,
         webhooksPlugin,
@@ -138,6 +139,7 @@ export function bootPlugins(): Promise<void> {
         mcpPlugin,
         exportPlugin,
         signaturePlugin,
+        pollPlugin,
       ];
       // B4: 依赖拓扑排序（comit.requires / plugin.requires；声明顺序为稳定次序）
       const sorted: Plugin[] = [];

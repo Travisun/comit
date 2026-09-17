@@ -21,6 +21,7 @@ export const PLUGIN_CAPABILITY_KEYS = [
   "hooks",
   "registerChannel",
   "registerMcpTool",
+  "registerAdminSection",
   "registerPostRenderFilter",
   "registerMediaProcessor",
   "registerSitemapSource",
