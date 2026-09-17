@@ -1,4 +1,11 @@
 import type { NextConfig } from "next";
+import { runInstanceGuard } from "./scripts/lib/instance-guard.mjs";
+
+// dev 启动兜底（编译开始前执行）：postinstall 只在依赖变更时运行，若安装
+// 发生在 dev server 运行期间、或 .next 曾被手动清除，这里对 next 实例连续性
+// 再校验一次，引用已消失实例路径的 .next/dev 缓存直接清除。策略与实现见
+// scripts/lib/instance-guard.mjs。
+runInstanceGuard({ log: (msg) => console.log(msg) });
 
 const nextConfig: NextConfig = {
   // 不对外泄露框架指纹（X-Powered-By: Next.js）
@@ -16,9 +23,9 @@ const nextConfig: NextConfig = {
     "@aws-sdk/client-s3",
   ],
   experimental: {
-    // 全站页面均为 force-dynamic 且无 loading 边界，默认「进入视口即预取」
-    // 会让每次滚动产生大量在途 RSC 请求；快速切换页面时路由缓存条目被过早
-    // 逐出/复用，命中 flight 客户端竞态（enqueueModel 崩溃，刷新后恢复）。
+    // 动态路由预取策略（配合各路由组 loading.tsx 流式边界）：全站 force-dynamic
+    // + 默认「进入视口即预取」会让每次滚动产生大量在途 RSC 请求；快速切换
+    // 页面时在途流交叠是 flight 客户端竞态（enqueueModel 崩溃）的诱因之一。
     // dynamicOnHover：动态路由改为悬停时才预取（移动端仅在点击时加载）；
     // staleTimes：已访问页面在客户端路由缓存保留 30s，来回切换直接复用。
     dynamicOnHover: true,

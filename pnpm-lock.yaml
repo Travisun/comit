@@ -105,9 +105,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  next@16.3.5: 2ebe1dcad2791457965ef31cfdf12af46dc1b2447f040a0cfa8a6509570f714e
-
 importers:
 
   .:
@@ -213,7 +210,7 @@ importers:
         version: 6.0.1
       next:
         specifier: 16.3.5
-        version: 16.3.5(patch_hash=2ebe1dcad2791457965ef31cfdf12af46dc1b2447f040a0cfa8a6509570f714e)(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        version: 16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -9635,7 +9632,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
 
-  next@16.3.5(patch_hash=2ebe1dcad2791457965ef31cfdf12af46dc1b2447f040a0cfa8a6509570f714e)(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
+  next@16.3.5(@babel/core@7.29.7(supports-color@7.2.0))(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0):
     dependencies:
       '@next/env': 16.3.5
       '@swc/helpers': 0.5.23

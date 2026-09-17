@@ -18,5 +18,9 @@ onlyBuiltDependencies:
   - unrs-resolver
   - workerd
 
-patchedDependencies:
-  next@16.3.5: patches/next@16.3.5.patch
+# 2026-09-16 起 next@16.3.5 不再打 pnpm patch（flight-fix 已退役）：
+# 补丁会更换 next 的安装实例目录（patch_hash 路径），每次增删改补丁都制造
+# 一次「实例代际切换」，是 .next/dev 持久缓存与新代际模块混用的主要诱因，
+# 得不偿失。flight 竞态由架构层抑制（路由 loading 边界 + dynamicOnHover +
+# staleTimes + 实例守卫）。如 enqueueModel 崩溃回归，恢复步骤见
+# docs/runbook-dev-cache.md（补丁原件保留在 patches/attic/）。
