@@ -727,6 +727,33 @@ export function PinnedComposer({
           </div>
         ) : (
           <div className="relative">
+            {/* 评论模式：Markdown/预览 切换 — 输入区右上角，与主发布器标题块同款 */}
+            {isComment && (
+              <div className="absolute right-2 top-2 z-10 inline-flex items-center rounded-full bg-[var(--muted)] p-[2px] text-[11px]">
+                <button
+                  type="button"
+                  aria-pressed={!preview}
+                  onClick={() => setPreview(false)}
+                  className={cn(
+                    "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
+                    !preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <PenLine className="size-3" aria-hidden /> Markdown
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={preview}
+                  onClick={() => setPreview(true)}
+                  className={cn(
+                    "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
+                    preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Eye className="size-3" aria-hidden /> {zh ? "预览" : "Preview"}
+                </button>
+              </div>
+            )}
             <Textarea
               ref={taRef}
               value={content}
@@ -865,24 +892,7 @@ export function PinnedComposer({
         >
           <ImagePlus className="size-[18px]" />
         </ToolButton>
-        {isComment && (
-          <>
-            <ToolButton
-              label={zh ? "Markdown" : "Markdown"}
-              onClick={() => setPreview(false)}
-              active={!preview}
-            >
-              <PenLine className="size-[18px]" />
-            </ToolButton>
-            <ToolButton
-              label={zh ? "预览" : "Preview"}
-              onClick={() => setPreview(true)}
-              active={preview}
-            >
-              <Eye className="size-[18px]" />
-            </ToolButton>
-          </>
-        )}
+
         <EmojiPopover label={zh ? "表情" : "Emoji"} onPick={(emoji) => {
           pickEmoji(emoji);
         }}>

@@ -5,6 +5,7 @@ import type { AuthContext } from "@/lib/auth/session";
 import { requestContextFromRequest, requestContext } from "@/lib/http/context";
 import { runRouteMiddleware } from "@/lib/http/middleware";
 import { assertNotUnderMaintenance } from "@/lib/maintenance";
+import { callHook } from "@/core/hooks";
 
 // Convenience re-exports so route handlers can import everything from one place.
 export { AppError, notFound, forbidden, unauthorized, toErrorResponse };
@@ -62,6 +63,7 @@ export async function withUser(
   return runWithRequestContext(requestContextFromRequest(req), async () => {
     try {
       assertSameOrigin(req);
+      void callHook("request:api", { method: req.method, path: new URL(req.url).pathname, ip: "" });
       const user = await apiUser();
       // 契约约定：无会话/会话无效 → 401 unauthorized；已登录但无权限 → 403 forbidden
       if (!user) throw unauthorized("请先登录 / Sign in required");

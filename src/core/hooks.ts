@@ -24,6 +24,22 @@ export const hooks = createHooks();
 export interface HookPayloadMap {
   /** markdown/server.ts 渲染产物过滤器 — 监听者可原地改写 `ctx.html` */
   "post:render": { html: string };
+  /** 登录请求后（auth 解析完成、before handler） */
+  "request:user": { userId: string; path: string };
+  /** API 请求入口（withApi 入口、before handler） */
+  "request:api": { method: string; path: string; ip: string };
+  /** 帖子创建后（含草稿/提交） */
+  "post:created": { post: { id: string; type: string; authorId: string; status: string } };
+  /** 帖子更新后 */
+  "post:updated": { post: { id: string; status: string }; prevStatus: string };
+  /** 帖子删除后（软删/硬删均触发） */
+  "post:deleted": { postId: string; authorId: string };
+  /** 评论删除后 */
+  "comment:deleted": { commentId: string; postId: string };
+  /** 媒体删除后 */
+  "media:deleted": { mediaId: string; userId: string };
+  /** 关注状态变化（followed = true 新关注 / false 取关） */
+  "follow:changed": { followerId: string; followeeId: string; following: boolean };
 }
 
 export type HookName =
