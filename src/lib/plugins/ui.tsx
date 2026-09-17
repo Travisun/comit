@@ -35,6 +35,18 @@ export interface PostActionContext {
   publicId: string;
 }
 
+/** 工具栏按钮槽位上下文（composer 工具行） */
+export interface ToolbarSlotContext {
+  /** 在光标处插入文本（表情/模板/图片语法等） */
+  insertText: (text: string) => void;
+}
+
+/** 设置页扩展 tab 槽位上下文 */
+export interface SettingsTabContext {
+  /** tab 标识（settings-panel 的当前 tab 值） */
+  tabId: string;
+}
+
 /** 槽位清单 — 新扩展点在此登记 id 与 ctx 形状 */
 export interface SlotContexts {
   /** feed/时间线行的尾部（卡片操作区之下，如投票卡片） */
@@ -45,6 +57,27 @@ export interface SlotContexts {
   "post:actions": PostActionContext;
   /** feed 行「···」快捷菜单的扩展项（组件自行渲染 DropdownMenuItem） */
   "post:row-menu": PostActionContext;
+  /** composer 工具栏扩展按钮（点击经 insertText 向正文插入内容） */
+  "composer:tools": ToolbarSlotContext;
+  /** 设置 → 扩展 的自定义面板（tabId 对应当前激活 tab） */
+  "settings:tabs": SettingsTabContext;
+}
+
+export interface SettingsTabDef {
+  /** tab 标识（settings-panel 激活值） */
+  tabId: string;
+  label: string;
+}
+
+const settingsTabs: SettingsTabDef[] = [];
+
+/** 声明设置页扩展 tab（label 用于 tab 条；面板经 settings:tabs 槽渲染）。 */
+export function registerSettingsTab(def: SettingsTabDef): void {
+  settingsTabs.push(def);
+}
+
+export function listSettingsTabs(): SettingsTabDef[] {
+  return [...settingsTabs];
 }
 
 export type UiSlotName = keyof SlotContexts;

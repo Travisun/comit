@@ -59,6 +59,7 @@ import {
   type PollDraft,
 } from "./composer-panels";
 import { PinnedBar } from "./pinned-bar";
+import { SlotRenderer } from "@/lib/plugins/ui";
 
 /** mirrors SHORT_CONTENT_MAX on the server */
 const SHORT_MAX = 8000;
@@ -906,6 +907,10 @@ export function PinnedComposer({
             {fullscreen ? <Minimize2 className="size-[18px]" /> : <PenLine className="size-[18px]" />}
           </ToolButton>
         )}
+        <SlotRenderer
+          slot="composer:tools"
+          ctx={{ insertText: (text: string) => insertAtCursor(taRef.current, text, content, setContent) }}
+        />
         {uploadingCount > 0 && (
           <span aria-live="polite" className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Loader2 className="size-3 animate-spin" aria-hidden />

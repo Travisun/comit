@@ -15,6 +15,7 @@ import { UsernameForm } from "./username-form";
 import { PrivacyPanel } from "./privacy-panel";
 import { EmailPanel } from "./email-panel";
 import { ConnectionsPanel } from "./connections-panel";
+import { SlotRenderer } from "@/lib/plugins/ui";
 
 /** Section manifest — rendered as the dashboard sidebar menu. */
 export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
@@ -95,7 +96,12 @@ function section(
     case "invites":
       return <InvitesPanel data={data.invites} appUrl={data.appUrl} />;
     case "verification":
-      return <VerificationPanel />;
+      return (
+        <>
+          <VerificationPanel />
+          <SlotRenderer slot="settings:tabs" ctx={{ tabId: "verification" }} />
+        </>
+      );
     case "mcp":
       return <McpPanel appUrl={data.appUrl} />;
     case "api":

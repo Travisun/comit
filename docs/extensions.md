@@ -134,6 +134,15 @@ auth 页同款），`"site"` 含右栏。
 - **`extensions/share`**（最小纯前端）：`post:actions` + `post:row-menu`。
 - **`extensions/poll`**（双端）：槽位展示 + 到期通知任务 + 服务端校验。
 
+## 4.4 槽位与 worker（2026-09 更新）
+
+- 槽位全清单：`feed:row:after` / `post:detail:after` / `post:actions` /
+  `post:row-menu` / **`composer:tools`（ctx.insertText 向正文插入）** /
+  **`settings:tabs`（ctx.tabId，扩展自定义面板）**；
+- worker 自包含：moderation/poll/export 的任务已在各自 server.ts 经
+  `ctx.jobs.work` 注册（ext.job 通道），`core/workers.ts` 只保留基础设施；
+- 队列发送端新写法：`queue.send("ext.job", { extensionId, task, payloadJson }, opts)`。
+
 ## 4.5 启用/禁用（2026-09 新增）
 
 - 设置键 `ext.enabled`（Record<extId, boolean>，未列出 = 启用）；
