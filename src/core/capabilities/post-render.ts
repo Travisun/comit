@@ -30,7 +30,7 @@ export interface PostRenderInterrupt {
 export interface PostRenderContext {
   post: Pick<
     Post,
-    "id" | "type" | "slug" | "title" | "summary" | "content" | "label" | "visibility" | "authorId" | "status"
+    "id" | "publicId" | "type" | "title" | "summary" | "content" | "label" | "visibility" | "authorId" | "status"
   >;
   author: { id: string; username: string; displayName: string };
   viewer: PostRenderViewer | null;

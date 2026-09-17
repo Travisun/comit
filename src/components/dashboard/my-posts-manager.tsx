@@ -32,7 +32,6 @@ interface MyPost {
   id: string;
   type: "article" | "short";
   title: string | null;
-  slug: string | null;
   summary: string;
   excerpt: string;
   thumb: string | null;

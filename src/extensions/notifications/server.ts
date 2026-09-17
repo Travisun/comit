@@ -261,7 +261,7 @@ async function notifyCommentCreated(p: {
     // replyToUserId 的「回复我」通知刻意不做（本次范围仅文章作者，模板已预留）。
     if (p.postAuthorId === p.commenterId) return;
     const [post] = await db
-      .select({ publicId: posts.publicId, title: posts.title, slug: posts.slug, type: posts.type })
+      .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
       .from(posts)
       .where(eq(posts.id, p.postId))
       .limit(1);

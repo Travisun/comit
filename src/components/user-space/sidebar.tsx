@@ -124,7 +124,6 @@ async function HotPostsWidget({ user }: { user: User }) {
       id: it.post.id,
       publicId: it.post.publicId,
       type: it.post.type,
-      slug: it.post.slug,
       title: it.post.title,
       summary: "",
       content: "",

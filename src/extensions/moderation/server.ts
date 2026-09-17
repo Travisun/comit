@@ -39,7 +39,7 @@ const plugin: Plugin = {
           .set({ status: "published", publishedAt: new Date() })
           .where(eq(posts.id, payload.postId));
         const [row] = await db
-          .select({ slug: posts.slug, title: posts.title, type: posts.type })
+          .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
           .from(posts)
           .where(eq(posts.id, payload.postId))
           .limit(1);
@@ -47,7 +47,7 @@ const plugin: Plugin = {
           await emit("post:published", {
             postId: payload.postId,
             authorId: payload.authorId,
-            slug: row.slug ?? "",
+            publicId: row.publicId,
             title: row.title ?? "",
             type: row.type,
           });

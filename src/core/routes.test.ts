@@ -21,8 +21,8 @@ describe("buildPath 模板生成", () => {
 
   it("多段模板与多参数", () => {
     expect(
-      buildPath("/u/:username/posts/:slug", { username: "alice", slug: "hello-world" }),
-    ).toBe("/u/alice/posts/hello-world");
+      buildPath("/u/:username/collections/:slug", { username: "alice", slug: "notes" }),
+    ).toBe("/u/alice/collections/notes");
   });
 });
 
@@ -36,8 +36,7 @@ describe("canonical 路由形状", () => {
     expect(routes.post("abc-123")).toBe("/post/abc-123");
   });
 
-  it("旧形态入口保留兼容（/u/{username}/posts/{slug}、/u/{username}/feed.xml）", () => {
-    expect(routes.userPost("alice", "hello")).toBe("/u/alice/posts/hello");
+  it("用户 RSS 保留 /u/{username}/feed.xml", () => {
     expect(routes.userRss("alice")).toBe("/u/alice/feed.xml");
   });
 

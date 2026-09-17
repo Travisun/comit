@@ -67,7 +67,6 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
       id: item.post.id,
       publicId: item.post.publicId,
       type: item.post.type,
-      slug: item.post.slug,
       title: item.post.title,
       summary: item.post.summary,
       content: item.post.type === "short" ? item.post.content : "",
@@ -366,7 +365,7 @@ export async function getFollowState(viewerId: string | null | undefined, target
 /** Monthly archive groups (published public posts), newest first. */
 export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
   const rows = await db
-    .select({ publicId: posts.publicId, title: posts.title, slug: posts.slug, publishedAt: posts.publishedAt })
+    .select({ publicId: posts.publicId, title: posts.title, publishedAt: posts.publishedAt })
     .from(posts)
     .where(
       and(
@@ -389,7 +388,7 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
       groups.set(key, g);
     }
     g.count += 1;
-    g.posts.push({ publicId: r.publicId, title: r.title, slug: r.slug, publishedAt: d.toISOString() });
+    g.posts.push({ publicId: r.publicId, title: r.title, publishedAt: d.toISOString() });
   }
   return [...groups.values()];
 }
@@ -534,25 +533,16 @@ export type PostViewResult = PostViewData | "blocked" | null;
  *  - PostViewData    → renderable (check `gated` for the locked body)
  */
 export async function getPostForView(opts: {
-  slug: string;
-  username?: string;
-  subdomain?: string;
+  publicId: string;
   viewer: User | null;
 }): Promise<PostViewResult> {
-  const authorCond = opts.username
-    ? eq(users.username, opts.username)
-    : opts.subdomain
-      ? eq(users.subdomain, opts.subdomain)
-      : null;
-
   const [row] = await db
     .select({ post: posts, author: users })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(
       and(
-        ...(authorCond ? [authorCond] : []),
-        eq(posts.slug, opts.slug),
+        eq(posts.publicId, opts.publicId),
         // the author can preview their own post in any lifecycle state
         // (draft / pending review / recycle bin); everyone else sees published
         opts.viewer
@@ -611,7 +601,7 @@ export function incrementPostViews(postId: string): void {
 
 export interface RssPost {
   title: string;
-  slug: string;
+  publicId: string;
   summary: string;
   coverPath: string | null;
   publishedAt: Date;
@@ -622,7 +612,7 @@ export interface RssPost {
 function rssSelection() {
   return {
     title: posts.title,
-    slug: posts.slug,
+    publicId: posts.publicId,
     summary: posts.summary,
     coverPath: posts.coverPath,
     publishedAt: posts.publishedAt,
@@ -636,7 +626,7 @@ const rssConds = [eq(posts.status, "published"), eq(posts.visibility, "public"),
 function toRssPosts(
   rows: {
     title: string | null;
-    slug: string | null;
+    publicId: string;
     summary: string;
     coverPath: string | null;
     publishedAt: Date | null;
@@ -645,8 +635,8 @@ function toRssPosts(
   }[],
 ): RssPost[] {
   return rows.flatMap((r) =>
-    r.title && r.slug && r.publishedAt
-      ? [{ ...r, title: r.title, slug: r.slug, publishedAt: r.publishedAt }]
+    r.title && r.publishedAt
+      ? [{ ...r, title: r.title, publishedAt: r.publishedAt }]
       : [],
   );
 }

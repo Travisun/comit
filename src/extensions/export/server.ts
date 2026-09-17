@@ -84,7 +84,7 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
     const d = post.publishedAt ?? post.createdAt;
     const yyyy = d.getUTCFullYear();
     const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-    const slug = post.slug ?? post.id;
+    const slug = post.publicId;
     const dir = path.join(workDir, String(yyyy), mm, slug);
     await fs.promises.mkdir(dir, { recursive: true });
 

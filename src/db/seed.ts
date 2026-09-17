@@ -12,7 +12,7 @@ import {
   users,
 } from "./schema";
 import { hashPassword } from "../lib/auth/password";
-import { makeExcerpt, slugifyTitle } from "../lib/utils";
+import { makeExcerpt } from "../lib/utils";
 
 /**
  * Development seed: admin + two demo users, demo articles/short post,
@@ -198,7 +198,6 @@ async function main() {
       {
         authorId: alice.id,
         type: "article",
-        slug: slugifyTitle("设计系统 Token 化实践"),
         title: "设计系统 Token 化实践",
         summary: makeExcerpt(ALICE_ARTICLE_1),
         content: ALICE_ARTICLE_1,
@@ -211,7 +210,6 @@ async function main() {
       {
         authorId: alice.id,
         type: "article",
-        slug: slugifyTitle("从 Figma 到代码：构建可维护的组件库"),
         title: "从 Figma 到代码：构建可维护的组件库",
         summary: makeExcerpt(ALICE_ARTICLE_2),
         content: ALICE_ARTICLE_2,
@@ -224,7 +222,6 @@ async function main() {
       {
         authorId: bob.id,
         type: "article",
-        slug: slugifyTitle("用 Rust 重写我的博客引擎"),
         title: "用 Rust 重写我的博客引擎",
         summary: makeExcerpt(BOB_ARTICLE),
         content: BOB_ARTICLE,
@@ -237,7 +234,6 @@ async function main() {
       {
         authorId: bob.id,
         type: "short",
-        slug: null,
         title: null,
         summary: makeExcerpt(BOB_SHORT, 80),
         content: BOB_SHORT,

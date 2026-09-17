@@ -5,9 +5,8 @@
  */
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
-import { follows, users, blocks, posts } from "@/db/schema";
+import { follows, users, blocks } from "@/db/schema";
 import { conflict, forbidden, notFound } from "@/core/errors";
-import { slugifyTitle, randomSuffix } from "@/lib/utils";
 import {
   RESERVED_USERNAMES,
   USERNAME_MAX,
@@ -51,18 +50,6 @@ export async function assertUsernameAvailable(username: string) {
   if (row) throw conflict("用户名已被占用 / Username taken");
 }
 
-export async function uniqueSlug(userId: string, title: string): Promise<string> {
-  const base = slugifyTitle(title);
-  const taken = new Set(
-    (await db.select({ slug: posts.slug }).from(posts).where(eq(posts.authorId, userId))).map((r) => r.slug),
-  );
-  if (!taken.has(base)) return base;
-  for (let i = 0; i < 20; i++) {
-    const candidate = `${base}-${randomSuffix(4)}`;
-    if (!taken.has(candidate)) return candidate;
-  }
-  return `${base}-${Date.now().toString(36)}`;
-}
 
 export async function assertNotBlocked(a: string, b: string) {
   const [row] = await db

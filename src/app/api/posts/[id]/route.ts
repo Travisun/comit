@@ -16,7 +16,6 @@ import {
   getAuthorPost,
   labelFieldsSchema,
   parseWith,
-  resolveArticleSlug,
   resolveLabelFields,
   SHORT_CONTENT_MAX,
   syncPostTopics,
@@ -66,7 +65,7 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
       id: post.id,
       authorId: post.authorId,
       type: post.type,
-      slug: post.slug,
+      publicId: post.publicId,
       title: post.title,
       summary: post.summary,
       content: post.content,
@@ -113,12 +112,6 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     }
 
     const title = body.title?.trim() ?? post.title;
-    const slug =
-      body.slug !== undefined && post.type === "article" && body.slug.trim() !== ""
-        ? // slug 为服务端生成的 opaque short id（客户端提供的 slug 按设计忽略），
-          // 提交 slug 字段即触发重新生成；查重范围 = 作者命名空间，排自身
-          await resolveArticleSlug({ authorId: post.authorId, excludePostId: post.id })
-        : post.slug;
     const summary =
       body.summary === undefined ? post.summary : ensureSummary(body.summary, nextContent || title || "");
     // annotation: untouched when `label` is omitted; otherwise validated and
@@ -145,7 +138,6 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
         title,
         content: nextContent,
         summary,
-        slug,
         visibility: body.visibility ?? post.visibility,
         collectionId:
           body.collectionId !== undefined ? (body.collectionId ?? null) : post.collectionId,

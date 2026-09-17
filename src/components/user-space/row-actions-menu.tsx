@@ -229,7 +229,7 @@ export function RowActionsMenu({
               />
             </>
           )}
-          <PostRowMenuSlot postId={post.id} postType={post.type} slug={post.slug} />
+          <PostRowMenuSlot postId={post.id} postType={post.type} publicId={post.publicId} />
         </DropdownMenuContent>
       </DropdownMenu>
 

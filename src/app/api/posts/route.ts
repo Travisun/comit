@@ -18,7 +18,6 @@ import {
   ensureSummary,
   labelFieldsSchema,
   parseWith,
-  resolveArticleSlug,
   resolveLabelFields,
   SHORT_CONTENT_MAX,
   syncPostTopics,
@@ -27,7 +26,7 @@ import {
 
 /**
  * POST /api/posts — create an article or a short post.
- * body: { type, title?, content, summary?, slug?, collectionId?,
+ * body: { type, title?, content, summary?, collectionId?,
  *         topicNames?(≤5), visibility?, coverPath?, mediaPaths?(short images),
  *         label?, sourceUrl?, sourceName?, action: 'draft'|'submit' }
  * → 200 post | 422 { error, blocked } when the hard keyword check fails.
@@ -38,7 +37,6 @@ const createSchema = z
     title: z.string().trim().max(200).optional(),
     content: z.string().max(200_000).default(""),
     summary: z.string().trim().max(500).optional(),
-    slug: z.string().trim().max(180).optional(),
     collectionId: z.uuid().nullish(),
     topicNames: topicNamesSchema,
     visibility: z.enum(["public", "followers"]).optional(),
@@ -72,7 +70,7 @@ const createSchema = z
     },
   );
 
-/** Postgres unique_violation 检测（slug 唯一约束兜底用）。 */
+/** Postgres unique_violation 检测（public_id 唯一约束兜底用）。 */
 function isUniqueViolation(err: unknown): boolean {
   return typeof err === "object" && err !== null && (err as { code?: unknown }).code === "23505";
 }
@@ -120,7 +118,6 @@ export async function POST(req: Request): Promise<Response> {
       if (blocked.length) return blockedResponse(blocked);
     }
 
-    const slug = type === "article" ? await resolveArticleSlug({ authorId: auth.user.id }) : null;
     const summary = ensureSummary(body.summary, content || title || "");
     const labelColumns = resolveLabelFields(
       body.label ?? DEFAULT_LABEL,
@@ -134,15 +131,16 @@ export async function POST(req: Request): Promise<Response> {
      * 缺 topics/poll 的半成品文章）。post:saving / post:saved 钩子仍经
      * @/core/capabilities/post-lifecycle 触发，与仓储层同款上下文；
      * post:saved 移到提交后触发，保证监听方经连接池读取时行已可见。
+     *
+     * public_id 唯一性加固：CSPRNG 撞码概率 ~1/10^18，理论上仍可能 ——
+     * 唯一约束报 23505 时换新 id 重试整个事务（至多 3 次），创建永不因撞码失败。
      */
-    let post: Post;
-    try {
-      post = await db.transaction(async (tx): Promise<Post> => {
+    const attemptCreate = async (): Promise<Post> => {
+      return db.transaction(async (tx): Promise<Post> => {
         const payload: Record<string, unknown> = {
           authorId: auth.user.id,
           type,
           publicId: newPublicId(),
-          slug,
           title,
           summary,
           content,
@@ -180,12 +178,24 @@ export async function POST(req: Request): Promise<Response> {
         }
         return row;
       });
-    } catch (err) {
-      // slug 最终兜底：唯一约束 posts_author_slug_key 的 23505 → 409
-      if (isUniqueViolation(err)) {
-        throw conflict("slug 已被占用 / Slug already exists");
+    };
+
+    let post: Post | undefined;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        post = await attemptCreate();
+        break;
+      } catch (err) {
+        if (isUniqueViolation(err) && attempt < 2) continue;
+        if (isUniqueViolation(err)) {
+          throw conflict("内容标识冲突，请重试 / Identifier conflict, retry");
+        }
+        throw err;
       }
-      throw err;
+    }
+    if (!post) {
+      // 循环耗尽仍撞码（理论概率 ~1/10^18 × 3）：转为明确的用户可重试错误
+      throw conflict("内容标识冲突，请重试 / Identifier conflict, retry");
     }
 
     await runPostSaved({

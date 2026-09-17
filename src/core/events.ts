@@ -25,7 +25,8 @@ export interface AppEventPayloads {
   "post:published": {
     postId: string;
     authorId: string;
-    slug: string;
+    /** 对外短 ID（/post/{publicId}） */
+    publicId: string;
     title: string;
     type: "article" | "short";
   };

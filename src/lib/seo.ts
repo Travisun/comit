@@ -112,7 +112,7 @@ export function personJsonLd(user: Pick<User, "displayName" | "bio" | "username"
 }
 
 export function blogPostingJsonLd(opts: {
-  post: Pick<Post, "title" | "summary" | "slug" | "publishedAt" | "updatedAt" | "coverPath" | "content">;
+  post: Pick<Post, "title" | "summary" | "publishedAt" | "updatedAt" | "coverPath" | "content">;
   author: { displayName: string; username: string };
   url: string;
   topics?: string[];

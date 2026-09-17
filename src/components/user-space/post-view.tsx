@@ -204,7 +204,7 @@ export async function PostView({
             initialCount={post.likeCount}
             initialLiked={interactions.liked}
           />
-          <PostActionsSlot postId={post.id} postType={post.type} slug={post.slug} />
+          <PostActionsSlot postId={post.id} postType={post.type} publicId={post.publicId} />
           <span className="ml-auto inline-flex items-center gap-1.5 text-sm">
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>

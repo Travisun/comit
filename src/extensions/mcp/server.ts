@@ -1,5 +1,4 @@
 import { and, desc, eq, ilike, inArray, ne, or, sql } from "drizzle-orm";
-import { nanoid } from "nanoid";
 import { db } from "@/db";
 import { posts, users, media, comments, topics, postTopics, collections } from "@/db/schema";
 import {
@@ -47,17 +46,10 @@ type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
  * clashes. Local copy on purpose: extensions don't import app-route modules.
  * 与 web 同款：服务端生成的 opaque short id，客户端/工具参数提供的 slug 按设计忽略。
  */
-async function resolveArticleSlug(tx: Tx, authorId: string): Promise<string> {
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const candidate = nanoid(10);
-    const [clash] = await tx
-      .select({ id: posts.id })
-      .from(posts)
-      .where(and(eq(posts.authorId, authorId), eq(posts.slug, candidate)))
-      .limit(1);
-    if (!clash) return candidate;
-  }
-  return nanoid(16);
+async function resolvePostPublicId(): Promise<string> {
+  // 列默认值熵有限；应用路径显式 CSPRNG 生成（lib/public-id.ts）
+  const { newPublicId } = await import("@/lib/public-id");
+  return newPublicId();
 }
 
 /**
@@ -153,7 +145,7 @@ const TOOLS: McpToolDef[] = [
           id: posts.id,
           type: posts.type,
           title: posts.title,
-          slug: posts.slug,
+          publicId: posts.publicId,
           summary: posts.summary,
           status: posts.status,
           likeCount: posts.likeCount,
@@ -181,7 +173,7 @@ const TOOLS: McpToolDef[] = [
         id: row.post.id,
         type: row.post.type,
         title: row.post.title,
-        slug: row.post.slug,
+        publicId: row.post.publicId,
         content: row.post.content,
         status: row.post.status,
         author: { username: row.author.username, displayName: row.author.displayName },
@@ -237,7 +229,7 @@ const TOOLS: McpToolDef[] = [
             authorId: ctx.userId,
             type: "article",
             title,
-            slug: await resolveArticleSlug(tx, ctx.userId),
+            publicId: await resolvePostPublicId(),
             summary,
             content,
             status: submit ? "pending_review" : "draft",
@@ -249,7 +241,7 @@ const TOOLS: McpToolDef[] = [
         return row;
       });
 
-      if (!submit) return { id: post.id, slug: post.slug, status: "draft" };
+      if (!submit) return { id: post.id, publicId: post.publicId, status: "draft" };
 
       // 提交流程与 web 一致：只 emit post:submitted，由 moderation 插件决定
       // 直接发布（reviewMode=off）或入队审核 —— 不在创建路径内联 reviewPost
@@ -266,7 +258,7 @@ const TOOLS: McpToolDef[] = [
         .from(posts)
         .where(eq(posts.id, post.id))
         .limit(1);
-      return { id: post.id, slug: post.slug, status: fresh?.status ?? "pending_review" };
+      return { id: post.id, publicId: post.publicId, status: fresh?.status ?? "pending_review" };
     },
   ),
   tool(

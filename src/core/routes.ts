@@ -33,7 +33,6 @@ export const TPL = {
   userProfile: "/:username",
   /** 帖子 permalink：/post/{publicId}（17 位左右数字串，短动态与长文统一；uuid/slug 旧链接兼容解析） */
   post: "/post/:publicId",
-  userPostLegacy: "/u/:username/posts/:slug",
   topic: "/topics/:slug",
   userCollection: "/u/:username/collections/:slug",
   userRss: "/u/:username/feed.xml",
@@ -73,9 +72,6 @@ export const routes = {
   profile: (username: string) => buildPath(TPL.userProfile, { username }),
   profileTab: (username: string, tab: "posts" | "short" | "collections" | "about") =>
     `${buildPath(TPL.userProfile, { username })}?tab=${tab}`,
-  /** Legacy author-scoped article URL（保留旧链接解析，canonical 用 post） */
-  userPost: (username: string, slug: string) =>
-    buildPath(TPL.userPostLegacy, { username, slug }),
   /**
    * Canonical post permalink — /post/{publicId}（Twitter 式数字短 ID，
    * 见 lib/public-id.ts），短动态与长文统一

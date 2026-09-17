@@ -32,7 +32,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .select({
           publicId: posts.publicId,
           username: users.username,
-          slug: posts.slug,
           updatedAt: posts.updatedAt,
           publishedAt: posts.publishedAt,
         })

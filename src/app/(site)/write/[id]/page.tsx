@@ -38,7 +38,7 @@ export default async function WriteEditPage({ params }: { params: Promise<{ id: 
     title: post.title,
     content: post.content,
     summary: post.summary,
-    slug: post.slug,
+    publicId: post.publicId,
     status: post.status as EditorPost["status"],
     visibility: post.visibility,
     collectionId: post.collectionId,

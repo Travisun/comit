@@ -1,4 +1,3 @@
-import { nanoid } from "nanoid";
 import { z } from "zod";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
@@ -173,40 +172,6 @@ export async function assertCollectionOwned(collectionId: string, userId: string
     .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)))
     .limit(1);
   if (!row) throw notFound("合集不存在 / Collection not found");
-}
-
-/**
- * Resolve a fresh slug for a new/updated article: an opaque 10-char
- * url-safe short id (nanoid). The post UUID already guarantees
- * uniqueness/unguessability — the short id only exists for a shorter
- * /post/{id} URL. Client-provided slugs are ignored by design.
- *
- * 查重范围 = 当前作者的 slug 命名空间（与唯一约束 posts_author_slug_key
- * 的 (author_id, slug) 对齐），更新场景排除自身；不再是全局查重。
- * 终极兜底仍是唯一约束：调用方需将 23505 映射为 409。
- */
-export async function resolveArticleSlug(opts: {
-  authorId: string;
-  /** 更新场景排除自身，避免查到当前行 */
-  excludePostId?: string;
-}): Promise<string> {
-  const { authorId, excludePostId } = opts;
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const candidate = nanoid(10);
-    const [clash] = await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(
-        and(
-          eq(posts.authorId, authorId),
-          eq(posts.slug, candidate),
-          excludePostId ? ne(posts.id, excludePostId) : undefined,
-        ),
-      )
-      .limit(1);
-    if (!clash) return candidate;
-  }
-  return nanoid(16);
 }
 
 export interface SubmitCheckResult {

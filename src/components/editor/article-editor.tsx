@@ -44,7 +44,7 @@ export interface EditorPost {
   title: string | null;
   content: string;
   summary: string;
-  slug: string | null;
+  publicId: string;
   status: "draft" | "pending_review" | "published" | "rejected";
   visibility: "public" | "followers";
   collectionId: string | null;
@@ -203,7 +203,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
       };
       type SaveResponse = {
         id?: string;
-        slug?: string | null;
+        publicId?: string;
         status?: EditorPost["status"];
       };
       const r = id
@@ -276,7 +276,8 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
   }, []);
 
   const isPublished = status === "published";
-  const slugPath = (initial?.slug || id) && status !== "draft" ? `/post/${initial?.slug ?? id}` : null;
+  const publicId = initial?.publicId ?? id ?? null;
+  const publicPath = publicId && status !== "draft" ? `/post/${publicId}` : null;
 
   /** 发布 click → open the settings dialog (validated already) */
   function requestPublish() {
@@ -312,13 +313,13 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
                 {t("post.rejected")}：{initial.rejectReason}
               </span>
             )}
-            {slugPath && (
+            {publicPath && (
               <Link
-                href={slugPath}
+                href={publicPath}
                 target="_blank"
                 className="hidden font-mono text-xs text-muted-foreground hover:text-foreground lg:inline"
               >
-                {slugPath}
+                {publicPath}
               </Link>
             )}
           </div>

@@ -32,7 +32,7 @@ export interface PostActionContext {
   postId: string;
   postType: "article" | "short";
   /** 文章 slug（短动态为 null，分享时用 /p/<id>） */
-  slug: string | null;
+  publicId: string;
 }
 
 /** 槽位清单 — 新扩展点在此登记 id 与 ctx 形状 */

@@ -45,7 +45,6 @@ export async function GET(req: Request) {
           type: posts.type,
           collectionId: posts.collectionId,
           title: posts.title,
-          slug: posts.slug,
           summary: posts.summary,
           label: posts.label,
           status: posts.status,

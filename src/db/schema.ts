@@ -269,7 +269,6 @@ export const posts = pgTable(
       .notNull()
       .unique()
       .default(sql`lpad((('x' || substr(md5(random()::text), 1, 14)))::bit(56)::bigint::text, 17, '0')`),
-    slug: varchar("slug", { length: 180 }),
     title: varchar("title", { length: 200 }),
     summary: varchar("summary", { length: 500 }).default("").notNull(),
     content: text("content").default("").notNull(), // markdown source
@@ -303,7 +302,6 @@ export const posts = pgTable(
     preDeleteStatus: varchar("pre_delete_status", { length: 24 }),
   },
   (t) => [
-    uniqueIndex("posts_author_slug_key").on(t.authorId, t.slug),
     index("posts_author_status_idx").on(t.authorId, t.status),
     index("posts_published_idx").on(t.publishedAt),
     index("posts_status_idx").on(t.status),

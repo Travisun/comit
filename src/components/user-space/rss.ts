@@ -1,7 +1,7 @@
 import "server-only";
 import { Feed } from "feed";
 import { config } from "@/core/config";
-import { absolute } from "@/core/routes";
+import { absolute, routes } from "@/core/routes";
 import type { User } from "@/db/schema";
 import type { RssPost } from "./queries";
 
@@ -25,7 +25,7 @@ function baseFeedOptions() {
 
 function addItems(feed: Feed, posts: RssPost[]) {
   for (const p of posts) {
-    const link = absolute(`/u/${p.authorUsername}/posts/${p.slug}`);
+    const link = absolute(routes.post(p.publicId));
     feed.addItem({
       title: p.title,
       id: link,

@@ -12,13 +12,13 @@ import manifest from "./manifest";
  * 「复制链接」。无服务端 — 证明纯前端扩展的最小形态。
  */
 
-function shareUrl(ctx: { postId: string; postType: "article" | "short"; slug: string | null }) {
+function shareUrl(ctx: { postId: string; postType: "article" | "short"; publicId: string }) {
   const path =
-    ctx.postType === "article" ? `/post/${ctx.slug ?? ctx.postId}` : `/p/${ctx.postId}`;
+    `/post/${ctx.publicId}`;
   return `${window.location.origin}${path}`;
 }
 
-async function copyLink(ctx: { postId: string; postType: "article" | "short"; slug: string | null }) {
+async function copyLink(ctx: { postId: string; postType: "article" | "short"; publicId: string }) {
   try {
     await navigator.clipboard.writeText(shareUrl(ctx));
     appToast.success("链接已复制 / Link copied");
@@ -27,7 +27,7 @@ async function copyLink(ctx: { postId: string; postType: "article" | "short"; sl
   }
 }
 
-function ShareAction(ctx: { postId: string; postType: "article" | "short"; slug: string | null }) {
+function ShareAction(ctx: { postId: string; postType: "article" | "short"; publicId: string }) {
   return (
     <button
       type="button"
@@ -41,7 +41,7 @@ function ShareAction(ctx: { postId: string; postType: "article" | "short"; slug:
   );
 }
 
-function ShareMenuItem(ctx: { postId: string; postType: "article" | "short"; slug: string | null }) {
+function ShareMenuItem(ctx: { postId: string; postType: "article" | "short"; publicId: string }) {
   return (
     <DropdownMenuItem onSelect={() => void copyLink(ctx)}>
       <Link2 /> 复制链接

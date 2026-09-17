@@ -145,7 +145,7 @@ async function finish(
     .where(eq(posts.id, postId));
   if (status === "rejected") {
     const [row] = await db
-      .select({ authorId: posts.authorId, title: posts.title, slug: posts.slug })
+      .select({ authorId: posts.authorId, title: posts.title, publicId: posts.publicId })
       .from(posts)
       .where(eq(posts.id, postId))
       .limit(1);
