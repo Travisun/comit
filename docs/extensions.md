@@ -54,7 +54,7 @@ src/extensions/
 | `registerSitemapSource(name, fn)` | /sitemap.xml | 额外 URL 源，单源失败不影响整体 |
 | `registerExtApiRoute(id, def)` | /api/ext/[...slug] | 扩展 API；`auth: "user"` 套登录 |
 | `ctx.hooks.on("post:saving"/"post:saved")` | POST/PUT /api/posts | 写入前可改载荷 / 拒绝（`ctx.reject(reason)` → 422）；写入后异步处理 |
-| `ctx.events`（bus） | 各处 `emit()` | 22 个领域事件订阅 |
+| `ctx.events`（bus） | 各处 `emit()` | 28 个领域事件订阅 |
 
 ### 3.2 文章渲染管线（`core/capabilities/post-render.ts`）
 
@@ -93,7 +93,7 @@ ctx.registerPostRenderFilter("signature", async (p) => {
 | --- | --- | --- |
 | `feed:row:after` | `{ postId, hasPoll, meta? }` | 时间线卡片尾部（投票卡片） |
 | `post:detail:after` | 同上 | 详情正文之后 |
-| `post:actions` | `{ postId, postType, slug }` | 详情快捷操作栏（点赞/转发一排） |
+| `post:actions` | `{ postId, postType, publicId }` | 详情快捷操作栏（点赞/转发一排） |
 | `post:row-menu` | 同上 | 时间线行「···」菜单项（组件渲染 DropdownMenuItem） |
 
 ### 3.5 声明式贡献（manifest，`extensions/<id>/manifest.ts`）
@@ -150,7 +150,7 @@ auth 页同款），`"site"` 含右栏。
 | --- | --- | --- |
 | 队列 Queue | pg-boss（core/queue） | `queue.send/work`；任务类型在 JobPayloads |
 | **调度 Scheduler** | `boss.schedule` 原生 cron | `ctx.cron.register({ name: "ext.<id>.<task>", cron: "0 3 * * *" }, handler)` — 持久化、多进程不重复 |
-| **LLM** | lib/llm.ts（OpenAI-compatible） | `ctx.llm.chat({ messages, model?, json? })`、`ctx.llm.listModels()/listRemoteModels()` 查询可用型号、`ctx.llm.registerPrompt/renderPrompt` 提示词模板、`ctx.llm.registerModel` 注册型号 |
+| **LLM** | lib/llm.ts（OpenAI-compatible） | `ctx.llm.chat({ messages, model?, json? })`、`ctx.llm.listLlmModels()/listRemoteModels()` 查询可用型号、`ctx.llm.registerPrompt/renderPrompt` 提示词模板、`ctx.llm.registerModel` 注册型号 |
 | 事件 Events | Emittery bus（22+ 事件） | `ctx.events.on(...)`；含 auth:login/logout/registered、auth:password.forgot/reset、message:created/read 等 |
 | **生命周期钩子**（可改写/可拒绝） | hookable | `post:saving/saved`、`register:saving`、`message:sending/sent` — reject(reason) → 422 |
 | **ORM/迁移** | drizzle + journal | 扩展表声明在 `extensions/<id>/schema.ts` → 登记 `_boot/tables.ts` → `pnpm db:generate/migrate` 自动版本化；运行时直接 `import { db }` |

@@ -9,6 +9,7 @@ import { channels, registerChannel, type NotificationChannel, type NotificationM
 import { routes } from "@/core/routes";
 import { broadcast } from "@/core/capabilities/broadcast";
 import type { Locale } from "@/lib/i18n";
+import { setNotificationDispatcher } from "@/core/capabilities/jobs";
 
 /**
  * Notifications plugin (Laravel-style multi-channel):
@@ -149,6 +150,11 @@ const plugin: Plugin = {
   register(ctx: PluginContext) {
     registerChannel(databaseChannel);
     registerChannel(mailChannel);
+
+    // 通电：向核心登记同步分发实现 —— ctx.notifications.send（请求路径）
+    // 与 notify.dispatch 队列 worker（runNotifyDispatch）都经它扇出到渠道。
+    // 不登记的话两者一律抛「通知分发器未就绪」（历史接线缺口，2026-09 审计）。
+    setNotificationDispatcher(notifySend);
 
     // Operation events (admin/editor actions) → user notifications via
     // sendOperationNotification (database + mail channels). Failures inside

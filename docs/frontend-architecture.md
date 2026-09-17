@@ -176,8 +176,8 @@ src/plugins.client/index.tsx  装配点（UI_PLUGINS 数组）
 src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after）
 ```
 
-- 新 UI 插件三步：写组件（ctx 形状见 `PostSlotContext`）→ 导出
-  `UiPlugin` → 加入 `UI_PLUGINS`。布局零改动。
+- 新 UI 插件：写组件 → 在 `src/extensions/<id>/client.tsx` 调
+  `registerUiPlugin`，并在 `src/extensions/_boot/client.tsx` 侧效 import。布局零改动。
 - 新槽位：`SlotContexts` 登记 id + ctx（必须可 JSON 序列化）→ 布局挂
   `SlotRenderer`。
 - 规划槽位：`composer:tools`、`composer:panel`、`settings:tabs`、`admin:nav`。
