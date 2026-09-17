@@ -15,7 +15,6 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/follow-button";
 import { BlockButton } from "@/components/social/block-button";
 import {
-  getActiveUserByUsername,
   getFollowState,
   getPublishedPosts,
   listBookmarkPosts,
@@ -678,6 +677,3 @@ export async function SingleUserHome({ user, viewer }: { user: User; viewer: Use
 }
 
 /** Resolve a single-user-mode site owner (or null when unset/missing). */
-export async function resolveSingleUser(username: string): Promise<User | null> {
-  return getActiveUserByUsername(username);
-}

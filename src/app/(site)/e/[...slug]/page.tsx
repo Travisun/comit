@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getExtensionPage } from "@/extensions/_boot/registry";
+import { isExtensionEnabled } from "@/lib/settings";
 import { PluginErrorBoundary } from "@/lib/plugins/error-boundary";
 
 /**
@@ -20,6 +21,8 @@ export default async function ExtensionPageRoute({
   const path = (slug ?? []).join("/");
   const def = getExtensionPage(path);
   if (!def) throw notFound();
+  // 扩展被管理员禁用时页面按不存在处理（boot 亦不再注册服务端能力）
+  if (!(await isExtensionEnabled(path))) throw notFound();
   const Page = def.component;
   return (
     <PluginErrorBoundary

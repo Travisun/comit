@@ -134,6 +134,13 @@ auth 页同款），`"site"` 含右栏。
 - **`extensions/share`**（最小纯前端）：`post:actions` + `post:row-menu`。
 - **`extensions/poll`**（双端）：槽位展示 + 到期通知任务 + 服务端校验。
 
+## 4.5 启用/禁用（2026-09 新增）
+
+- 设置键 `ext.enabled`（Record<extId, boolean>，未列出 = 启用）；
+- 门控三处：`bootPlugins`（禁用不注册任何服务端能力）、`/e/<path>` 页（按不存在处理）、
+  admin 设置页「扩展」tab 开关（`EXTENSION_MANIFESTS` 全量列出，即时保存）；
+- ext API 统一限流（每 IP 60 次/分）并支持 `auth: "admin"`。
+
 ## 5. 已知边界
 
 - 渲染管线的 prepend/append 是**信任 HTML**（内置扩展可用；第三方接入需

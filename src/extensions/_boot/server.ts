@@ -36,6 +36,7 @@ import {
   listFlagDefs,
 } from "@/core/capabilities/flags";
 import { registerSeed } from "@/core/capabilities/seeds";
+import { isExtensionEnabled } from "@/lib/settings";
 
 /**
  * Plugin manager. `bootPlugins()` is called once per server process
@@ -144,7 +145,16 @@ export function bootPlugins(): Promise<void> {
       };
       for (const p of PLUGINS) visit(p);
 
+      // per-extension 启用开关（setting ext.enabled；未列出 = 启用）
+      const enabled: Plugin[] = [];
+      const disabled: string[] = [];
       for (const p of sorted) {
+        if (await isExtensionEnabled(p.name)) enabled.push(p);
+        else disabled.push(p.name);
+      }
+      if (disabled.length) console.log(`[plugins] disabled: ${disabled.join(", ")}`);
+
+      for (const p of enabled) {
         try {
           if (p.deferred) {
             // B3: 延迟注册 — 首次 container.resolve("ext.<id>") 时执行

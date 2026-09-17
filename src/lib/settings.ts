@@ -29,6 +29,8 @@ export const SETTINGS_DEFAULTS = {
   "moderation.reviewMode": "off" as "off" | "llm" | "manual",
   "moderation.keywordsEnabled": true,
   "moderation.llmFailMode": "open" as "open" | "closed",
+  /** per-extension 启用开关（未列出的扩展默认启用；boot/页面/API 三处门控） */
+  "ext.enabled": {} as Record<string, boolean>,
   /**
    * LLM 多提供商配置（lib/llm.ts v2）：providers 各自带协议/端点/密钥/
    * 型号目录；default 为平台默认模型。admin 设置页维护。
@@ -66,6 +68,12 @@ export const SETTINGS_DEFAULTS = {
 } as const;
 
 export type SettingsKey = keyof typeof SETTINGS_DEFAULTS;
+
+/** 扩展启用判定：未列出的 id 视为启用（新增扩展零配置可用）。 */
+export async function isExtensionEnabled(id: string): Promise<boolean> {
+  const map = (await getSetting("ext.enabled")) as Record<string, boolean>;
+  return map?.[id] !== false;
+}
 
 type SettingsMap = Record<string, unknown>;
 

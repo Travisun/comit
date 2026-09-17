@@ -20,8 +20,10 @@ import { LlmProvidersPanel } from "@/components/admin/llm-providers-panel";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
-import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { useQueryClient } from "@tanstack/react-query";
+import { EXTENSION_MANIFESTS } from "@/extensions/_boot/manifests";
+import { useApiMutation } from "@/lib/query/mutation";
 // 桶清单单源：bucket-manifest.ts 是纯数据零 import 的客户端安全模块，
 // 运行时导入不会把服务端依赖（@/db → pg）拖进浏览器包
 import { RATE_BUCKETS } from "@/lib/rate-limit/bucket-manifest";
@@ -82,7 +84,7 @@ const SSO_KEYS: { key: string; label: string }[] = [
   { key: "sso.linuxdo", label: "Linux.do" },
 ];
 
-type AdminTab = "general" | "mode" | "features" | "login" | "ratelimit" | "llm";
+type AdminTab = "general" | "mode" | "features" | "login" | "ratelimit" | "llm" | "exts";
 
 export default function AdminSettingsPage() {
   // 设置查询 — 表单为 keyed 子组件：data 版本变化（首次到达/保存失效重取）时
@@ -219,6 +221,7 @@ function AdminSettingsForm({
           { id: "login", label: "登录" },
           { id: "ratelimit", label: "频率限制" },
           { id: "llm", label: "AI 模型" },
+          { id: "exts", label: "扩展" },
         ]}
       />
 
@@ -341,6 +344,7 @@ function AdminSettingsForm({
 
       {tab === "ratelimit" && <RateLimitBucketsSection seedValue={seed.entries["ratelimit.buckets"]} />}
       {tab === "llm" && <LlmProvidersPanel value={seed.entries["llm.providers"]} />}
+      {tab === "exts" && <ExtensionSwitches seedValue={seed.entries["ext.enabled"]} />}
     </div>
   );
 }
@@ -516,6 +520,46 @@ function RateLimitBucketsSection({ seedValue }: { seedValue: unknown }) {
           {saveMutation.pending ? "保存中…" : "保存限流配置"}
         </Button>
       </SettingsFooter>
+    </SettingsSection>
+  );
+}
+
+/* --------------------------- extension switches --------------------------- */
+
+function ExtensionSwitches({ seedValue }: { seedValue: unknown }) {
+  const queryClient = useQueryClient();
+  const [map, setMap] = useState<Record<string, boolean>>(
+    (seedValue as Record<string, boolean> | undefined) ?? {},
+  );
+  const saveMutation = useApiMutation(
+    (next: Record<string, boolean>) => postJson("/api/admin/settings", { entries: { "ext.enabled": next } }),
+    {
+      successToast: "扩展开关已保存（重启 dev server 后服务端生效）",
+      onSuccess: () => void queryClient.invalidateQueries({ queryKey: ADMIN_SETTINGS_KEY }),
+    },
+  );
+
+  const known = EXTENSION_MANIFESTS.map((m) => ({ id: m.id, title: m.title.zh }));
+  return (
+    <SettingsSection>
+      <SettingsSectionHeader description="关闭的扩展将停止加载服务端能力（worker/事件/渠道），其独立页面按不存在处理。未列出的扩展默认启用。" />
+      <div className="space-y-2">
+        {known.map((k, i) => (
+          <SwitchRow
+            key={k.id}
+            label={k.title}
+            description={k.id}
+            checked={map[k.id] !== false}
+            onCheckedChange={(v) => {
+              const next = { ...map, [k.id]: v };
+              setMap(next);
+              saveMutation.mutate(next);
+            }}
+            last={i === known.length - 1}
+          />
+        ))}
+      </div>
+      <SettingsFooter hint="开关即时保存；服务端 boot 门控在 dev 重启 / 生产重部署后完全生效。" />
     </SettingsSection>
   );
 }

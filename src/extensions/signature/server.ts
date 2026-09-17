@@ -40,13 +40,18 @@ export async function loadSignatureSettings(userId: string) {
 
 async function saveSignatureSettings(userId: string, input: unknown) {
   const settings = coerceExtSettings(manifest as ExtensionManifest, input);
-  const [row] = await db
-    .select({ ext: users.extSettings })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
-  const merged = { ...((row?.ext as object) ?? {}), signature: settings };
-  await db.update(users).set({ extSettings: merged }).where(eq(users.id, userId));
+  // 行锁 + 锁内重读合并：与平台通用 ext 设置 API 同款并发防护
+  //（并发保存其它扩展的设置时不会互相覆盖）
+  await db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ ext: users.extSettings })
+      .from(users)
+      .where(eq(users.id, userId))
+      .for("update")
+      .limit(1);
+    const merged = { ...((row?.ext as object) ?? {}), signature: settings };
+    await tx.update(users).set({ extSettings: merged }).where(eq(users.id, userId));
+  });
   return settings;
 }
 

@@ -9,8 +9,8 @@ export interface ExtApiRouteDef {
   method: ExtHttpMethod;
   /** 挂载在 /api/ext/<extensionId>/ 下的相对路径，如 "current" */
   path: string;
-  /** user ⇒ 强制登录（withUser）；缺省 public（withApi，仅同源校验） */
-  auth?: "public" | "user";
+  /** user ⇒ 强制登录（withUser）；admin ⇒ 还须管理员角色；缺省 public（withApi，仅同源校验） */
+  auth?: "public" | "user" | "admin";
   handler: (
     req: Request,
     ctx: { user: { id: string; role: string } | null },

@@ -241,8 +241,7 @@ src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after�
      composer-panels(578)、article-editor(568) 等 —— 触碰时拆；
   3. settings 域数据层未按 queries.ts + models 规范落位（`_data.ts` 手写装配、
      settings/types.ts 手写 DTO、面板 HTTP 重取与 page data 重复计算）；
-  4. `resolveSingleUser` 位于 profile-view 组件文件内且返回整行 db User
-     （两端皆 server 组件无泄露，但绕过 queries.ts 铁律）——迁回 queries.ts
-     并做列投影。
+  4. ~~`resolveSingleUser` 迁回 queries.ts~~ 已完成（queries.ts 内实现，
+     profile-view 不再导出数据函数）。
 - pnpm v10+ 对新依赖的构建脚本需 `pnpm approve-builds` 批准；TanStack
   Query / Zustand 为纯 JS 包，无构建脚本，不受影响。

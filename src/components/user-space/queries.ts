@@ -288,6 +288,11 @@ export async function getActiveAuthors(limit = 5): Promise<AuthorCardData[]> {
 
 /* --------------------------------- users --------------------------------- */
 
+/** 单用户模式：站点主页对应的作者（site.singleUser 设置）。 */
+export async function resolveSingleUser(username: string): Promise<User | null> {
+  return getActiveUserByUsername(username);
+}
+
 export async function getActiveUserByUsername(username: string): Promise<User | null> {
   const [user] = await db
     .select()
