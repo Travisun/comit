@@ -1,5 +1,4 @@
 import type { ComponentType } from "react";
-import { SignaturePage } from "@/extensions/signature/client";
 
 /**
  * 扩展页面 / 设置面板的**静态**注册表（双端可导入的纯模块）。
@@ -21,9 +20,7 @@ export interface ExtensionPageRef {
   component: ComponentType;
 }
 
-export const EXTENSION_PAGES: ExtensionPageRef[] = [
-  { path: "signature", title: "签名档", component: SignaturePage },
-];
+export const EXTENSION_PAGES: ExtensionPageRef[] = [];
 
 export function getExtensionPage(path: string): ExtensionPageRef | null {
   return EXTENSION_PAGES.find((p) => p.path === path) ?? null;

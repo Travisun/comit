@@ -8,6 +8,8 @@ import {
   SettingsSection,
   SettingsSectionHeader,
 } from "@/components/ui/settings";
+import { SwitchRow } from "@/components/admin/switch-row";
+import { VirtualSelect } from "@/components/ui/virtual-select";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiRequest } from "./client";
 import type { SettingsData } from "./types";
@@ -16,11 +18,13 @@ import type { SettingFieldDef } from "@/core/capabilities/manifest";
 
 /**
  * 设置 → 扩展 — 已注册扩展的统一设置入口。
- * 每个扩展的表单由其 manifest 的 settingsFields 声明驱动（自动表单）；
+ * 每个扩展的表单由其 manifest 的 settingsFields 声明驱动（自动表单），
+ * 控件统一使用平台 UI 原语（Input / Textarea / SwitchRow / VirtualSelect / Radio）。
  * 需要自定义 UI 的扩展可在 extensions/_boot/registry.ts 覆盖面板。
  */
 
-function FieldControl({
+/** 单个设置字段的标签 + 描述 + 控件渲染（统一平台 UI 原语）。 */
+function FieldRow({
   field,
   value,
   onChange,
@@ -29,58 +33,106 @@ function FieldControl({
   value: unknown;
   onChange: (v: unknown) => void;
 }) {
+  const label = (
+    <Label htmlFor={`ext-${field.key}`} className="text-sm font-medium">
+      {field.label}
+    </Label>
+  );
+  const desc = field.description ? (
+    <p className="text-xs text-muted-foreground">{field.description}</p>
+  ) : null;
+
   switch (field.type) {
     case "boolean":
       return (
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
+        <div className="space-y-1">
+          <SwitchRow
+            label={field.label}
+            description={field.description}
             checked={Boolean(value)}
-            onChange={(e) => onChange(e.target.checked)}
+            onCheckedChange={onChange as (v: boolean) => void}
+            last
           />
-          {field.label}
-        </label>
+        </div>
       );
     case "textarea":
       return (
-        <Textarea
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          maxLength={field.maxLength}
-          rows={3}
-        />
+        <div className="space-y-1.5">
+          {label}
+          <Textarea
+            id={`ext-${field.key}`}
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            maxLength={field.maxLength}
+            rows={3}
+          />
+          {desc}
+        </div>
       );
     case "select":
       return (
-        <select
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-9 rounded-lg border border-border bg-card px-2 text-sm"
-        >
-          {(field.options ?? []).map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        <div className="space-y-1.5">
+          {label}
+          <VirtualSelect
+            value={String(value ?? "")}
+            options={(field.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
+            onChange={onChange as (v: string) => void}
+            className="max-w-xs"
+          />
+          {desc}
+        </div>
+      );
+    case "radio":
+      return (
+        <div className="space-y-1.5">
+          {label}
+          <div className="flex flex-wrap gap-3">
+            {(field.options ?? []).map((o) => (
+              <label key={o.value} className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
+                <input
+                  type="radio"
+                  name={`ext-${field.key}`}
+                  value={o.value}
+                  checked={String(value ?? "") === o.value}
+                  onChange={() => onChange(o.value)}
+                  className="accent-[var(--primary)]"
+                />
+                {o.label}
+              </label>
+            ))}
+          </div>
+          {desc}
+        </div>
       );
     case "number":
       return (
-        <Input
-          type="number"
-          value={value === undefined || value === "" ? "" : String(value)}
-          onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-        />
+        <div className="space-y-1.5">
+          {label}
+          <Input
+            id={`ext-${field.key}`}
+            type="number"
+            value={value === undefined || value === "" ? "" : String(value)}
+            onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
+            className="max-w-32"
+          />
+          {desc}
+        </div>
       );
     default:
       return (
-        <Input
-          value={String(value ?? "")}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
-          maxLength={field.maxLength}
-        />
+        <div className="space-y-1.5">
+          {label}
+          <Input
+            id={`ext-${field.key}`}
+            value={String(value ?? "")}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={field.placeholder}
+            maxLength={field.maxLength}
+            className="max-w-xs"
+          />
+          {desc}
+        </div>
       );
   }
 }
@@ -96,7 +148,6 @@ function ExtensionForm({
 }) {
   const [values, setValues] = useState<Record<string, unknown>>(initial);
 
-  // 保存扩展设置 — pending 驱动按钮；成功/失败 toast 由统一契约处理
   const saveMutation = useApiMutation(
     (payload: Record<string, unknown>) => apiRequest(`/api/me/ext/${id}/settings`, "PUT", payload),
     { successToast: "已保存" },
@@ -109,16 +160,12 @@ function ExtensionForm({
   return (
     <div className="space-y-4">
       {fields.map((field) => (
-        <div key={field.key} className="grid gap-1.5">
-          {field.type !== "boolean" && <Label htmlFor={`ext-${id}-${field.key}`}>{field.label}</Label>}
-          <FieldControl
+        <div key={field.key}>
+          <FieldRow
             field={field}
             value={values[field.key]}
             onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
           />
-          {field.description && (
-            <p className="text-xs text-muted-foreground">{field.description}</p>
-          )}
         </div>
       ))}
       <Button size="sm" onClick={() => save()} disabled={saveMutation.pending}>

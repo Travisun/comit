@@ -6,7 +6,7 @@
  * 命令式扩展点（过滤器/处理器/组件）不走 manifest，见 core/capabilities/*。
  */
 
-export type SettingFieldType = "text" | "textarea" | "number" | "boolean" | "select";
+export type SettingFieldType = "text" | "textarea" | "number" | "boolean" | "select" | "radio";
 
 export interface SettingFieldDef {
   /** 扩展内的设置键（存储时自动加 `ext.<id>.` 前缀） */
@@ -83,7 +83,8 @@ export function coerceExtSettings(
         out[field.key] = Number.isFinite(n) ? n : (field.default ?? 0);
         break;
       }
-      case "select": {
+      case "select":
+      case "radio": {
         const value = String(raw ?? "");
         const hit = field.options?.some((o) => o.value === value);
         out[field.key] = hit ? value : (field.options?.[0]?.value ?? field.default ?? "");

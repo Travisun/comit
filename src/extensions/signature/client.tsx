@@ -7,15 +7,12 @@ import { z } from "zod";
 import { appToast } from "@/lib/client/toast";
 import { useZodForm } from "@/lib/validation";
 import { queryKeys } from "@/lib/query/keys";
-import { PenLine } from "lucide-react";
+import { } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { apiGet, putJson } from "@/lib/client/api";
 import {
   registerInterruptRenderer,
-  registerNavItem,
-  registerRailWidget,
-  registerUserMenuItem,
 } from "@/lib/plugins/registry";
 
 /**
@@ -148,17 +145,6 @@ function SignatureForm({ initial }: { initial: SignatureSettings }) {
 
 /* -------------------- rail widget -------------------- */
 
-function SignatureRailWidget() {
-  const q = useSignatureSettings();
-  const content = q.data?.enabled ? String(q.data.content ?? "") : "";
-  if (!content) return null;
-  return (
-    <section className="rounded-lg border border-border bg-card p-4">
-      <p className="mb-2 text-xs font-semibold text-muted-foreground">我的签名档</p>
-      <p className="whitespace-pre-wrap text-sm text-muted-foreground">{content}</p>
-    </section>
-  );
-}
 
 /* -------------------- 登录可见打断渲染器 -------------------- */
 
@@ -176,28 +162,5 @@ const LoginRequiredCard: import("react").ComponentType<{
 };
 
 /* -------------------- 注册（模块导入即生效） -------------------- */
-
-registerNavItem({
-  id: "signature",
-  label: { zh: "签名档", en: "Signature" },
-  href: "/e/signature",
-  icon: PenLine,
-  audience: "user",
-  order: 900,
-});
-
-registerUserMenuItem({
-  id: "signature",
-  label: { zh: "签名档设置", en: "Signature" },
-  href: "/e/signature",
-  order: 900,
-});
-
-registerRailWidget({
-  id: "signature",
-  title: { zh: "签名档", en: "Signature" },
-  component: SignatureRailWidget,
-  order: 900,
-});
 
 registerInterruptRenderer("ext.signature", LoginRequiredCard);
