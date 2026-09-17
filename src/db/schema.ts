@@ -159,6 +159,7 @@ export const sessions = pgTable(
   (t) => [
     uniqueIndex("sessions_token_key").on(t.tokenHash),
     index("sessions_user_idx").on(t.userId),
+    index("sessions_expires_idx").on(t.expiresAt),
   ],
 );
 
@@ -191,11 +192,15 @@ export const totpSecrets = pgTable("totp_secrets", {
 });
 
 /** 分布式限流（固定窗口计数；进程内 Map 的 PG 后备，多 worker 共享阈值）— 无外键，过期行由 retention cron 清理 */
-export const rateLimits = pgTable("rate_limits", {
-  key: varchar("key", { length: 200 }).primaryKey(),
-  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
-  count: integer("count").notNull().default(0),
-});
+export const rateLimits = pgTable(
+  "rate_limits",
+  {
+    key: varchar("key", { length: 200 }).primaryKey(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [index("rate_limits_window_idx").on(t.windowStart)],
+);
 
 export const invites = pgTable(
   "invites",
@@ -229,7 +234,7 @@ export const bookmarks = pgTable(
   },
   (t) => [
     uniqueIndex("bookmarks_user_post_key").on(t.userId, t.postId),
-    index("bookmarks_user_idx").on(t.userId),
+    index("bookmarks_user_created_idx").on(t.userId, t.createdAt.desc()),
   ],
 );
 
@@ -302,14 +307,11 @@ export const posts = pgTable(
     preDeleteStatus: varchar("pre_delete_status", { length: 24 }),
   },
   (t) => [
-    index("posts_author_status_idx").on(t.authorId, t.status),
-    index("posts_published_idx").on(t.publishedAt),
-    index("posts_status_idx").on(t.status),
-    {
-      name: "posts_search_idx",
-      columns: [sql`to_tsvector('simple', coalesce(${t.title},'') || ' ' || ${t.content})`],
-      using: "gin",
-    } as never,
+    // 社区/探索/话题/站点 feed：等值 (status, visibility) + publishedAt 排序
+    index("posts_feed_idx")
+      .on(t.status, t.visibility, t.publishedAt.desc()),
+    // 个人页 tabs / 作者视角：等值 (authorId, status[, type]) + publishedAt 排序
+    index("posts_author_feed_idx").on(t.authorId, t.status, t.publishedAt.desc()),
   ],
 );
 
@@ -407,10 +409,7 @@ export const comments = pgTable(
     /** 博主标记的解决方案（可多个，Discourse Solve 式）；展示绿勾徽标 */
     solutionAt: timestamp("solution_at", { withTimezone: true }),
   },
-  (t) => [
-    index("comments_post_idx").on(t.postId, t.createdAt),
-    index("comments_post_pinned_idx").on(t.postId, t.pinnedAt),
-  ],
+  (t) => [index("comments_post_idx").on(t.postId, t.createdAt)],
 );
 
 export const reposts = pgTable(
@@ -426,7 +425,10 @@ export const reposts = pgTable(
     comment: varchar("comment", { length: 280 }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("reposts_user_post_key").on(t.userId, t.postId)],
+  (t) => [
+    uniqueIndex("reposts_user_post_key").on(t.userId, t.postId),
+    index("reposts_post_idx").on(t.postId),
+  ],
 );
 
 /** Discourse-style emoji reactions on posts — a user may react with many
@@ -494,7 +496,11 @@ export const conversations = pgTable(
     lastMessageAt: timestamp("last_message_at", { withTimezone: true }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("conversations_pair_key").on(t.userAId, t.userBId)],
+  (t) => [
+    uniqueIndex("conversations_pair_key").on(t.userAId, t.userBId),
+    index("conversations_user_a_idx").on(t.userAId),
+    index("conversations_user_b_idx").on(t.userBId),
+  ],
 );
 
 export const messages = pgTable(
@@ -512,7 +518,11 @@ export const messages = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("messages_conversation_idx").on(t.conversationId, t.createdAt)],
+  (t) => [
+    index("messages_conversation_idx").on(t.conversationId, t.createdAt),
+    // 未读私信相关查询全部带 read_at IS NULL —— 部分索引体积恒小
+    index("messages_unread_idx").on(t.conversationId).where(sql`read_at is null`),
+  ],
 );
 
 /* ========================== verification ============================== */
@@ -555,7 +565,10 @@ export const notifications = pgTable(
     readAt: timestamp("read_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("notifications_user_idx").on(t.userId, t.createdAt)],
+  (t) => [
+    index("notifications_user_idx").on(t.userId, t.createdAt),
+    index("notifications_unread_idx").on(t.userId).where(sql`read_at is null`),
+  ],
 );
 
 /* ============================ webhooks ================================ */
@@ -594,7 +607,10 @@ export const webhookDeliveries = pgTable(
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("webhook_deliveries_hook_idx").on(t.webhookId, t.createdAt)],
+  (t) => [
+    index("webhook_deliveries_hook_idx").on(t.webhookId, t.createdAt),
+    index("webhook_deliveries_created_idx").on(t.createdAt),
+  ],
 );
 
 /* ========================== api tokens (MCP) ========================== */
@@ -683,7 +699,7 @@ export const exportJobs = pgTable("export_jobs", {
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   finishedAt: timestamp("finished_at", { withTimezone: true }),
-});
+}, (t) => [index("export_jobs_user_idx").on(t.userId, t.createdAt)]);
 
 /* ============================== polls ================================= */
 
@@ -723,7 +739,6 @@ export const pollVotes = pgTable(
   },
   (t) => [
     uniqueIndex("poll_votes_unique").on(t.pollId, t.userId, t.optionIndex),
-    index("poll_votes_poll_idx").on(t.pollId),
   ],
 );
 
