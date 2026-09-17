@@ -51,7 +51,7 @@ const createSchema = z
     /** 可选投票（仅短动态）：选项 2–5 项、权重 ≤32（16 汉字/32 字符）、最长 30 天 */
     poll: z
       .object({
-        mode: z.enum(["single", "multiple"]),
+        mode: z.enum(["single", "multiple", "pk"]),
         options: z.array(z.string().trim().min(1).max(64)).min(POLL_OPTIONS_MIN).max(POLL_OPTIONS_MAX),
         endsAt: z.coerce.date(),
       })
