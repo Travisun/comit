@@ -13,10 +13,22 @@
    pnpm 下任何改变 `node_modules/next` 实例目录名的事件都会制造"代际切换"：
    - react / react-dom 升级（peer hash 变化，如 `react-dom@19.2.8` → `19.3.0`）
    - **pnpm patch 的增、删、改**（`patch_hash` 路径变化）
-3. 旧代际材料的三个滞留点：
+3. 旧代际材料的滞留点（✅ 2026-09-17 用户在 DevTools 中定位到确定性根因）：
+   - **客户端：Chrome 里注册的 Service Worker（最终确认的元凶）**。SW 按
+     origin（localhost:3000）注册，与代码仓库无关 —— 任何曾占用该端口的项目
+     /实验留下的 SW，即使注册代码早已删除，仍会用**自己缓存的旧脚本**持续
+     拦截 fetch、按稳定 chunk URL 回放旧代际产物。这解释了全部现象：
+     仅 Chrome 出错（内嵌浏览器独立 profile 无 SW）、跨 dev 重启 /
+     node_modules 重装 / .next 清除持续复发、引用已删除实例路径、刷新暂时
+     恢复后复发。当时以"代码与 git 历史无 SW"排除该向量是误判 —— SW 的
+     滞留性恰恰在仓库之外。
    - 服务端：`.next/dev/cache`（Turbopack 持久缓存，二进制格式）
-   - 客户端：浏览器磁盘缓存（dev 静态资源 no-store 头之前获得的条目）
-   - 客户端：未刷新的旧标签页内存中的模块图
+   - 客户端：浏览器磁盘缓存 + 未刷新的旧标签页内存中的模块图
+
+   **防护（dev 自愈守卫）**：根 layout 注入 dev-only 脚本（src/app/layout.tsx），
+   每次页面加载自动卸载本 origin 全部 Service Worker 并清空 Cache API ——
+   任何项目再往 localhost:3000 注册 SW 都会被下次加载自动驱逐。生产构建
+   不含此脚本。
 4. 新旧代际在同一页面混用 → flight 载荷引用**磁盘上已不存在的实例路径** →
    module factory 缺失 → 竞态雪崩（flight 重复 resolve / startsWith 崩溃）。
    服务端 SSR 输出本身是干净的（已验证），错误引用全部来自上述滞留点。

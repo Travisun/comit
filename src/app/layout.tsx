@@ -34,6 +34,21 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body className="min-h-dvh flex flex-col">
+        {process.env.NODE_ENV !== "production" && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: [
+                "if('serviceWorker' in navigator){",
+                "navigator.serviceWorker.getRegistrations().then(function(rs){",
+                "if(rs.length){rs.forEach(function(r){r.unregister();});",
+                "console.info('[dev-hygiene] unregistered '+rs.length+' service worker(s)');}});",
+                "if(window.caches&&caches.keys){caches.keys().then(function(ks){",
+                "ks.forEach(function(k){caches.delete(k);});});}",
+                "}",
+              ].join(""),
+            }}
+          />
+        )}
         <I18nProvider locale={locale}>
           <DataProvider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
