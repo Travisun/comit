@@ -26,21 +26,8 @@ export async function startWorkers(): Promise<void> {
     await sendMail(data);
   });
 
-  await queue.work("moderation.review", async (data) => {
-    const { processModerationJob } = await import("@/extensions/moderation/server");
-    await processModerationJob(data.postId);
-  });
-
-  await queue.work("poll.end", async (data) => {
-    const { processPollEnd } = await import("@/extensions/poll/server");
-    await processPollEnd(data.postId);
-  });
-
-  await queue.work("export.build", async (data) => {
-    const { processExportJob } = await import("@/extensions/export/server");
-    await processExportJob(data.userId, data.requestId);
-  });
-
+  // moderation.review / poll.end / export.build 三个任务已自包含到
+  // 各扩展（ctx.jobs.work 注册，ext.job 通道统一消费）——见各自 server.ts。
   await queue.work("webhook.deliver", async (data) => {
     const { signPayload } = await import("@/extensions/webhooks/server");
     const { webhooks } = await import("@/db/schema");

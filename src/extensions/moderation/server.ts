@@ -54,7 +54,11 @@ const plugin: Plugin = {
         }
         return;
       }
-      await queue.send("moderation.review", { postId: payload.postId }, { retryLimit: 2 });
+      await queue.send(
+        "ext.job",
+        { extensionId: "moderation", task: "review", payloadJson: JSON.stringify({ postId: payload.postId }) },
+        { retryLimit: 2 },
+      );
     });
   },
 };

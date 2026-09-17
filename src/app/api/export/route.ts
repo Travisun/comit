@@ -44,7 +44,10 @@ export async function POST(req: Request) {
       .values({ userId: auth.user.id, status: "queued" })
       .returning({ id: exportJobs.id });
     try {
-      await queue.send("export.build", { userId: auth.user.id, requestId: job.id });
+      await queue.send(
+        "ext.job",
+        { extensionId: "export", task: "build", payloadJson: JSON.stringify({ userId: auth.user.id, requestId: job.id }) },
+      );
     } catch (err) {
       await db
         .update(exportJobs)

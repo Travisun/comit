@@ -21,11 +21,8 @@ export interface JobPayloads {
     payloadJson: string;
     deliveryId: string;
   };
-  "moderation.review": { postId: string };
-  "export.build": { userId: string; requestId: string };
   "export.cleanup": { requestId: string };
   /** 投票到期：给作者与投票用户派发结果通知（创建时按 endsAt 延迟投递） */
-  "poll.end": { postId: string };
   /** 队列化事件（ShouldQueue 语义，core/capabilities/jobs.ts） */
   "event.dispatch": { name: string; payloadJson: string };
   /** 异步通知（渠道扇出走队列） */

@@ -213,8 +213,8 @@ export async function POST(req: Request): Promise<Response> {
     // 帖子被删/未发布时 worker 直接跳过。
     if (pollRow) {
       await queue.send(
-        "poll.end",
-        { postId: post.id },
+        "ext.job",
+        { extensionId: "poll", task: "end", payloadJson: JSON.stringify({ postId: post.id }) },
         {
           startAfterSeconds: Math.max(
             60,

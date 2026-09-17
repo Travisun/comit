@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { pollVotes, polls, posts } from "@/db/schema";
 import { routes } from "@/core/routes";
 import { notifySend } from "@/extensions/notifications/server";
+import type { Plugin } from "@/core/plugins/types";
 
 /**
  * 投票结束通知（poll.end 延迟任务）：
@@ -82,3 +83,15 @@ function leadLine(options: string[], tallies: number[]): string {
   }
   return "各选项票数接近，点击查看完整结果。";
 }
+
+/** 自包含 worker：poll.end 到期任务经 ctx.jobs 注册（ext.job 通道）。 */
+export const plugin: Plugin = {
+  name: "poll",
+  description: "Polls for short posts",
+  version: "1.0.0",
+  register(ctx) {
+    ctx.jobs.work("end", ({ postId }) => processPollEnd(String(postId)));
+  },
+};
+
+export default plugin;

@@ -42,14 +42,6 @@ export interface McpToolDef {
   handler(args: Record<string, unknown>, ctx: McpToolContext): Promise<unknown>;
 }
 
-// ---- Sidebar widgets ---------------------------------------------------
-export interface WidgetDef {
-  id: string;
-  label: LocalizedText;
-  /** default visibility on new profiles */
-  default: boolean;
-}
-
 // ---- Admin panel sections ----------------------------------------------
 export interface AdminSectionDef {
   id: string;
@@ -99,7 +91,6 @@ export interface PluginContext {
   hooks: Hookable;
   registerChannel(channel: NotificationChannel): void;
   registerMcpTool(tool: McpToolDef): void;
-  registerWidget(widget: WidgetDef): void;
   registerAdminSection(section: AdminSectionDef): void;
   /** 文章渲染管线过滤器（前/后输出、正文改写、meta、打断） */
   registerPostRenderFilter(name: string, fn: PostRenderFilter, order?: number): void;
@@ -175,12 +166,10 @@ export interface Plugin {
 const g = globalThis as unknown as {
   __mbChannels?: Map<string, NotificationChannel>;
   __mbMcpTools?: Map<string, McpToolDef>;
-  __mbWidgets?: Map<string, WidgetDef>;
   __mbAdminSections?: Map<string, AdminSectionDef>;
 };
 export const channels: Map<string, NotificationChannel> = (g.__mbChannels ??= new Map());
 export const mcpTools: Map<string, McpToolDef> = (g.__mbMcpTools ??= new Map());
-export const widgets: Map<string, WidgetDef> = (g.__mbWidgets ??= new Map());
 export const adminSections: Map<string, AdminSectionDef> = (g.__mbAdminSections ??= new Map());
 
 export function registerChannel(ch: NotificationChannel) {
@@ -188,9 +177,6 @@ export function registerChannel(ch: NotificationChannel) {
 }
 export function registerMcpTool(t: McpToolDef) {
   mcpTools.set(t.name, t);
-}
-export function registerWidget(w: WidgetDef) {
-  widgets.set(w.id, w);
 }
 export function registerAdminSection(s: AdminSectionDef) {
   adminSections.set(s.id, s);

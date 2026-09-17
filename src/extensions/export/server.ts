@@ -161,8 +161,11 @@ const plugin: Plugin = {
   name: "export",
   description: "Full data export (markdown + media, zipped)",
   version: "1.0.0",
-  register() {
-    /* workers call processExportJob directly */
+  register(ctx) {
+    // 自包含 worker：export.build 打包任务（ext.job 通道）
+    ctx.jobs.work("build", ({ userId, requestId }) =>
+      processExportJob(String(userId), String(requestId)),
+    );
   },
 };
 

@@ -4,11 +4,9 @@ import {
   adminSections,
   channels,
   mcpTools,
-  widgets,
   registerAdminSection,
   registerChannel,
   registerMcpTool,
-  registerWidget,
   type Plugin,
   type PluginContext,
 } from "@/core/plugins/types";
@@ -48,7 +46,6 @@ const baseCtx = {
   hooks,
   registerChannel,
   registerMcpTool,
-  registerWidget,
   registerAdminSection,
   registerPostRenderFilter,
   registerMediaProcessor,
@@ -178,5 +175,5 @@ export function bootPlugins(): Promise<void> {
   return booted;
 }
 
-export { channels, mcpTools, widgets, adminSections };
+export { channels, mcpTools, adminSections };
 export type { Plugin, PluginContext };
