@@ -35,7 +35,6 @@ import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { VirtualSelect } from "@/components/ui/virtual-select";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { CONTENT_LABELS, type ContentLabelId } from "@/lib/content-labels";
 import { validatePollEndsAt, validatePollOptionsForMode } from "@/lib/poll";
@@ -124,11 +123,23 @@ function extractHashtags(text: string): string[] {
  * navigating away never destroys work.
  */
 export function PinnedComposer({
-  user,
-  initialExpanded = false,
+  user: _user,
+  variant = "post",
+  commentPlaceholder,
+  replyToUsername,
+  onCancelReply,
+  onSubmitComment,
 }: {
   user: { displayName: string; username: string; avatarPath: string | null };
-  initialExpanded?: boolean;
+  /** post = 动态/文章发布器；comment = 评论/回复输入（隐藏标题/投票/标注等发布特性） */
+  variant?: "post" | "comment";
+  /** 评论模式占位文案 */
+  commentPlaceholder?: string;
+  /** 回复上下文（显示「回复 @xx」并可取消） */
+  replyToUsername?: string | null;
+  onCancelReply?: () => void;
+  /** 评论模式提交：返回 true 视为成功并清空输入 */
+  onSubmitComment?: (text: string) => Promise<boolean>;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
@@ -136,7 +147,10 @@ export function PinnedComposer({
 
   // Hydration-safe：首渲状态必须与 SSR 一致，渲染期不读 localStorage；
   // 已保存的草稿在挂载后的 effect 里恢复（见 draft autosave 段）。
-  const [expanded, setExpanded] = useState(initialExpanded);
+  // 常展开（v2）：不再有 mini/展开双态 —— 输入区即焦点态
+  const expanded = true;
+  /** 评论模式：隐藏标题/图片/投票/标注/合集/全屏等发布特性，仅保留文字+表情 */
+  const isComment = variant === "comment";
 
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -195,17 +209,9 @@ export function PinnedComposer({
     return () => cancelAnimationFrame(raf);
   }, []);
 
-  useEffect(() => {
-    if (!initialExpanded) return;
-    focusCaret();
-  }, [initialExpanded, focusCaret]);
-
   // 创作 triggers on the home page ping the composer through this event
   useEffect(() => {
-    const onFocus = () => {
-      setExpanded(true);
-      focusCaret();
-    };
+    const onFocus = () => focusCaret();
     window.addEventListener("composer:focus", onFocus);
     return () => window.removeEventListener("composer:focus", onFocus);
   }, [focusCaret]);
@@ -213,6 +219,10 @@ export function PinnedComposer({
   /* --------------------------- draft autosave ---------------------------- */
 
   useEffect(() => {
+    if (isComment) {
+      loadedRef.current = true;
+      return;
+    }
     // 挂载后再读 localStorage 恢复草稿（渲染期读会造成 hydration mismatch）；
     // 有草稿则填回输入区并展开 composer，提示一次。
     // 「外部系统（localStorage）→ 本地状态」的挂载初始化，属 effect 合法
@@ -228,14 +238,14 @@ export function PinnedComposer({
           .map((i) => ({ key: `restored-${i.url}`, status: "done", url: i.url! })),
       );
       setShowTitle(Boolean(draft.title));
-      setExpanded(true);
       toast.message(zh ? "已恢复上次未发布的草稿" : "Restored your unpublished draft");
     }
     loadedRef.current = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore + toast once on mount
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restore + toast once on mount (variant gate above)
+  }, [isComment]);
 
   useEffect(() => {
+    if (isComment) return;
     if (!loadedRef.current) return;
     const timer = window.setTimeout(() => {
       try {
@@ -256,6 +266,7 @@ export function PinnedComposer({
       }
     }, 600);
     return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- isComment 为配置门控（评论模式不写草稿）
   }, [title, content, images]);
 
   /* --------------------- collections (lazy) & preview -------------------- */
@@ -298,25 +309,6 @@ export function PinnedComposer({
     images.some((i) => i.status === "done") ||
     poll !== null;
 
-  function expand() {
-    setExpanded(true);
-    requestAnimationFrame(() => taRef.current?.focus());
-  }
-
-  function collapse() {
-    setExpanded(false);
-  }
-
-  // click outside collapses an empty composer; with content it stays (drafts
-  // keep working, the form is never lost to a stray click)
-  useEffect(() => {
-    if (!expanded || hasContent || fullscreen) return;
-    const onDocDown = (e: PointerEvent) => {
-      if (!cardRef.current?.contains(e.target as Node)) collapse();
-    };
-    document.addEventListener("pointerdown", onDocDown);
-    return () => document.removeEventListener("pointerdown", onDocDown);
-  }, [expanded, hasContent, fullscreen]);
 
   // auto-grow the textarea: capped at 75% viewport in the pinned bar,
   // full-height flex inside the fullscreen mode
@@ -450,8 +442,7 @@ export function PinnedComposer({
 
   /** 工具栏 #：在光标处插入 # 并弹出话题面板；选中后从插入点补全为「#名称 」 */
   function openTopicPanel() {
-    if (!expanded) expand();
-    const el = taRef.current;
+        const el = taRef.current;
     const pos = el?.selectionStart ?? content.length;
     const end = el?.selectionEnd ?? pos;
     topicAnchorRef.current = pos + 1;
@@ -543,7 +534,6 @@ export function PinnedComposer({
           setFullscreen(false);
           setFullscreenClosing(false);
         }
-        collapse();
       },
       onError: (err) => {
         if (err instanceof ApiError && err.body.blocked?.length) {
@@ -559,6 +549,14 @@ export function PinnedComposer({
   );
 
   async function publish() {
+    // 评论模式：纯文本提交回调由宿主提供（回复/新评论共用），成功即清空
+    if (isComment) {
+      const text = content.trim();
+      if (!text || !onSubmitComment) return;
+      const ok = await onSubmitComment(text);
+      if (ok) setContent("");
+      return;
+    }
     if (publishMutation.pending || uploadingCount > 0) return;
     const text = content.trim();
     const done = images.filter((i) => i.status === "done" && i.url);
@@ -614,7 +612,6 @@ export function PinnedComposer({
   function onKeyDown(e: ReactKeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === "Escape") {
       if (fullscreen) closeFullscreen();
-      else if (!hasContent) collapse();
       return;
     }
     if (e.key !== "Enter") return;
@@ -632,17 +629,18 @@ export function PinnedComposer({
   /* ------------------------------- render -------------------------------- */
 
   const uploadingCount = images.filter((i) => i.status === "uploading").length;
-  const canPublish =
-    (title.trim().length > 0 ||
-      content.trim().length > 0 ||
-      images.some((i) => i.status === "done") ||
-      poll !== null) &&
-    uploadingCount === 0;
+  const canPublish = isComment
+    ? content.trim().length > 0
+    : (title.trim().length > 0 ||
+        content.trim().length > 0 ||
+        images.some((i) => i.status === "done") ||
+        poll !== null) &&
+      uploadingCount === 0;
 
   /** 输入区（标题 + 正文 + 图片 + 投票条）：无分割线的整体输入面板 */
   const inputArea = (
     <>
-      {expanded && showTitle && (
+      {expanded && !isComment && showTitle && (
         <div className="relative">
           <input
             value={title}
@@ -725,7 +723,15 @@ export function PinnedComposer({
               }}
               onCompositionStart={() => setComposing(true)}
               onCompositionEnd={() => setComposing(false)}
-              placeholder={t("feed.composePlaceholder")}
+              placeholder={
+                isComment
+                  ? replyToUsername
+                    ? `回复 @${replyToUsername}…`
+                    : commentPlaceholder ?? zh
+                      ? "说点什么…"
+                      : "Say something…"
+                  : t("feed.composePlaceholder")
+              }
               maxLength={SHORT_MAX}
               className={cn(
                 "relative min-h-16 resize-none overflow-y-auto border-0 bg-transparent px-3 pb-2 pt-1 text-[15px] leading-[1.7] shadow-none focus-visible:shadow-none",
@@ -748,6 +754,21 @@ export function PinnedComposer({
             </div>
           </div>
         ))}
+      {isComment && replyToUsername && (
+        <div className="mx-3 mt-1 flex items-center justify-between rounded-lg bg-[var(--muted)] px-2.5 py-1 text-xs text-muted-foreground">
+          <span>回复 @{replyToUsername}</span>
+          {onCancelReply && (
+            <button
+              type="button"
+              onClick={onCancelReply}
+              className="rounded p-0.5 transition-colors hover:text-foreground"
+              aria-label="取消回复"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          )}
+        </div>
+      )}
       {images.length > 0 && (
         <div
           className={cn(
@@ -770,7 +791,7 @@ export function PinnedComposer({
           ))}
         </div>
       )}
-      {poll && expanded && (
+      {poll && expanded && !isComment && (
         <div className="mx-3 mb-1 mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-primary/30 bg-primary/[0.04] px-3 py-2 text-xs">
           <BarChart3 className="size-3.5 shrink-0 text-primary" aria-hidden />
           <span className="font-medium">{poll.mode === "single" ? (zh ? "单选投票" : "Poll") : zh ? "多选投票" : "Multi-choice"}</span>
@@ -794,7 +815,7 @@ export function PinnedComposer({
           </button>
         </div>
       )}
-      {expanded && label === "repost" && (
+      {expanded && !isComment && label === "repost" && (
         <input
           value={sourceUrl}
           onChange={(e) => setSourceUrl(e.target.value)}
@@ -816,48 +837,53 @@ export function PinnedComposer({
           multiple
           className="hidden"
           onChange={(e) => {
-            if (!expanded) expand();
             uploadFiles(Array.from(e.target.files ?? []));
             e.target.value = "";
           }}
         />
-        <ToolButton
-          label={zh ? "图片" : "Image"}
-          onClick={() => {
-            if (!expanded) expand();
-            requestAnimationFrame(() => fileRef.current?.click());
-          }}
-        >
-          <ImagePlus className="size-[18px]" />
-        </ToolButton>
+        {!isComment && (
+          <ToolButton
+            label={zh ? "图片" : "Image"}
+            onClick={() => {
+              requestAnimationFrame(() => fileRef.current?.click());
+            }}
+          >
+            <ImagePlus className="size-[18px]" />
+          </ToolButton>
+        )}
         <EmojiPopover label={zh ? "表情" : "Emoji"} onPick={(emoji) => {
-          if (!expanded) expand();
           pickEmoji(emoji);
         }}>
           <Smile className="size-[18px]" />
         </EmojiPopover>
-        <ToolButton
-          ref={topicBtnRef}
-          label={zh ? "话题" : "Topic"}
-          onClick={openTopicPanel}
-          active={topicOpen}
-        >
-          <Hash className="size-[18px]" />
-        </ToolButton>
-        <ToolButton
-          ref={pollBtnRef}
-          label={zh ? "投票" : "Poll"}
-          onClick={() => setPollOpen((v) => !v)}
-          active={pollOpen || poll !== null}
-        >
-          <BarChart3 className="size-[18px]" />
-        </ToolButton>
-        <ToolButton
-          label={fullscreen ? (zh ? "退出全屏" : "Exit fullscreen") : zh ? "全屏写作" : "Fullscreen"}
-          onClick={() => (fullscreen ? closeFullscreen() : openFullscreen())}
-        >
-          {fullscreen ? <Minimize2 className="size-[18px]" /> : <PenLine className="size-[18px]" />}
-        </ToolButton>
+        {!isComment && (
+          <ToolButton
+            ref={topicBtnRef}
+            label={zh ? "话题" : "Topic"}
+            onClick={openTopicPanel}
+            active={topicOpen}
+          >
+            <Hash className="size-[18px]" />
+          </ToolButton>
+        )}
+        {!isComment && (
+          <ToolButton
+            ref={pollBtnRef}
+            label={zh ? "投票" : "Poll"}
+            onClick={() => setPollOpen((v) => !v)}
+            active={pollOpen || poll !== null}
+          >
+            <BarChart3 className="size-[18px]" />
+          </ToolButton>
+        )}
+        {!isComment && (
+          <ToolButton
+            label={fullscreen ? (zh ? "退出全屏" : "Exit fullscreen") : zh ? "全屏写作" : "Fullscreen"}
+            onClick={() => (fullscreen ? closeFullscreen() : openFullscreen())}
+          >
+            {fullscreen ? <Minimize2 className="size-[18px]" /> : <PenLine className="size-[18px]" />}
+          </ToolButton>
+        )}
         {uploadingCount > 0 && (
           <span aria-live="polite" className="ml-1 inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Loader2 className="size-3 animate-spin" aria-hidden />
@@ -866,7 +892,7 @@ export function PinnedComposer({
       </div>
       <div className="flex min-w-0 flex-wrap items-center justify-end gap-1">
         {/* 发布按钮左侧：查看权限 / 内容标注 / 合集 —— 紧凑 pill，小屏自动换行 */}
-        {expanded && (
+        {expanded && !isComment && (
           <>
             <VirtualSelect
               value={visibility}
@@ -875,21 +901,21 @@ export function PinnedComposer({
                 { value: "public", label: zh ? "公开" : "Public" },
                 { value: "followers", label: zh ? "关注者" : "Followers" },
               ]}
-              className="w-[4.6rem]"
+              className="w-auto"
               panelClassName="min-w-36"
-              triggerClassName="composer-pill"
+              triggerClassName="composer-pill w-auto"
               dropUp
             />
             <VirtualSelect
               value={label}
               onChange={(v) => setLabel(v as ContentLabelId)}
               options={CONTENT_LABELS.map((l) => ({ value: l.id, label: zh ? l.name.zh : l.name.en }))}
-              className="w-20"
+              className="w-auto"
               panelClassName="min-w-40"
-              triggerClassName="composer-pill"
+              triggerClassName="composer-pill w-auto"
               dropUp
             />
-            <div ref={collectionRef} className="w-[6.6rem]">
+            <div ref={collectionRef} className="w-auto">
               <VirtualSelect
                 value={collectionId ?? ""}
                 onChange={(v) => {
@@ -904,7 +930,7 @@ export function PinnedComposer({
                   ...collections.map((c) => ({ value: c.id, label: c.name })),
                   { value: "__new", label: `${zh ? "＋ 新建合集" : "＋ New collection"}` },
                 ]}
-                triggerClassName="composer-pill"
+                triggerClassName="composer-pill w-auto"
                 panelClassName="min-w-44"
                 dropUp
               />
@@ -934,7 +960,7 @@ export function PinnedComposer({
         <Button
           type="button"
           size="icon-sm"
-          aria-label={t("feed.publish")}
+          aria-label={isComment ? "回复" : t("feed.publish")}
           title={zh ? "Enter 发送 · Shift/Ctrl+Enter 换行" : "Enter to send · Shift/Ctrl+Enter for newline"}
           className="rounded-full"
           disabled={!canPublish || publishMutation.pending}
@@ -984,26 +1010,7 @@ export function PinnedComposer({
                 </span>
               </div>
             )}
-            {!expanded ? (
-              <div className="flex items-center gap-2 px-3 py-2">
-                <Avatar className="ml-2 size-8 shrink-0">
-                  {user.avatarPath && <AvatarImage src={mediaUrl(user.avatarPath)} alt={user.displayName} />}
-                  <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <button
-                  type="button"
-                  onClick={expand}
-                  className="h-9 min-w-0 flex-1 rounded-full bg-[var(--muted)] px-4 text-left text-sm text-muted-foreground transition-colors hover:bg-[var(--hover)]"
-                >
-                  <span className="block truncate">{t("feed.compose")}</span>
-                </button>
-                <ToolButton label={zh ? "全屏写作" : "Fullscreen"} onClick={openFullscreen}>
-                  <Maximize2 className="size-[18px]" />
-                </ToolButton>
-              </div>
-            ) : (
-              cardInner
-            )}
+            {cardInner}
           </div>
           <BlockedDialog blocked={blocked} onClose={() => setBlocked(null)} />
         </PinnedBar>

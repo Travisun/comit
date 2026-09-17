@@ -1,5 +1,4 @@
 import { permanentRedirect } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { routes } from "@/core/routes";
 import { getSetting } from "@/lib/settings";
@@ -10,7 +9,7 @@ import { resolveSingleUser, SingleUserHome } from "@/components/user-space/profi
 import { FeedStream } from "@/components/user-space/feed-stream";
 import { TimelineHeader } from "@/components/site-shell";
 import { PinnedComposer } from "@/components/social/pinned-composer";
-import { Button } from "@/components/ui/button";
+import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +32,7 @@ export default async function HomePage({
   // 旧版顶栏药丸链接（/?tab=following）→ 独立关注流页
   if (sp.tab === "following") permanentRedirect(routes.following);
 
-  const [{ t, locale }, viewer, mode, { compose }] = await Promise.all([
+  const [{ t, locale }, viewer, mode] = await Promise.all([
     getT(),
     getCurrentUser(),
     getSetting("site.mode"),
@@ -54,7 +53,6 @@ export default async function HomePage({
 
       {viewer ? (
         <PinnedComposer
-          initialExpanded={compose === "1"}
           user={{
             displayName: viewer.displayName,
             username: viewer.username,
@@ -67,13 +65,8 @@ export default async function HomePage({
             <span className="font-bold">{t("home.hero.title")}</span>
             <span className="text-muted-foreground"> · {t("app.slogan")}</span>
           </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Button asChild size="sm" className="rounded-full">
-              <Link href={routes.register}>{t("nav.register")}</Link>
-            </Button>
-            <Button asChild size="sm" variant="outline" className="rounded-full">
-              <Link href={routes.login}>{t("nav.login")}</Link>
-            </Button>
+          <div className="mt-3">
+            <GuestComposerPlaceholder />
           </div>
           <p className="mt-2 text-xs text-muted-foreground">登录后加入讨论，发布你的第一条动态。</p>
         </div>

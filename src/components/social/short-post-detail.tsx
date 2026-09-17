@@ -174,6 +174,7 @@ export async function ShortPostDetail({
             postId={post.id}
             disabled={!author.commentsEnabled}
             initialCount={post.commentCount}
+            viewer={viewer}
           />
         </section>
 

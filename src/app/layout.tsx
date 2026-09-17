@@ -5,6 +5,9 @@ import "@fontsource/noto-sans-sc/700.css";
 import "./globals.css";
 import { siteMetadata } from "@/lib/seo";
 import { getLocale } from "@/lib/i18n/index.server";
+import { getSetting } from "@/lib/settings";
+import { LoginDialog } from "@/components/social/login-dialog";
+import { config } from "@/core/config";
 import { I18nProvider } from "@/lib/i18n/client";
 import { DataProvider } from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -21,6 +24,38 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#0d1117" },
   ],
 };
+
+/** 登录引导 Dialog 的宿主 — 服务端读取启用中的 OSS 提供商与站点参数注入。 */
+async function LoginDialogHost() {
+  const [siteName, inviteRequired] = await Promise.all([
+    getSetting("site.name"),
+    getSetting("site.inviteRequired"),
+  ]);
+  const oauthProviders = (
+    [
+      { key: "github", label: "GitHub", on: Boolean(config.oauth.github.clientId) },
+      { key: "google", label: "Google", on: Boolean(config.oauth.google.clientId) },
+      { key: "x", label: "X (Twitter)", on: Boolean(config.oauth.x.clientId) },
+      { key: "linuxdo", label: "Linux.do", on: Boolean(config.oauth.linuxdo.clientId) },
+      {
+        key: "discourse",
+        label: "Discourse",
+        on: Boolean(config.oauth.discourse.url && config.oauth.discourse.secret),
+      },
+      {
+        key: "cfaccess",
+        label: "Cloudflare Access",
+        on: Boolean(config.oauth.cfAccess.team),
+      },
+    ] as const
+  )
+    .filter((p) => p.on)
+    .map((p) => ({ key: p.key, label: p.label }));
+
+  return (
+    <LoginDialog providers={oauthProviders} siteName={siteName} inviteRequired={inviteRequired} />
+  );
+}
 
 /** Minimal root shell — chrome (site header / dashboard shell) lives in route groups. */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
@@ -55,6 +90,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
               {/* 在 ThemeProvider 内：toast 的亮暗色跟随站点主题 */}
               <Toaster />
+              <LoginDialogHost />
             </ThemeProvider>
           </DataProvider>
         </I18nProvider>

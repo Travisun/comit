@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { BrandLink, ComposerTrigger } from "./brand";
+import { openLoginDialog } from "@/lib/store/login-dialog";
 import { UserMenu } from "./user-menu";
 import type { ShellUser } from "./types";
 import { getNavItems } from "@/lib/plugins/registry";
@@ -56,29 +57,36 @@ export function LeftNav({
 }) {
   useUiRegistryVersion(); // 扩展注册变化时重渲导航
   const pathname = usePathname();
+
   const login = routes.login;
 
   const items = [
     { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true, badge: unread.latest },
-    { href: user ? routes.following : login, label: "关注", icon: <Users className="size-[18px]" />, badge: unread.following },
+    ...(user
+      ? [{ href: routes.following, label: "关注", icon: <Users className="size-[18px]" />, badge: unread.following }]
+      : []),
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
-    {
-      // unified inbox: DMs + notifications live together under /messages
-      href: user ? routes.messages : login,
-      label: "消息",
-      icon: <Mail className="size-[18px]" />,
-      badge: unread.messages,
-    },
-    {
-      href: user ? routes.profile(user.username) : login,
-      label: "主页",
-      icon: <UserIcon className="size-[18px]" />,
-    },
-    {
-      href: "/settings",
-      label: "设置",
-      icon: <Settings className="size-[18px]" />,
-    },
+    ...(user
+      ? [
+          {
+            // unified inbox: DMs + notifications live together under /messages
+            href: routes.messages,
+            label: "消息",
+            icon: <Mail className="size-[18px]" />,
+            badge: unread.messages,
+          },
+          {
+            href: routes.profile(user.username),
+            label: "主页",
+            icon: <UserIcon className="size-[18px]" />,
+          },
+          {
+            href: "/settings",
+            label: "设置",
+            icon: <Settings className="size-[18px]" />,
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -139,7 +147,10 @@ export function LeftNav({
         })}
 
         {/* 创作 — primary action, cool black pill */}
-        <ComposerTrigger login={user ? undefined : login} />
+        <ComposerTrigger
+          login={user ? undefined : login}
+          onGuestClick={user ? undefined : openLoginDialog}
+        />
       </div>
 
       <div className="flex-1" />
@@ -147,13 +158,14 @@ export function LeftNav({
       {user ? (
         <UserMenu user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} />
       ) : (
-        <Link
-          href={login}
+        <button
+          type="button"
+          onClick={openLoginDialog}
           className="flex items-center justify-center gap-2 rounded-full p-2 text-sm font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
         >
           <UserIcon className="size-5 lg:hidden" />
           <span className="hidden lg:inline">登录 / 注册</span>
-        </Link>
+        </button>
       )}
     </nav>
   );

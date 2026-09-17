@@ -6,16 +6,13 @@ import {
   useMemo,
   useRef,
   useState,
-  type KeyboardEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { BadgeCheck, Loader2, MessageCircle, Pin, Send, Smile, Trash2, X } from "lucide-react";
+import { BadgeCheck, Loader2, MessageCircle, Pin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, isAuthError, mediaUrl, postJson } from "@/lib/client/api";
@@ -28,8 +25,10 @@ import {
 } from "@/lib/models/comments";
 import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
-import { EmojiPopover, insertAtCursor } from "./composer-panels";
 import { patchJsonSafe } from "@/lib/client/api";
+import { openLoginDialog } from "@/lib/store/login-dialog";
+import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
+import { PinnedComposer } from "@/components/social/pinned-composer";
 
 export type { CommentItem };
 
@@ -45,16 +44,21 @@ export function Comments({
   postId,
   disabled,
   initialCount,
+  viewer,
 }: {
   postId: string;
   disabled: boolean;
   initialCount: number;
+  /** 当前观众 brief（composer 头像/署名）；匿名 null */
+  viewer?: { displayName: string; username: string; avatarPath: string | null } | null;
 }) {
   const { t, locale } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const viewerBrief = viewer
+    ? { displayName: viewer.displayName, username: viewer.username, avatarPath: viewer.avatarPath }
+    : null;
   const [count, setCount] = useState(initialCount);
-  const [body, setBody] = useState("");
   const [replyTo, setReplyTo] = useState<CommentItem | null>(null);
   /** 提交成功后本地兜底（首个页面返回前即可显示回复框） */
   const [viewerOverride, setViewerOverride] = useState<string | null>(null);
@@ -87,13 +91,6 @@ export function Comments({
   const viewerId = viewerOverride ?? commentsQ.data?.pages[0]?.viewerId;
   const initialLoaded = commentsQ.data !== undefined;
 
-  // auto-grow the reply bar's textarea (capped, then it scrolls)
-  useEffect(() => {
-    const el = inputRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [body]);
 
   // comment intent: focus the reply bar once it mounts (retry through the
   // portal mount + viewer resolution)
@@ -220,10 +217,8 @@ export function Comments({
               : prev,
         );
         setCount((c) => c + 1);
-        setBody("");
         setReplyTo(null);
         setViewerOverride((v) => v ?? "signed-in");
-        inputRef.current?.focus();
       },
       onError: (err) => {
         toast.error(err instanceof Error ? err.message : t("common.error"));
@@ -278,25 +273,7 @@ export function Comments({
     void queryClient.invalidateQueries({ queryKey: queryKeys.comments(postId) });
   }
 
-  async function submit() {
-    const text = body.trim();
-    if (!text || submitMutation.pending) return;
-    submitMutation.mutate({ body: text, replyToCommentId: replyTo?.id });
-  }
 
-  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key !== "Enter") return;
-    if (e.shiftKey) return; // newline
-    // IME composition (Chinese input) — never submit mid-composition
-    if (e.nativeEvent.isComposing) return;
-    e.preventDefault();
-    if (e.ctrlKey || e.metaKey) {
-      // Ctrl/⌘+Enter → explicit newline
-      insertAtCursor(inputRef.current, "\n", body, setBody);
-      return;
-    }
-    void submit();
-  }
 
   function remove(id: string) {
     if (!window.confirm(t("post.deleteConfirm"))) return;
@@ -317,13 +294,9 @@ export function Comments({
           {t("comments.disabled")}
         </p>
       ) : viewerId === null ? (
-        <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
-          <Link href="/auth/login" className="font-medium text-primary hover:underline">
-            {t("nav.login")}
-          </Link>
-          {" — "}
-          {t("comments.placeholder")}
-        </p>
+        <button type="button" onClick={openLoginDialog} className="w-full text-left">
+          <GuestComposerPlaceholder label={t("comments.placeholder")} />
+        </button>
       ) : null}
 
       {/* 新评论气泡：增量拉取后先提示，点击并入 */}
@@ -482,61 +455,21 @@ export function Comments({
         </div>
       )}
 
-      {/* sticky reply bar (Douyin-style) — pinned panel-wide via PinnedBar,
-          so it stays within reach even while scrolling long article bodies */}
+      {/* sticky reply bar — 与主发布器同一组件（comment 变体：隐藏发布特性） */}
       {!disabled && viewerId && (
         <PinnedBar>
-          <div className="rounded-2xl border border-border bg-card/95 p-2 shadow-[0_4px_16px_rgba(42,47,69,0.12)] backdrop-blur">
-            {replyTo && (
-              <div className="mb-1.5 flex items-center justify-between rounded-lg bg-[var(--muted)] px-2.5 py-1 text-xs text-muted-foreground">
-                <span>
-                  {t("comments.replyTo")} @{replyTo.user.username}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setReplyTo(null)}
-                  className="rounded p-0.5 hover:text-foreground"
-                  aria-label={t("common.cancelAction")}
-                >
-                  <X className="size-3" aria-hidden />
-                </button>
-              </div>
-            )}
-            <div className="flex items-end gap-1.5">
-              <EmojiPopover label={locale === "zh" ? "表情" : "Emoji"} onPick={(emoji) => insertAtCursor(inputRef.current, emoji, body, setBody)}>
-                <Smile className="size-[18px]" aria-hidden />
-              </EmojiPopover>
-              <Textarea
-                ref={inputRef}
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                onKeyDown={onKeyDown}
-                placeholder={
-                  replyTo
-                    ? `${t("comments.replyTo")} @${replyTo.user.username}`
-                    : t("comments.placeholder")
-                }
-                maxLength={2000}
-                rows={1}
-                className="max-h-40 min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-2 py-2 text-sm shadow-none focus-visible:shadow-none"
-              />
-              <Button
-                type="button"
-                size="icon-sm"
-                aria-label={t("comments.submit")}
-                title="Enter 发送 · Shift/Ctrl+Enter 换行"
-                className="mb-0.5 shrink-0 rounded-full"
-                disabled={!body.trim() || submitMutation.pending}
-                onClick={() => void submit()}
-              >
-                {submitMutation.pending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
-            </div>
-          </div>
+          <PinnedComposer
+            variant="comment"
+            user={viewerBrief ?? { displayName: "你", username: "me", avatarPath: null }}
+            commentPlaceholder={t("comments.placeholder")}
+            replyToUsername={replyTo?.user.username ?? null}
+            onCancelReply={() => setReplyTo(null)}
+            onSubmitComment={async (text) => {
+              submitMutation.mutate({ body: text, replyToCommentId: replyTo?.id });
+              setReplyTo(null);
+              return true;
+            }}
+          />
         </PinnedBar>
       )}
     </section>

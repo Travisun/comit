@@ -63,32 +63,45 @@ export function MobileTabBar({ user, unread }: { user: ShellUser | null; unread:
 
   const tabs = [
     { href: routes.home, label: "最新", icon: <NavIcon badge={unread.latest}><Home className="size-[18px]" /></NavIcon>, exact: true },
-    { href: user ? routes.following : login, label: "关注", icon: <NavIcon badge={unread.following}><Users className="size-[18px]" /></NavIcon> },
+    ...(user
+      ? [
+          { href: routes.following, label: "关注", icon: <NavIcon badge={unread.following}><Users className="size-[18px]" /></NavIcon> },
+        ]
+      : []),
     { href: routes.explore, label: "发现", icon: <Compass className="size-[18px]" /> },
+    // 游客：创作入口保留 —— 点击唤起登录引导 Dialog
     { href: user ? "#compose" : login, label: "创作", fab: true },
-    {
-      href: user ? routes.messages : login,
-      label: "消息",
-      icon: (
-        <NavIcon badge={unread.messages}>
-          <Bell className="size-[18px]" />
-        </NavIcon>
-      ),
-    },
-    {
-      href: user ? routes.profile(user.username) : login,
-      label: "我",
-      icon: user ? (
-        <Avatar className="size-[18px]">
-          {user.avatarPath && (
-            <AvatarImage src={routes.media(user.avatarPath)} alt={user.displayName} />
-          )}
-          <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-        </Avatar>
-      ) : (
-        <UserIcon className="size-[18px]" />
-      ),
-    },
+    ...(user
+      ? [
+          {
+            href: routes.messages,
+            label: "消息",
+            icon: (
+              <NavIcon badge={unread.messages}>
+                <Bell className="size-[18px]" />
+              </NavIcon>
+            ),
+          },
+          {
+            href: routes.profile(user.username),
+            label: "我",
+            icon: (
+              <Avatar className="size-[18px]">
+                {user.avatarPath && (
+                  <AvatarImage src={routes.media(user.avatarPath)} alt={user.displayName} />
+                )}
+                <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
+              </Avatar>
+            ),
+          },
+        ]
+      : [
+          {
+            href: login,
+            label: "我",
+            icon: <UserIcon className="size-[18px]" />,
+          },
+        ]),
   ];
 
   return (

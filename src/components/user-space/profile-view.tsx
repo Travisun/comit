@@ -212,23 +212,32 @@ function ProfileActions({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
+      {/* 统一操作按钮规格：h-8 圆角胶囊 · text-xs · px-4 —— 关注态切换/私信/屏蔽三态同款 */}
       <FollowButton
         username={user.username}
         initialFollowing={viewerState.following}
-        className="rounded-full font-medium"
+        className="h-8 min-h-0 rounded-full px-4 text-xs font-medium"
       />
       {user.dmEnabled ? (
-        <Button asChild variant="outline" size="sm" className="rounded-full font-medium">
+        <Button
+          asChild
+          variant="outline"
+          className="h-8 rounded-full px-4 text-xs font-medium"
+        >
           <Link href={routes.conversation(user.id)}>
-            <MessageCircle className="size-4" /> 私信
+            <MessageCircle className="size-3.5" /> 私信
           </Link>
         </Button>
       ) : (
-        <Button variant="outline" size="sm" className="rounded-full" disabled>
+        <Button variant="outline" className="h-8 rounded-full px-4 text-xs" disabled>
           已关闭私信
         </Button>
       )}
-      <BlockButton username={user.username} initialBlocked={viewerState.blocking} />
+      <BlockButton
+        username={user.username}
+        initialBlocked={viewerState.blocking}
+        className="h-8 rounded-full px-4 text-xs"
+      />
     </div>
   );
 }

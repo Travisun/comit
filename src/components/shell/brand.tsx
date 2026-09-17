@@ -40,15 +40,26 @@ export function BrandLink({ siteName }: { siteName: string }) {
 
 /** 创作 trigger — on the home page it pings the pinned composer to expand
  * and focus; anywhere else it routes home with ?compose=1. */
-export function ComposerTrigger({ login }: { login?: string }) {
+export function ComposerTrigger({
+  login,
+  onGuestClick,
+}: {
+  login?: string;
+  /** 游客点击 → 唤起登录引导 Dialog（优先于 login 跳转） */
+  onGuestClick?: () => void;
+}) {
   const router = useRouter();
   const pathname = usePathname();
   if (login) {
     return (
-      <Link href={login} className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3">
+      <button
+        type="button"
+        onClick={onGuestClick}
+        className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3"
+      >
         <Feather className="size-3.5" />
         <span className="hidden text-[13px] lg:inline">创作</span>
-      </Link>
+      </button>
     );
   }
   return (
