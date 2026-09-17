@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getExtensionPage } from "@/extensions/_boot/registry";
 import { isExtensionEnabled } from "@/lib/settings";
 import { PluginErrorBoundary } from "@/lib/plugins/error-boundary";
+import { TimelineHeader } from "@/components/site-shell";
 
 /**
  * /e/[...slug] — 扩展独立页面统一入口。
@@ -24,6 +25,7 @@ export default async function ExtensionPageRoute({
   // 扩展被管理员禁用时页面按不存在处理（boot 亦不再注册服务端能力）
   if (!(await isExtensionEnabled(path))) throw notFound();
   const Page = def.component;
+  const isBare = def.layout === "bare";
   return (
     <PluginErrorBoundary
       scope={`page:${path}`}
@@ -42,7 +44,16 @@ export default async function ExtensionPageRoute({
         </div>
       }
     >
-      <Page />
+      {isBare ? (
+        <Page />
+      ) : (
+        <div className="min-h-dvh w-full pt-[10px]">
+          <TimelineHeader title={def.title} paddingClass="px-5" />
+          <div className="px-4 pb-12 md:px-5">
+            <Page />
+          </div>
+        </div>
+      )}
     </PluginErrorBoundary>
   );
 }
