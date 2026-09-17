@@ -17,12 +17,10 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 import { timeAgo } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { WebhookView } from "./types";
-
-/** Webhook 列表键 — keys.ts 冻结期内就地定义（暂未入厂） */
-const WEBHOOKS_KEY = ["me", "webhooks"] as const;
 
 const EVENT_LABELS: Record<string, string> = {
   "post:published": "文章发布 / Post published",
@@ -50,7 +48,7 @@ export function WebhooksPanel({
   // Webhook 列表 — 服务端首屏作 initialData；增删改后失效重取
   // （原 refresh() 裸 GET 回填由 invalidate + useQuery 接管）
   const webhooksQ = useQuery({
-    queryKey: WEBHOOKS_KEY,
+    queryKey: queryKeys.webhooks(),
     queryFn: async () => (await apiRequest<{ webhooks: WebhookView[] }>("/api/me/webhooks", "GET")).webhooks,
     initialData: initial,
   });
@@ -66,7 +64,7 @@ export function WebhooksPanel({
       apiRequest<{ webhook: { id: string; secret: string } }>("/api/me/webhooks", "POST", payload),
     {
       refresh: false,
-      invalidate: [WEBHOOKS_KEY],
+      invalidate: [queryKeys.webhooks()],
       onSuccess: (res) => {
         setCreated(res.webhook);
         setOpen(false);
@@ -79,7 +77,7 @@ export function WebhooksPanel({
   // 启停 — 失效列表让 active 态从服务端回流（原本地翻转等价）
   const toggleActiveMutation = useApiMutation(
     (hook: WebhookView) => apiRequest(`/api/me/webhooks/${hook.id}`, "PATCH", { active: !hook.active }),
-    { refresh: false, invalidate: [WEBHOOKS_KEY] },
+    { refresh: false, invalidate: [queryKeys.webhooks()] },
   );
 
   // 测试投递 — 只 toast 结果，无需失效任何缓存
@@ -90,7 +88,7 @@ export function WebhooksPanel({
 
   const removeMutation = useApiMutation((hook: WebhookView) => apiRequest(`/api/me/webhooks/${hook.id}`, "DELETE"), {
     refresh: false,
-    invalidate: [WEBHOOKS_KEY],
+    invalidate: [queryKeys.webhooks()],
   });
 
   function remove(hook: WebhookView) {

@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/input";
 import { deleteJson, postJson, requestJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 
 /* ----------------------------- reject dialog ---------------------------- */
 
@@ -130,12 +131,6 @@ interface PostLike {
   status: string;
 }
 
-/**
- * admin 文章列表键前缀 — 暂未入厂（keys.ts 冻结）；列表查询与行内操作
- * 的失效共用此前缀，同域内保持一致。
- */
-export const ADMIN_POSTS_KEY_PREFIX = ["admin", "posts"] as const;
-
 /** Dropdown actions for one post: view / approve / reject / delete. */
 export function PostRowActions({ post }: { post: PostLike }) {
   const [rejectOpen, setRejectOpen] = useState(false);
@@ -145,16 +140,16 @@ export function PostRowActions({ post }: { post: PostLike }) {
   // 缓存（refresh:false — 列表靠 invalidate 回流，不触发整页 RSC 重验）
   const approveMutation = useApiMutation(
     (p: PostLike) => requestJson(`/api/admin/posts/${p.id}/approve`, { method: "POST" }),
-    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已通过审核并发布" },
+    { refresh: false, invalidate: [queryKeys.adminPostsPrefix()], successToast: "已通过审核并发布" },
   );
   const rejectMutation = useApiMutation(
     (input: { post: PostLike; reason: string }) =>
       postJson(`/api/admin/posts/${input.post.id}/reject`, { reason: input.reason }),
-    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已驳回" },
+    { refresh: false, invalidate: [queryKeys.adminPostsPrefix()], successToast: "已驳回" },
   );
   const deleteMutation = useApiMutation(
     (p: PostLike) => deleteJson(`/api/admin/posts/${p.id}`),
-    { refresh: false, invalidate: [ADMIN_POSTS_KEY_PREFIX], successToast: "已删除" },
+    { refresh: false, invalidate: [queryKeys.adminPostsPrefix()], successToast: "已删除" },
   );
   const pending =
     approveMutation.pending || rejectMutation.pending || deleteMutation.pending;

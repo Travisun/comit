@@ -41,6 +41,7 @@ import { tierLabel } from "@/lib/tiers";
 import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import {
   VERIFICATION_BADGE_FALLBACK,
   VERIFICATION_BADGE_STYLES,
@@ -80,11 +81,6 @@ const verificationPageSchema = z.object({
 type AdminVerificationItem = z.infer<typeof adminVerificationItemSchema>;
 
 type TabKey = "pending" | "approved" | "rejected";
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），tab/搜索词进键。 */
-const verifKey = (status: TabKey, q: string) => ["admin", "verification", status, q] as const;
-/** 审核动作后按前缀失效三个 tab 的列表 */
-const VERIFICATION_PREFIX = ["admin", "verification"] as const;
 
 const TABS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: "pending", label: "待审", icon: <Hourglass /> },
@@ -150,7 +146,7 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
   // 列表查询 — tab/搜索词进 queryKey；placeholderData 保留上一页数据
   const listQ = useQuery({
     ...apiQueryOptions({
-      queryKey: verifKey(status, q),
+      queryKey: queryKeys.adminVerification(status, q),
       url: `/api/admin/verification?status=${status}&limit=50&q=${encodeURIComponent(q)}`,
       schema: verificationPageSchema,
     }),
@@ -167,7 +163,7 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
       postJson(`/api/admin/verification/${input.id}/${input.action}`, input.body ?? {}),
     {
       refresh: false,
-      invalidate: [VERIFICATION_PREFIX],
+      invalidate: [queryKeys.adminVerificationPrefix()],
       onSuccess: (_data, input) => {
         toast.success(
           input.action === "approve" ? "已通过认证" : input.action === "reject" ? "已驳回" : "已撤销认证",

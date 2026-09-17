@@ -18,12 +18,10 @@ import {
 import { SettingsPanelList, SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { TokenView } from "./types";
-
-/** 令牌列表键 — keys.ts 冻结期内就地定义（暂未入厂） */
-const TOKENS_KEY = ["me", "tokens"] as const;
 
 const SCOPE_LABELS: Record<string, string> = {
   "posts:read": "文章读取 / Read posts",
@@ -100,7 +98,7 @@ export function ApiTokensPanel({
 
   // 令牌列表 — 服务端首屏作 initialData；创建/吊销后失效重取
   const tokensQ = useQuery({
-    queryKey: TOKENS_KEY,
+    queryKey: queryKeys.tokens(),
     queryFn: async () => (await apiRequest<{ tokens: TokenView[] }>("/api/me/tokens", "GET")).tokens,
     initialData: initial,
   });
@@ -120,7 +118,7 @@ export function ApiTokensPanel({
     },
     {
       refresh: false,
-      invalidate: [TOKENS_KEY],
+      invalidate: [queryKeys.tokens()],
       onSuccess: (token) => {
         setCreated(token);
         setOpen(false);
@@ -133,7 +131,7 @@ export function ApiTokensPanel({
   // 吊销令牌 — 失效列表让 revokedAt 从服务端数据回流（原本地打点等价）
   const revokeMutation = useApiMutation((token: TokenView) => apiRequest(`/api/me/tokens/${token.id}`, "DELETE"), {
     refresh: false,
-    invalidate: [TOKENS_KEY],
+    invalidate: [queryKeys.tokens()],
   });
 
   function create() {

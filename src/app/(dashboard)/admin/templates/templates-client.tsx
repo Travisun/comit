@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -68,9 +69,6 @@ interface FormState {
 }
 
 const EMPTY_FORM: FormState = { enabled: true, subjectZh: "", subjectEn: "", bodyZh: "", bodyEn: "" };
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；保存/重置后失效重取。 */
-const TEMPLATES_KEY = ["admin", "templates"] as const;
 
 const SUBJECT_FIELDS: { name: TextField; label: string; placeholder: string }[] = [
   { name: "subjectZh", label: "中文主题", placeholder: "留空使用内置主题" },
@@ -142,7 +140,7 @@ export default function TemplatesClient() {
   // 模板注册表查询 — 保存/重置后 invalidate 重取，等价原 load()
   const templatesQ = useQuery(
     apiQueryOptions({
-      queryKey: TEMPLATES_KEY,
+      queryKey: queryKeys.adminTemplates(),
       url: "/api/admin/templates",
       schema: templatesResponseSchema,
     }),
@@ -178,7 +176,7 @@ export default function TemplatesClient() {
     (input: { key: string; form: FormState }) => postJson(`/api/admin/templates/${input.key}`, input.form),
     {
       refresh: false,
-      invalidate: [TEMPLATES_KEY],
+      invalidate: [queryKeys.adminTemplates()],
       onSuccess: () => toast.success(selected ? `模板「${selected.name.zh}」已保存` : "模板已保存"),
     },
   );
@@ -188,7 +186,7 @@ export default function TemplatesClient() {
     (key: string) => postJson(`/api/admin/templates/${key}/reset`, {}),
     {
       refresh: false,
-      invalidate: [TEMPLATES_KEY],
+      invalidate: [queryKeys.adminTemplates()],
       successToast: "已重置为默认模板",
     },
   );

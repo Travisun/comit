@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button";
 import { SettingsSectionHeader } from "@/components/ui/settings";
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 import { cn, formatDate } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { SettingsData } from "./types";
 
 type InvitesData = SettingsData["invites"];
-
-/** 邀请码键 — keys.ts 冻结期内就地定义（暂未入厂） */
-const INVITES_KEY = ["me", "invites"] as const;
 
 /**
  * 邀请码一览 — 用量概览（额度进度）+ 状态时间线列表。
@@ -26,7 +24,7 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
 
   // 邀请数据 — 服务端首屏作 initialData；生成后失效重取（原本地插队等价）
   const invitesQ = useQuery({
-    queryKey: INVITES_KEY,
+    queryKey: queryKeys.invites(),
     queryFn: () => apiRequest<InvitesData>("/api/me/invites", "GET"),
     initialData: data,
   });
@@ -36,7 +34,7 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
   // 生成邀请码 — 成功 toast 带新码（与原文案一致），额度/列表由重取回流
   const generateMutation = useApiMutation(() => apiRequest<{ code: string }>("/api/me/invites", "POST", {}), {
     refresh: false,
-    invalidate: [INVITES_KEY],
+    invalidate: [queryKeys.invites()],
     successToast: (res) => (locale === "zh" ? `已生成 ${res.code}` : `Generated ${res.code}`),
   });
 

@@ -28,6 +28,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { deleteJson, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -42,9 +43,6 @@ const keywordItemSchema = z.object({
 const keywordsSchema = z.object({ items: z.array(keywordItemSchema) });
 
 type KeywordItem = z.infer<typeof keywordItemSchema>;
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；增/删/导入后失效重取。 */
-const KEYWORDS_KEY = ["admin", "keywords"] as const;
 
 /** 关键词黑名单：列表 + 添加 + 批量导入 + 删除。 */
 export function ModerationKeywordsTab() {
@@ -62,7 +60,7 @@ export function ModerationKeywordsTab() {
   // 列表查询 — 增删导入后 invalidate 重取，等价原 load()
   const keywordsQ = useQuery(
     apiQueryOptions({
-      queryKey: KEYWORDS_KEY,
+      queryKey: queryKeys.adminKeywords(),
       url: "/api/admin/keywords?limit=100",
       schema: keywordsSchema,
     }),
@@ -76,7 +74,7 @@ export function ModerationKeywordsTab() {
       postJson("/api/admin/keywords", payload),
     {
       refresh: false,
-      invalidate: [KEYWORDS_KEY],
+      invalidate: [queryKeys.adminKeywords()],
       successToast: "关键词已添加",
       onSuccess: () => {
         setWord("");
@@ -90,7 +88,7 @@ export function ModerationKeywordsTab() {
     (kw: KeywordItem) => deleteJson(`/api/admin/keywords/${kw.id}`),
     {
       refresh: false,
-      invalidate: [KEYWORDS_KEY],
+      invalidate: [queryKeys.adminKeywords()],
       successToast: "已删除",
       onSuccess: () => setDeleteTarget(null),
     },
@@ -102,7 +100,7 @@ export function ModerationKeywordsTab() {
       postJson<{ inserted: number; skipped: number }>("/api/admin/keywords/bulk", payload),
     {
       refresh: false,
-      invalidate: [KEYWORDS_KEY],
+      invalidate: [queryKeys.adminKeywords()],
       successToast: (res) => `导入完成：新增 ${res.inserted} 个，跳过重复 ${res.skipped} 个`,
       onSuccess: () => {
         setBulkOpen(false);

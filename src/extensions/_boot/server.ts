@@ -57,6 +57,23 @@ const baseCtx = {
   policies: { register: registerPolicy, can, authorize },
 };
 
+/**
+ * 版本约束匹配（极简 semver 子集）：`^1.2` = 主版本相同且 ≥1.2；
+ * 纯数字 = 精确匹配。覆盖内置扩展的协商需求，不引入 semver 依赖。
+ */
+export function satisfiesVersion(version: string, range: string): boolean {
+  const clean = range.replace(/^\^/, "");
+  const [rv, rr] = [version.split(".").map(Number), clean.split(".").map(Number)];
+  if (rv.length < 2 || rr.some(Number.isNaN) || rv.some(Number.isNaN)) return false;
+  if (range.startsWith("^")) {
+    return rv[0] === rr[0] && [rv[0], rv[1], rv[2] ?? 0].every((v, i) => {
+      const lim = [rr[0], rr[1], rr[2] ?? 0][i] ?? 0;
+      return i === 0 ? v === lim : v >= lim || rv[0] > Number(range[0]);
+    });
+  }
+  return rv.every((v, i) => v >= ([rr[i] ?? 0][i] ?? 0));
+}
+
 /** 逐插件绑定命名空间（jobs/notifications 自动带扩展 id） */
 function ctxFor(extensionId: string): PluginContext {
   return {
@@ -132,8 +149,20 @@ export function bootPlugins(): Promise<void> {
         }
         state.set(p.name, "visiting");
         for (const r of p.requires ?? []) {
-          const dep = byName.get(r);
-          if (dep) visit(dep);
+          const reqName = typeof r === "string" ? r : r.name;
+          const reqRange = typeof r === "string" ? null : r.version;
+          const dep = byName.get(reqName);
+          if (!dep) {
+            console.warn(`[plugins] ${p.name} requires "${reqName}" — 未找到，跳过该依赖`);
+            continue;
+          }
+          if (reqRange && !satisfiesVersion(dep.version, reqRange)) {
+            console.error(
+              `[plugins] ${p.name} requires ${reqName}@${reqRange} 但实际为 ${dep.version} — 拒绝启动`,
+            );
+            continue;
+          }
+          visit(dep);
         }
         if (state.get(p.name) !== "done") {
           sorted.push(p);

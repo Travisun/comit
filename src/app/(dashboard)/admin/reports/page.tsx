@@ -33,7 +33,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState, FilterChips, PageHeader, Pagination, TableSkeleton } from "@/components/admin/bits";
-import { ADMIN_POSTS_KEY_PREFIX, ConfirmDialog } from "@/components/admin/post-actions";
+import { ConfirmDialog } from "@/components/admin/post-actions";
 import {
   PermanentBanDialog,
   TimedBanDialog,
@@ -41,12 +41,10 @@ import {
 } from "@/components/admin/user-modals";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import { postJson } from "@/lib/client/api";
 import { timeAgo, truncate } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
-
-/** admin 举报列表键前缀 — 暂未入厂（keys.ts 冻结），admin 域就地字面量 */
-const ADMIN_REPORTS_KEY_PREFIX = ["admin", "reports"] as const;
 
 // 就地 zod schema：/api/admin/reports 响应无现成 schema，进缓存前校验把关
 const targetPreviewSchema = z.object({
@@ -430,7 +428,7 @@ function ReportsWorkbench({
   // 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
   const reportsQ = useQuery(
     apiQueryOptions({
-      queryKey: [...ADMIN_REPORTS_KEY_PREFIX, status, type, offset],
+      queryKey: queryKeys.adminReports(status, type, offset),
       url: `/api/admin/reports?${new URLSearchParams({
         limit: String(PAGE_SIZE),
         offset: String(offset),
@@ -455,7 +453,7 @@ function ReportsWorkbench({
       ),
     {
       refresh: false,
-      invalidate: [ADMIN_REPORTS_KEY_PREFIX, ADMIN_POSTS_KEY_PREFIX],
+      invalidate: [queryKeys.adminReportsPrefix(), queryKeys.adminPostsPrefix()],
       successToast: "处置完成",
       onSuccess: () => setSelected(null),
     },

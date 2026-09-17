@@ -21,6 +21,7 @@ import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import { useQueryClient } from "@tanstack/react-query";
 import { EXTENSION_MANIFESTS } from "@/extensions/_boot/manifests";
 import { useApiMutation } from "@/lib/query/mutation";
@@ -63,12 +64,6 @@ const suggestSchema = z.object({
   items: z.array(z.object({ username: z.string(), displayName: z.string() })),
 });
 
-/**
- * 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）。settings 键同时被
- * moderation-llm 面板消费（同一端点），保存后失效可让两处重取。
- */
-const ADMIN_SETTINGS_KEY = ["admin", "settings"] as const;
-
 const FEATURE_KEYS: { key: string; label: string; desc: string }[] = [
   { key: "site.registrationOpen", label: "开放注册", desc: "关闭后新用户将无法注册" },
   { key: "site.inviteRequired", label: "注册需要邀请码", desc: "仅持有有效邀请码的用户可完成注册" },
@@ -91,7 +86,7 @@ export default function AdminSettingsPage() {
   // 以服务端权威值重新播种，等价原 load 回调里的逐字段赋值
   const settingsQ = useQuery(
     apiQueryOptions({
-      queryKey: ADMIN_SETTINGS_KEY,
+      queryKey: queryKeys.adminSettings(),
       url: "/api/admin/settings",
       schema: adminSettingsSchema,
     }),
@@ -161,7 +156,7 @@ function AdminSettingsForm({
     (payload: { entries: Record<string, unknown> }) => postJson("/api/admin/settings", payload),
     {
       refresh: false,
-      invalidate: [ADMIN_SETTINGS_KEY],
+      invalidate: [queryKeys.adminSettings()],
       successToast: "设置已保存",
     },
   );
@@ -175,7 +170,7 @@ function AdminSettingsForm({
 
   const suggestionsQ = useQuery({
     ...apiQueryOptions({
-      queryKey: [...ADMIN_SETTINGS_KEY, "suggest", suggestQ],
+      queryKey: queryKeys.adminSettingsSuggest(suggestQ),
       url: `/api/admin/users?q=${encodeURIComponent(suggestQ)}&limit=8`,
       schema: suggestSchema,
     }),
@@ -398,7 +393,7 @@ function RateLimitBucketsSection({ seedValue }: { seedValue: unknown }) {
     (payload: { entries: Record<string, unknown> }) => postJson("/api/admin/settings", payload),
     {
       refresh: false,
-      invalidate: [ADMIN_SETTINGS_KEY],
+      invalidate: [queryKeys.adminSettings()],
       successToast: "限流配置已保存",
     },
   );
@@ -535,7 +530,7 @@ function ExtensionSwitches({ seedValue }: { seedValue: unknown }) {
     (next: Record<string, boolean>) => postJson("/api/admin/settings", { entries: { "ext.enabled": next } }),
     {
       successToast: "扩展开关已保存（重启 dev server 后服务端生效）",
-      onSuccess: () => void queryClient.invalidateQueries({ queryKey: ADMIN_SETTINGS_KEY }),
+      onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.adminSettings() }),
     },
   );
 

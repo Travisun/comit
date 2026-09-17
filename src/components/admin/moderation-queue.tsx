@@ -13,6 +13,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -46,9 +47,6 @@ const queueSchema = z.object({ items: z.array(queueItemSchema) });
 
 type QueueItem = z.infer<typeof queueItemSchema>;
 
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；通过/驳回后失效重取。 */
-const QUEUE_KEY = ["admin", "moderation", "queue"] as const;
-
 /** 待审队列：pending_review 文章卡片 + 通过 / 驳回操作。 */
 export function ModerationQueueTab() {
   const { locale } = useI18n();
@@ -58,7 +56,7 @@ export function ModerationQueueTab() {
   // 队列查询 — 通过/驳回后 invalidate 重取，等价原 load()
   const queueQ = useQuery(
     apiQueryOptions({
-      queryKey: QUEUE_KEY,
+      queryKey: queryKeys.adminModerationQueue(),
       url: "/api/admin/moderation/queue?limit=20",
       schema: queueSchema,
     }),
@@ -71,7 +69,7 @@ export function ModerationQueueTab() {
     (item: QueueItem) => postJson(`/api/admin/posts/${item.id}/approve`, {}),
     {
       refresh: false,
-      invalidate: [QUEUE_KEY],
+      invalidate: [queryKeys.adminModerationQueue()],
       successToast: "已通过审核并发布",
       onSuccess: () => setPendingId(null),
       onError: () => setPendingId(null),
@@ -83,7 +81,7 @@ export function ModerationQueueTab() {
       postJson(`/api/admin/posts/${input.item.id}/reject`, { reason: input.reason }),
     {
       refresh: false,
-      invalidate: [QUEUE_KEY],
+      invalidate: [queryKeys.adminModerationQueue()],
       successToast: "已驳回",
       onSuccess: () => {
         setRejectTarget(null);

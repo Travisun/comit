@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label } from "@/components/ui/input";
 import { Badge, Skeleton } from "@/components/ui/primitives";
 import { useI18n } from "@/lib/i18n/client";
+import { queryKeys } from "@/lib/query/keys";
 import { cn, formatDate, timeAgo } from "@/lib/utils";
 import {
   VERIFICATION_BADGE_FALLBACK,
@@ -47,9 +48,6 @@ const TYPE_ICONS: Record<VerificationTypeInfo["icon"], LucideIcon> = {
 
 const MAX_ATTACHMENTS = 3;
 
-/** 认证状态查询键 — keys.ts 冻结期内就地字面量，后续可提升进 queryKeys */
-const VERIFICATION_KEY = ["me", "verification"] as const;
-
 /** 设置 → 认证：申请 / 撤回 / 徽章展示 / 历史记录。 */
 export function VerificationPanel() {
   const { locale } = useI18n();
@@ -58,7 +56,7 @@ export function VerificationPanel() {
   const queryClient = useQueryClient();
 
   const verificationQ = useQuery({
-    queryKey: VERIFICATION_KEY,
+    queryKey: queryKeys.verification(),
     queryFn: () => apiRequest<VerificationMeResponse>("/api/me/verification", "GET"),
   });
   const data = verificationQ.data;
@@ -66,7 +64,7 @@ export function VerificationPanel() {
 
   /** 子卡片提交/撤回后的重取（等价原 load()） */
   function refetch() {
-    void queryClient.invalidateQueries({ queryKey: VERIFICATION_KEY });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.verification() });
   }
 
   if (error) {

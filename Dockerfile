@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+# 生产镜像：多阶段构建（deps → build → runner），非 root 运行，standalone 优先。
+# 构建上下文 = 仓库根（pnpm monorepo：src/extensions/* 为 workspace 包）。
+
+FROM node:24-alpine AS deps
+WORKDIR /app
+RUN corepack enable
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# workspace 包（src/extensions/*）的 package.json 一并还原，pnpm 才能解析
+COPY src/extensions ./src/extensions
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN corepack enable
+COPY --from=deps /app ./
+COPY . .
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm build
+
+FROM node:24-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+RUN addgroup -S app && adduser -S app -G app
+COPY --from=build --chown=app:app /app/.next ./.next
+COPY --from=build --chown=app:app /app/public ./public
+COPY --from=build --chown=app:app /app/node_modules ./node_modules
+COPY --from=build --chown=app:app /app/package.json ./package.json
+COPY --from=build --chown=app:app /app/drizzle ./drizzle
+COPY --from=build --chown=app:app /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=build --chown=app:app /app/src/db ./src/db
+COPY --from=build --chown=app:app /app/src/extensions ./src/extensions
+COPY --from=build --chown=app:app /app/next.config.ts ./next.config.ts
+USER app
+EXPOSE 3000
+CMD ["pnpm", "start"]

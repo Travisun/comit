@@ -44,7 +44,6 @@ import {
   TableWrap,
 } from "@/components/admin/bits";
 import {
-  ADMIN_USERS_KEY_PREFIX,
   PermanentBanDialog,
   TimedBanDialog,
   WarnDialog,
@@ -53,6 +52,7 @@ import {
 } from "@/components/admin/user-modals";
 import { useApiMutation, useQueryClient } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import { patchJson } from "@/lib/client/api";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
@@ -180,7 +180,7 @@ export default function AdminUsersPage() {
   // hack 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
   const usersQ = useQuery(
     apiQueryOptions({
-      queryKey: [...ADMIN_USERS_KEY_PREFIX, filter, query, offset],
+      queryKey: queryKeys.adminUsers(filter, query, offset),
       url: `/api/admin/users?${new URLSearchParams({
         limit: String(PAGE_SIZE),
         offset: String(offset),
@@ -234,7 +234,7 @@ export default function AdminUsersPage() {
       if ((await restoreBatch.mutate(id)) !== undefined) okCount += 1;
     }
     toast.success(`已恢复 ${okCount} 个到期账号`);
-    void queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY_PREFIX });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.adminUsersPrefix() });
   }
 
   const onPage = (next: number) => setOffset(next);

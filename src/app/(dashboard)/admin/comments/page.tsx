@@ -17,12 +17,10 @@ import {
 import { ConfirmDialog } from "@/components/admin/post-actions";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import { deleteJson, patchJson } from "@/lib/client/api";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
-
-/** admin 评论列表键前缀 — 暂未入厂（keys.ts 冻结），admin 域就地字面量 */
-const ADMIN_COMMENTS_KEY_PREFIX = ["admin", "comments"] as const;
 
 // 就地 zod schema：/api/admin/comments 响应无现成 schema，进缓存前校验把关
 const commentItemSchema = z.object({
@@ -57,7 +55,7 @@ function CommentList({
   // placeholderData 让翻页时保留上一页数据不闪空
   const commentsQ = useQuery(
     apiQueryOptions({
-      queryKey: [...ADMIN_COMMENTS_KEY_PREFIX, offset],
+      queryKey: queryKeys.adminComments(offset),
       url: `/api/admin/comments?limit=${PAGE_SIZE}&offset=${offset}`,
       schema: commentsListSchema,
       placeholderData: keepPreviousData,
@@ -74,7 +72,7 @@ function CommentList({
       patchJson(`/api/admin/comments/${input.comment.id}`, { status: input.status }),
     {
       refresh: false,
-      invalidate: [ADMIN_COMMENTS_KEY_PREFIX],
+      invalidate: [queryKeys.adminCommentsPrefix()],
       // 成功提示随动作而变（恢复显示 / 隐藏），在 onSuccess 里 toast
       onSuccess: (_data, input) => toast.success(input.success),
     },
@@ -83,7 +81,7 @@ function CommentList({
     (comment: CommentItem) => deleteJson(`/api/admin/comments/${comment.id}`),
     {
       refresh: false,
-      invalidate: [ADMIN_COMMENTS_KEY_PREFIX],
+      invalidate: [queryKeys.adminCommentsPrefix()],
       successToast: "评论已删除",
       onSuccess: () => setDeleteTarget(null),
     },

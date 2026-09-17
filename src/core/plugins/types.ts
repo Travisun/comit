@@ -154,7 +154,11 @@ export interface Plugin {
   description: string;
   version: string;
   /** 依赖的其他插件名（boot 按此拓扑排序，B4） */
-  requires?: string[];
+  /**
+   * 依赖扩展名列表；支持版本约束条目 `"name@^1.2"`（semver 前缀匹配，
+   * boot 拓扑排序时校验，不满足则拒绝启动本插件并告警）。
+   */
+  requires?: (string | { name: string; version: string })[];
   /** true ⇒ 延迟注册：首次被容器 resolve（ext.<name>）时才 register（B3） */
   deferred?: boolean;
   register(ctx: PluginContext): void | Promise<void>;

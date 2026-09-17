@@ -31,6 +31,7 @@ import { EmptyState, PageHeader, StatCard } from "@/components/admin/bits";
 import { formatBytes } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /**
  * Ops panel — pulls /api/admin/ops (read-only snapshot). Refresh is manual
@@ -83,9 +84,6 @@ const opsSchema = z.object({
 });
 
 type OpsData = z.infer<typeof opsSchema>;
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）；手动刷新走 refetch()。 */
-const OPS_KEY = ["admin", "ops"] as const;
 
 interface QueueRow {
   queue: string;
@@ -179,7 +177,7 @@ export function OpsDashboard() {
   // staleTime 用全局默认（15s），手动 refetch 不受 staleTime 约束
   const opsQ = useQuery(
     apiQueryOptions({
-      queryKey: OPS_KEY,
+      queryKey: queryKeys.adminOps(),
       url: "/api/admin/ops",
       schema: opsSchema,
     }),

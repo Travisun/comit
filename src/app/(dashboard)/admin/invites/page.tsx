@@ -23,6 +23,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { deleteJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -49,12 +50,6 @@ type InviteItem = z.infer<typeof inviteItemSchema>;
 
 const PAGE_SIZE = 30;
 
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），筛选/搜索/分页全进键。 */
-const invitesKey = (filter: string, query: string, offset: number) =>
-  ["admin", "invites", filter, query, offset] as const;
-/** 作废后按前缀失效全部筛选组合的列表 */
-const INVITES_PREFIX = ["admin", "invites"] as const;
-
 const FILTERS = [
   { value: "all", label: "全部" },
   { value: "unused", label: "未使用" },
@@ -78,7 +73,7 @@ function InvitesTable({
   // 列表查询 — key 随筛选/搜索/分页变化；placeholderData 保留上一页数据防闪
   const invitesQ = useQuery({
     ...apiQueryOptions({
-      queryKey: invitesKey(filter, query, offset),
+      queryKey: queryKeys.adminInvites(filter, query, offset),
       url: `/api/admin/invites?filter=${encodeURIComponent(filter)}&limit=${PAGE_SIZE}&offset=${offset}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
       schema: invitesPageSchema,
     }),
@@ -92,7 +87,7 @@ function InvitesTable({
     (item: InviteItem) => deleteJson(`/api/admin/invites/${item.id}`),
     {
       refresh: false,
-      invalidate: [INVITES_PREFIX],
+      invalidate: [queryKeys.adminInvitesPrefix()],
       onSuccess: (_data, item) => {
         toast.success(`已作废邀请码 ${item.code}`);
         setRevoking(null);

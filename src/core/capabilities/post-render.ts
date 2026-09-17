@@ -1,3 +1,38 @@
+import { unified } from "unified";
+import rehypeParse from "rehype-parse";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import rehypeStringify from "rehype-stringify";
+
+/**
+ * 扩展注入 HTML（prepend/append）的净化白名单 —— 第三方过滤器的输出
+ * 不可信任：script/iframe/事件属性一律剥离，img 限 http(s) 与本站相对路径。
+ * 同步管线在 boot 后注册时构建一次。
+ */
+const sanitizePipeline = unified()
+  .use(rehypeParse, { fragment: true })
+  .use(rehypeSanitize, {
+    ...defaultSchema,
+    tagNames: (defaultSchema.tagNames ?? []).filter((t) => !["script", "iframe", "object", "embed", "form"].includes(t)),
+    attributes: {
+      ...defaultSchema.attributes,
+      "*": [...(defaultSchema.attributes?.["*"] ?? []), "class", "style"],
+      img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "loading"],
+      a: [...(defaultSchema.attributes?.a ?? []), "href", "target", "rel"],
+    },
+    protocols: {
+      ...defaultSchema.protocols,
+      src: ["http", "https"],
+      href: ["http", "https", "mailto"],
+    },
+  })
+  .use(rehypeStringify);
+
+export async function sanitizeExtensionHtml(html: string): Promise<string> {
+  if (!html.trim()) return "";
+  const file = await sanitizePipeline.process({ value: html });
+  return String(file);
+}
+
 import type { Post, User } from "@/db/schema";
 
 /**
@@ -98,5 +133,9 @@ export async function runPostRenderPipeline(input: {
     }
   }
 
-  return { ctx, prependHtml: before.join("\n"), appendHtml: after.join("\n") };
+  const [prependHtml, appendHtml] = await Promise.all([
+    sanitizeExtensionHtml(before.join("\n")),
+    sanitizeExtensionHtml(after.join("\n")),
+  ]);
+  return { ctx, prependHtml, appendHtml };
 }

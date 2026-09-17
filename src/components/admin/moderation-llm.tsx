@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 interface LlmConfig {
   baseURL: string;
@@ -47,12 +48,6 @@ type AdminSettingsEntries = z.infer<typeof adminSettingsSchema>["entries"];
 
 type LlmTestResult = { approved: boolean; score?: number; reason?: string } | null;
 
-/**
- * 查询键 — keys.ts 冻结期内就地字面量（暂未入厂）。与 admin settings 页
- * 共用同一端点/键，保存审核配置后失效会连带刷新两处。
- */
-const ADMIN_SETTINGS_KEY = ["admin", "settings"] as const;
-
 const REVIEW_MODES = [
   { value: "off", label: "直接发布", hint: "不审核，发布即上线" },
   { value: "llm", label: "LLM 审核", hint: "模型通过后自动发布，否则进队列" },
@@ -65,7 +60,7 @@ export function ModerationLlmTab() {
   // 时以服务端权威值重新播种；测试面板的输入/结果留在高层，不随重播种丢失
   const settingsQ = useQuery(
     apiQueryOptions({
-      queryKey: ADMIN_SETTINGS_KEY,
+      queryKey: queryKeys.adminSettings(),
       url: "/api/admin/settings",
       schema: adminSettingsSchema,
     }),
@@ -160,7 +155,7 @@ function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
     }) => postJson<{ ok: boolean; hasKey: boolean }>("/api/admin/moderation/llm", payload),
     {
       refresh: false,
-      invalidate: [ADMIN_SETTINGS_KEY],
+      invalidate: [queryKeys.adminSettings()],
       successToast: "审核配置已保存",
       onSuccess: (res) => {
         setHasKey(res.hasKey);

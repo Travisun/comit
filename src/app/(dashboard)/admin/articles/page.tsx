@@ -16,8 +16,9 @@ import {
   TableSkeleton,
   TableWrap,
 } from "@/components/admin/bits";
-import { ADMIN_POSTS_KEY_PREFIX, PostRowActions } from "@/components/admin/post-actions";
+import { PostRowActions } from "@/components/admin/post-actions";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 
@@ -68,7 +69,7 @@ function ArticleList({
   // hack 已删）；placeholderData 让切换筛选时保留上一页数据不闪空
   const postsQ = useQuery(
     apiQueryOptions({
-      queryKey: [...ADMIN_POSTS_KEY_PREFIX, status, query, offset],
+      queryKey: queryKeys.adminPosts(status, query, offset),
       url: `/api/admin/posts?${new URLSearchParams({
         limit: String(PAGE_SIZE),
         offset: String(offset),

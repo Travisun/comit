@@ -16,12 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 import { formatBytes, timeAgo } from "@/lib/utils";
 import { apiRequest } from "./client";
 import type { ExportJobView } from "./types";
-
-/** 导出任务列表键 — keys.ts 冻结期内就地定义，后续可提升进 queryKeys */
-const EXPORT_JOBS_KEY = ["me", "export-jobs"] as const;
 
 function statusBadge(status: string, locale: "zh" | "en") {
   const labels: Record<string, { zh: string; en: string }> = {
@@ -42,7 +40,7 @@ function ExportCard({ initial }: { initial: ExportJobView[] }) {
   // 任务列表 — 有 queued/building 任务时每 3s 轮询，全部收尾后停表
   // （refetchInterval 以最新 data 判定；后台标签页不轮询）
   const jobsQ = useQuery({
-    queryKey: EXPORT_JOBS_KEY,
+    queryKey: queryKeys.exportJobs(),
     queryFn: async () => (await apiRequest<{ jobs: ExportJobView[] }>("/api/export", "GET")).jobs,
     // 服务端首屏任务作为初始缓存，挂载不空转
     initialData: initial,
@@ -56,7 +54,7 @@ function ExportCard({ initial }: { initial: ExportJobView[] }) {
   // 创建导出任务 — 成功后失效任务列表键，轮询由上面的 refetchInterval 自然接管
   const startMutation = useApiMutation(() => apiRequest("/api/export", "POST", {}), {
     refresh: false,
-    invalidate: [EXPORT_JOBS_KEY],
+    invalidate: [queryKeys.exportJobs()],
     successToast: locale === "zh" ? "导出任务已创建" : "Export job created",
   });
 

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { patchJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { queryKeys } from "@/lib/query/keys";
 
 /**
  * Shared user-moderation dialogs (warn / timed ban / permanent ban).
@@ -22,12 +23,6 @@ import { useApiMutation } from "@/lib/query/mutation";
  * (POST /api/admin/reports/[id]/action with action=warn_author/ban_author).
  * Field state is reset on close/submit (event-driven, no effects).
  */
-
-/**
- * admin 用户列表键前缀 — 暂未入厂（keys.ts 冻结）；用户页查询与处置
- * mutation 的失效共用此前缀（invalidate 按前缀批量命中）。
- */
-export const ADMIN_USERS_KEY_PREFIX = ["admin", "users"] as const;
 
 interface UserModerationInput {
   userId: string;
@@ -48,7 +43,7 @@ export function useUserModerationMutation(
   return useApiMutation<UserModerationInput, unknown>(
     ({ userId, patch }: UserModerationInput) =>
       patchJson(`/api/admin/users/${userId}`, patch),
-    { refresh: false, invalidate: [ADMIN_USERS_KEY_PREFIX], onSuccess: (_data, input) => onSuccess?.(input) },
+    { refresh: false, invalidate: [queryKeys.adminUsersPrefix()], onSuccess: (_data, input) => onSuccess?.(input) },
   );
 }
 

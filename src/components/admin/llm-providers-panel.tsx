@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/settings";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { postJson } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 
 /**
  * LLM 提供商管理面板 — 多提供商多模型配置（lib/llm.ts v2）。
@@ -189,8 +190,8 @@ export function LlmProvidersPanel({ value }: { value: unknown }) {
       };
       await postJson("/api/admin/settings", { entries: { "llm.providers": payload } });
       toast.success("LLM 提供商已保存");
-      void queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
-      void queryClient.invalidateQueries({ queryKey: ["admin", "settings"] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminSettings() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.adminSettings() });
     } finally {
       setSaving(false);
     }

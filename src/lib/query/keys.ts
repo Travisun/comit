@@ -16,6 +16,8 @@ export const queryKeys = {
   /** 本地未读计数（seen 时间戳作为键的一部分 → 推进 seen 自动换新） */
   unread: (seen: { latest: number; following: number; messages: number }) =>
     ["unread", seen] as const,
+  /** 跨 seen 失效全部未读计数（实时事件推送后用） */
+  unreadPrefix: () => ["unread"] as const,
   /** 编辑器目录树：合集 + 我的作品列表 */
   collections: () => ["collections"] as const,
   myPosts: (type: "article" | "short" | "all" = "all") => ["posts", "mine", type] as const,
@@ -26,6 +28,58 @@ export const queryKeys = {
   /** 设置域：OAuth 连接 / 邮箱状态 */
   connections: () => ["me", "connections"] as const,
   emailStatus: () => ["me", "email"] as const,
+  /** 设置域：API 令牌 / 邀请码 / 认证状态 / 数据导出 / Webhook */
+  tokens: () => ["me", "tokens"] as const,
+  invites: () => ["me", "invites"] as const,
+  verification: () => ["me", "verification"] as const,
+  exportJobs: () => ["me", "export-jobs"] as const,
+  webhooks: () => ["me", "webhooks"] as const,
+  /* ------------------------------ admin 域 ------------------------------ */
+  /** admin 概览统计 */
+  adminStats: () => ["admin", "stats"] as const,
+  /** 站点设置（settings 页与 moderation-llm / llm-providers 面板共用，保存后失效连带重取） */
+  adminSettings: () => ["admin", "settings"] as const,
+  /** 单用户模式用户名联想（settings 键的子键，q 进键） */
+  adminSettingsSuggest: (q: string) => ["admin", "settings", "suggest", q] as const,
+  /** admin 文章列表（status + 搜索 + 分页）— 行内审核/删除按前缀批量失效 */
+  adminPosts: (status: string, q: string, offset: number) =>
+    ["admin", "posts", status, q, offset] as const,
+  adminPostsPrefix: () => ["admin", "posts"] as const,
+  /** admin 评论管理列表（offset 分页）— 隐藏/删除按前缀批量失效 */
+  adminComments: (offset: number) => ["admin", "comments", offset] as const,
+  adminCommentsPrefix: () => ["admin", "comments"] as const,
+  /** admin 举报列表（status + type + 分页）— 处置后按前缀批量失效 */
+  adminReports: (status: string, type: string, offset: number) =>
+    ["admin", "reports", status, type, offset] as const,
+  adminReportsPrefix: () => ["admin", "reports"] as const,
+  /** 认证审核台（status tab + 搜索词）— 审核动作按前缀覆盖三个 tab */
+  adminVerification: (status: string, q: string) =>
+    ["admin", "verification", status, q] as const,
+  adminVerificationPrefix: () => ["admin", "verification"] as const,
+  /** admin 用户列表（filter + 搜索 + 分页）— 处置动作按前缀批量失效 */
+  adminUsers: (filter: string, q: string, offset: number) =>
+    ["admin", "users", filter, q, offset] as const,
+  adminUsersPrefix: () => ["admin", "users"] as const,
+  /** 通知模板注册表 — 保存/重置后失效重取 */
+  adminTemplates: () => ["admin", "templates"] as const,
+  /** 运维监控快照（手动 refetch 刷新） */
+  adminOps: () => ["admin", "ops"] as const,
+  /** 邀请码管理列表（筛选 + 搜索 + 分页）— 作废后按前缀批量失效 */
+  adminInvites: (filter: string, q: string, offset: number) =>
+    ["admin", "invites", filter, q, offset] as const,
+  adminInvitesPrefix: () => ["admin", "invites"] as const,
+  /** 媒体库管理（类型 + 搜索 + 分页）— 删除后按前缀批量失效 */
+  adminMedia: (kind: string, q: string, offset: number) =>
+    ["admin", "media", kind, q, offset] as const,
+  adminMediaPrefix: () => ["admin", "media"] as const,
+  /** 审计日志（动作筛选 + 分页） */
+  adminAudit: (action: string, offset: number) => ["admin", "audit", action, offset] as const,
+  /** 人工审核待审队列 — 通过/驳回后失效重取 */
+  adminModerationQueue: () => ["admin", "moderation", "queue"] as const,
+  /** 关键词黑名单 — 增/删/导入后失效重取 */
+  adminKeywords: () => ["admin", "keywords"] as const,
+  /** 扩展域：签名档扩展设置（/api/ext/signature/settings） */
+  extSignatureSettings: () => ["ext", "signature", "settings"] as const,
   /** 评论：无限分页 + 新评论探测（前缀 ["comments", postId]） */
   comments: (postId: string) => ["comments", postId] as const,
   /** 置顶楼层（始终置顶渲染）/ 解决方案摘要盒 —— 前缀失效可一并覆盖 */

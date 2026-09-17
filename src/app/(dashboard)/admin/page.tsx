@@ -23,9 +23,7 @@ import {
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { apiQueryOptions } from "@/lib/query/options";
-
-/** admin 概览统计键 — 暂未入厂（keys.ts 冻结），admin 域就地字面量 */
-const ADMIN_STATS_KEY = ["admin", "stats"] as const;
+import { queryKeys } from "@/lib/query/keys";
 
 // 就地 zod schema：/api/admin/stats 响应无现成 schema，进缓存前校验把关
 const statsResponseSchema = z.object({
@@ -65,7 +63,7 @@ export default function AdminOverviewPage() {
   // 概览统计 — 读数据统一走 TanStack Query，替代 useEffect + useState 手拉
   const statsQ = useQuery(
     apiQueryOptions({
-      queryKey: ADMIN_STATS_KEY,
+      queryKey: queryKeys.adminStats(),
       url: "/api/admin/stats",
       schema: statsResponseSchema,
     }),

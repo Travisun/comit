@@ -45,7 +45,7 @@ export function useLocalUnread(user: { username: string } | null | undefined): L
       // 断线重连成功：补一次失效，覆盖断线窗口内可能丢失的推送事件
       event.type === "realtime.reconnected"
     ) {
-      queryClient.invalidateQueries({ queryKey: ["unread"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.unreadPrefix() });
       // 前缀失效可连带 ["notifications","badge"] 角标一起刷新
       queryClient.invalidateQueries({ queryKey: queryKeys.notifications() });
     }

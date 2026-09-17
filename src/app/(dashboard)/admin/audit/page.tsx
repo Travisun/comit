@@ -15,6 +15,7 @@ import { EmptyState, PageHeader, Pagination, TableSkeleton, TableWrap } from "@/
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -43,9 +44,6 @@ const auditPageSchema = z.object({
 type AuditItem = z.infer<typeof auditItemSchema>;
 
 const PAGE_SIZE = 40;
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），action/offset 进键驱动重查。 */
-const auditKey = (action: string, offset: number) => ["admin", "audit", action, offset] as const;
 
 /** Common action groups keep the dropdown readable even with many action types. */
 const COMMON_ACTIONS = [
@@ -202,7 +200,7 @@ export default function AdminAuditPage() {
   // 列表 + 动作分面一次取回（服务端每页都带全局 actions 统计，替代原 limit=1 探测请求）
   const auditQ = useQuery({
     ...apiQueryOptions({
-      queryKey: auditKey(action, offset),
+      queryKey: queryKeys.adminAudit(action, offset),
       url: `/api/admin/audit?limit=${PAGE_SIZE}&offset=${offset}${action ? `&action=${encodeURIComponent(action)}` : ""}`,
       schema: auditPageSchema,
     }),

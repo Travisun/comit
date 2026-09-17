@@ -1,0 +1,79 @@
+# 生产部署编排 — `docker compose -f docker-compose.prod.yml up -d --build`
+#
+# 持久化清单（全部 named volumes，重建容器不丢数据）：
+#   pgdata    → 用户/帖子/评论/会话等全部业务数据
+#   redis     → 限流计数（可选驱动；未挂载时重启丢限流窗口，可接受）
+#   uploads   → 用户上传的图片/附件（local 存储驱动时必须持久化）
+#   exports   → 用户数据导出包
+#
+# 依赖关系：app 等 postgres 健康 + redis 就绪后再启动；db:migrate 在
+# 独立 one-shot 服务中执行（app 依赖其完成），保证 schema 与代码同版。
+
+name: myblogs
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-blog}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-myblogs}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-blog} -d ${POSTGRES_DB:-myblogs}"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  migrate:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: "no"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-myblogs}
+    volumes:
+      - uploads:/app/storage/uploads
+      - exports:/app/storage/exports
+    depends_on:
+      postgres: { condition: service_healthy }
+    command: ["pnpm", "db:migrate"]
+
+  app:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-myblogs}
+      REDIS_URL: redis://redis:6379
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+      TRUST_PROXY: ${TRUST_PROXY:-nginx}
+      # 本地盘存储：容器内固定路径（挂卷持久化）。切 R2/S3 时改 STORAGE_* env。
+    volumes:
+      - uploads:/app/storage/uploads
+      - exports:/app/storage/exports
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:
+  exports:

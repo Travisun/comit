@@ -31,6 +31,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { deleteJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
+import { queryKeys } from "@/lib/query/keys";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -60,12 +61,6 @@ const mediaPageSchema = z.object({
 type MediaItem = z.infer<typeof mediaItemSchema>;
 
 const PAGE_SIZE = 30;
-
-/** 查询键 — keys.ts 冻结期内就地字面量（暂未入厂），类型/搜索/分页全进键。 */
-const mediaKey = (kind: string, query: string, offset: number) =>
-  ["admin", "media", kind, query, offset] as const;
-/** 删除后按前缀失效全部筛选组合的列表（stats 随列表响应一起更新） */
-const MEDIA_PREFIX = ["admin", "media"] as const;
 
 const KIND_OPTIONS = [
   { value: "", label: "全部类型" },
@@ -110,7 +105,7 @@ function MediaGrid({
   // 列表查询 — placeholderData 保留上一页数据，翻页/筛选不闪骨架
   const mediaQ = useQuery({
     ...apiQueryOptions({
-      queryKey: mediaKey(kind, query, offset),
+      queryKey: queryKeys.adminMedia(kind, query, offset),
       url: `/api/admin/media?limit=${PAGE_SIZE}&offset=${offset}${kind ? `&kind=${encodeURIComponent(kind)}` : ""}${query ? `&q=${encodeURIComponent(query)}` : ""}`,
       schema: mediaPageSchema,
     }),
@@ -124,7 +119,7 @@ function MediaGrid({
     (item: MediaItem) => deleteJson(`/api/admin/media/${item.id}`),
     {
       refresh: false,
-      invalidate: [MEDIA_PREFIX],
+      invalidate: [queryKeys.adminMediaPrefix()],
       onSuccess: (_data, item) => {
         toast.success(`已删除 ${item.filename}`);
         setDeleting(null);

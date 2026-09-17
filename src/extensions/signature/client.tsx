@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { appToast } from "@/lib/client/toast";
 import { useZodForm } from "@/lib/validation";
+import { queryKeys } from "@/lib/query/keys";
 import { PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
@@ -28,7 +29,7 @@ const SETTINGS_URL = "/api/ext/signature/settings";
 
 function useSignatureSettings() {
   return useQuery({
-    queryKey: ["ext", "signature", "settings"],
+    queryKey: queryKeys.extSignatureSettings(),
     queryFn: async () => (await apiGet<{ settings: SignatureSettings }>(SETTINGS_URL)).settings,
     enabled: typeof document !== "undefined",
     staleTime: 30_000,
