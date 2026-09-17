@@ -155,6 +155,24 @@ export function Comments({
     staleTime: 30_000,
   });
 
+  // 置顶楼层（独立列表）：始终渲染在列表最上方，不随分页漂移
+  const pinnedQ = useQuery({
+    queryKey: queryKeys.commentsPinned(postId),
+    queryFn: async () =>
+      commentsPageSchema.parse(await apiGet<unknown>(`${commentsUrl(postId)}&list=pinned&limit=5`)),
+    enabled: !disabled,
+    staleTime: 15_000,
+  });
+
+  // 解决方案摘要盒（Discourse Solve 式，可多个）：渲染在正文下方、点击跳楼层
+  const solutionsQ = useQuery({
+    queryKey: queryKeys.commentsSolutions(postId),
+    queryFn: async () =>
+      commentsPageSchema.parse(await apiGet<unknown>(`${commentsUrl(postId)}&list=solutions&limit=20`)),
+    enabled: !disabled,
+    staleTime: 15_000,
+  });
+
   const pendingNew = useMemo(() => {
     const page = checkQ.data;
     if (!page) return [];
@@ -234,6 +252,8 @@ export function Comments({
       silent: true,
       refresh: false,
       onSuccess: (_data, id) => {
+        // 置顶块/解决方案盒（前缀键）一并失效，删除的楼层不会残留在顶部
+        void queryClient.invalidateQueries({ queryKey: queryKeys.comments(postId) });
         queryClient.setQueryData<InfiniteData<CommentsPage>>(
           queryKeys.comments(postId),
           (prev) =>
@@ -281,55 +301,8 @@ export function Comments({
     removeMutation.mutate(id);
   }
 
-  return (
-    <section className="mt-6" aria-label={t("comments.title")}>
-      <h2 className="mb-3 flex items-center gap-2 text-sm font-normal text-foreground">
-        <MessageCircle className="size-4" />
-        {t("comments.title")}
-        {count > 0 && <span className="text-muted-foreground tabular-nums">({count})</span>}
-      </h2>
-
-      {/* composer states — the input itself is the sticky bar at the bottom */}
-      {disabled ? (
-        <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
-          {t("comments.disabled")}
-        </p>
-      ) : viewerId === null ? (
-        <button type="button" onClick={openLoginDialog} className="w-full text-left">
-          <GuestComposerPlaceholder label={t("comments.placeholder")} />
-        </button>
-      ) : null}
-
-      {/* 新评论气泡：增量拉取后先提示，点击并入 */}
-      {pendingNew.length > 0 && (
-        <button
-          type="button"
-          onClick={loadPending}
-          className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs text-muted-foreground shadow-[0_2px_10px_rgba(42,47,69,0.1)] transition-colors hover:text-foreground"
-        >
-          <MessageCircle className="size-3.5" />
-          <span className="num font-medium">{pendingNew.length}</span> 条新评论 · 点击查看
-        </button>
-      )}
-
-      {/* list */}
-      <div className="mt-4 space-y-1">
-        {!initialLoaded ? (
-          <div className="space-y-4 py-2">
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="flex gap-3">
-                <Skeleton className="size-9 rounded-full" />
-                <div className="flex-1 space-y-2">
-                  <Skeleton className="h-3.5 w-28" />
-                  <Skeleton className="h-3.5 w-full" />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : items.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">{t("comments.empty")}</p>
-        ) : (
-          items.map((c) => (
+  /** 单条评论渲染（置顶块与主流列表共用同一份 DOM/交互） */
+  const renderItem = (c: CommentItem) => (
             <div
               key={c.id}
               id={`comment-${c.id}`}
@@ -445,7 +418,107 @@ export function Comments({
                 </div>
               </div>
             </div>
-          ))
+  );
+
+  return (
+    <section className="mt-6" aria-label={t("comments.title")}>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-normal text-foreground">
+        <MessageCircle className="size-4" />
+        {t("comments.title")}
+        {count > 0 && <span className="text-muted-foreground tabular-nums">({count})</span>}
+      </h2>
+
+      {(solutionsQ.data?.items.length ?? 0) > 0 && (
+        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3">
+          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+            <BadgeCheck className="size-3.5" aria-hidden />
+            解决方案 · {(solutionsQ.data?.items.length ?? 0)}
+          </div>
+          <div className="space-y-1">
+            {solutionsQ.data!.items.map((sc) => (
+              <button
+                key={sc.id}
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById(`comment-${sc.id}`);
+                  if (el) {
+                    el.scrollIntoView({ block: "center", behavior: "smooth" });
+                    history.replaceState(null, "", `#comment-${sc.id}`);
+                  } else {
+                    toast.info("该评论在列表后段，请向下翻页查看");
+                  }
+                }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--hover)]"
+              >
+                <Avatar className="size-6 shrink-0 border border-border">
+                  {sc.user.avatarPath && (
+                    <AvatarImage src={mediaUrl(sc.user.avatarPath)} alt={sc.user.displayName} />
+                  )}
+                  <AvatarFallback>{sc.user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">
+                  <span className="font-medium">{sc.user.displayName}</span>
+                  <span className="text-muted-foreground">：{sc.body.replace(/!\[[^\]]*\]\([^)]*\)/g, "").slice(0, 80)}</span>
+                </span>
+                <BadgeCheck className="size-3.5 shrink-0 text-emerald-600" aria-hidden />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* composer states — the input itself is the sticky bar at the bottom */}
+      {disabled ? (
+        <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
+          {t("comments.disabled")}
+        </p>
+      ) : viewerId === null ? (
+        <button type="button" onClick={openLoginDialog} className="w-full text-left">
+          <GuestComposerPlaceholder label={t("comments.placeholder")} />
+        </button>
+      ) : null}
+
+      {/* 新评论气泡：增量拉取后先提示，点击并入 */}
+      {pendingNew.length > 0 && (
+        <button
+          type="button"
+          onClick={loadPending}
+          className="sticky top-12 z-20 flex w-full items-center justify-center gap-1.5 border-b border-border bg-[var(--primary)] py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+        >
+          <span className="num font-semibold">{pendingNew.length}</span> 条新评论 · 点击查看
+        </button>
+      )}
+
+      {/* 置顶楼层：始终渲染在列表最上方（主流已排除置顶，不会重复） */}
+      {(pinnedQ.data?.items.length ?? 0) > 0 && (
+        <div className="mb-2 overflow-hidden rounded-xl border border-primary/25 bg-primary/[0.03]">
+          <div className="flex items-center gap-1.5 border-b border-primary/15 px-3 py-1.5 text-xs font-medium text-primary">
+            <Pin className="size-3" aria-hidden /> 置顶评论
+          </div>
+          <div className="space-y-1">
+            {pinnedQ.data!.items.map((pc) => renderItem(pc))}
+          </div>
+        </div>
+      )}
+
+      {/* list */}
+      <div className="mt-4 space-y-1">
+        {!initialLoaded ? (
+          <div className="space-y-4 py-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="flex gap-3">
+                <Skeleton className="size-9 rounded-full" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-3.5 w-28" />
+                  <Skeleton className="h-3.5 w-full" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">{t("comments.empty")}</p>
+        ) : (
+          items.map((c) => renderItem(c))
         )}
       </div>
 

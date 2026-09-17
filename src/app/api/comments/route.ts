@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, desc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { comments, likes, posts, users } from "@/db/schema";
@@ -25,6 +25,8 @@ const listSchema = z.object({
     .refine((v) => !Number.isNaN(Date.parse(v)), "invalid cursor")
     .optional(),
   limit: z.coerce.number().int().min(1).max(50).default(10),
+  /** pinned = 置顶列表（始终置顶渲染）；solutions = 解决方案摘要盒 */
+  list: z.enum(["pinned", "solutions"]).optional(),
 });
 
 function bad(): never {
@@ -153,9 +155,10 @@ export async function GET(req: Request) {
       postId: url.searchParams.get("postId") ?? undefined,
       cursor: url.searchParams.get("cursor") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
+      list: url.searchParams.get("list") ?? undefined,
     });
     if (!parsed.success) bad();
-    const { postId, cursor, limit } = parsed.data;
+    const { postId, cursor, limit, list } = parsed.data;
 
     const [post] = await db
       .select({ id: posts.id, authorId: posts.authorId })
@@ -166,14 +169,61 @@ export async function GET(req: Request) {
 
     const viewer = await apiUser();
 
+    // 独立列表：置顶（始终置顶渲染）/ 解决方案摘要盒（点击跳对应楼层）
+    if (list === "pinned" || list === "solutions") {
+      const flagCol = list === "pinned" ? comments.pinnedAt : comments.solutionAt;
+      const rows = await db
+        .select({
+          id: comments.id,
+          body: comments.body,
+          createdAt: comments.createdAt,
+          likeCount: comments.likeCount,
+          userId: comments.userId,
+          replyToCommentId: comments.replyToCommentId,
+          username: users.username,
+          displayName: users.displayName,
+          avatarPath: users.avatarPath,
+        })
+        .from(comments)
+        .innerJoin(users, eq(users.id, comments.userId))
+        .where(
+          and(
+            eq(comments.postId, postId),
+            eq(comments.status, "visible"),
+            isNotNull(flagCol),
+          ),
+        )
+        .orderBy(list === "pinned" ? desc(comments.pinnedAt) : asc(comments.solutionAt))
+        .limit(20);
+      const isPostAuthor = viewer ? viewer.user.id === post.authorId : false;
+      const items = rows.map((r) => ({
+        id: r.id,
+        body: r.body,
+        createdAt: r.createdAt,
+        likeCount: r.likeCount,
+        liked: null,
+        mine: viewer ? r.userId === viewer.user.id : false,
+        canDelete: viewer
+          ? r.userId === viewer.user.id || isPostAuthor
+          : false,
+        canManage: isPostAuthor,
+        pinned: list === "pinned",
+        solution: list === "solutions",
+        user: {
+          username: r.username,
+          displayName: r.displayName,
+          avatarPath: r.avatarPath,
+        },
+      }));
+      return ok({ items, nextCursor: null });
+    }
+
     const replyUsers = alias(users, "reply_users");
     const conditions = [eq(comments.postId, postId), eq(comments.status, "visible")];
     if (cursor) conditions.push(lt(comments.createdAt, new Date(cursor)));
-
-    // 首页（无 cursor）把博主置顶的评论浮到最前（Discourse 式）；翻页保持时间序
-    const order = cursor
-      ? [desc(comments.createdAt)]
-      : [sql`${comments.pinnedAt} desc nulls last`, desc(comments.createdAt)];
+    // 置顶评论走独立列表（list=pinned）在列表顶部渲染 —— 主流排除后
+    // 才能保证「无论多少新评论进来，置顶楼层始终在最上方」
+    conditions.push(isNull(comments.pinnedAt));
 
     const rows = await db
       .select({
@@ -195,7 +245,7 @@ export async function GET(req: Request) {
       .innerJoin(users, eq(users.id, comments.userId))
       .leftJoin(replyUsers, eq(replyUsers.id, comments.replyToUserId))
       .where(and(...conditions))
-      .orderBy(...order)
+      .orderBy(desc(comments.createdAt))
       .limit(limit + 1);
 
     const hasMore = rows.length > limit;

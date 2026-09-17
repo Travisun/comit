@@ -28,6 +28,9 @@ export const queryKeys = {
   emailStatus: () => ["me", "email"] as const,
   /** 评论：无限分页 + 新评论探测（前缀 ["comments", postId]） */
   comments: (postId: string) => ["comments", postId] as const,
+  /** 置顶楼层（始终置顶渲染）/ 解决方案摘要盒 —— 前缀失效可一并覆盖 */
+  commentsPinned: (postId: string) => ["comments", postId, "pinned"] as const,
+  commentsSolutions: (postId: string) => ["comments", postId, "solutions"] as const,
   commentsCheck: (postId: string) => ["comments-check", postId] as const,
   /** 私信：会话列表 / 单会话消息 / 新私信人选 */
   conversations: () => ["messages", "conversations"] as const,
