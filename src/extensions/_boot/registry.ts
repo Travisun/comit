@@ -22,7 +22,7 @@ export interface ExtensionPageRef {
 }
 
 export const EXTENSION_PAGES: ExtensionPageRef[] = [
-  { path: "signature", title: "签名档", layout: "bare", component: SignaturePage },
+  { path: "signature", title: "签名档", component: SignaturePage },
 ];
 
 export function getExtensionPage(path: string): ExtensionPageRef | null {

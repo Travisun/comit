@@ -13,6 +13,7 @@ import { apiGet, mediaUrl, postJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
 import { useApiMutation } from "@/lib/query/mutation";
 import { useRealtime } from "@/lib/client/realtime";
+import { Button } from "@/components/ui/button";
 import {
   conversationSchema,
   notificationSchema,
@@ -173,9 +174,12 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
     void markAllReadMutation.mutate(undefined);
   }
 
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  /** 两步交互：点击 = 标已读 + 展开/收起摘要详情（不立即跳转）；展开后点链接才跳 */
   function openSystem(n: NotificationItem) {
     if (!n.readAt) void markOneReadMutation.mutate(n.id);
-    if (n.url) router.push(n.url);
+    setExpandedId((prev) => (prev === n.id ? null : n.id));
   }
 
   function pick(uid: string) {
@@ -312,13 +316,36 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
                       {inner}
                     </Link>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => openSystem(row.notification!)}
-                      className={cn(cls, "w-full cursor-pointer")}
-                    >
-                      {inner}
-                    </button>
+                    <div className="w-full">
+                      <button
+                        type="button"
+                        onClick={() => openSystem(row.notification!)}
+                        className={cn(cls, "w-full cursor-pointer")}
+                      >
+                        {inner}
+                        {!row.notification!.readAt && (
+                          <span className="ml-auto inline-block size-2 shrink-0 rounded-full bg-primary" aria-label="未读" />
+                        )}
+                      </button>
+                      {expandedId === row.notification!.id && (
+                        <div className="border-t border-border/60 bg-[var(--muted)]/30 px-4 py-3">
+                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+                            {row.notification!.body}
+                          </p>
+                          {row.notification!.url && (
+                            <Button
+                              asChild
+                              variant="outline"
+                              size="sm"
+                              className="mt-2 rounded-full"
+                              onClick={() => router.push(row.notification!.url!)}
+                            >
+                              <span>查看详情</span>
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   )}
                 </li>
               );

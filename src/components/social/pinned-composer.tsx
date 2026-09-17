@@ -866,13 +866,22 @@ export function PinnedComposer({
           <ImagePlus className="size-[18px]" />
         </ToolButton>
         {isComment && (
-          <ToolButton
-            label={zh ? "预览" : "Preview"}
-            onClick={() => setPreview((v) => !v)}
-            active={preview}
-          >
-            <Eye className="size-[18px]" />
-          </ToolButton>
+          <>
+            <ToolButton
+              label={zh ? "Markdown" : "Markdown"}
+              onClick={() => setPreview(false)}
+              active={!preview}
+            >
+              <PenLine className="size-[18px]" />
+            </ToolButton>
+            <ToolButton
+              label={zh ? "预览" : "Preview"}
+              onClick={() => setPreview(true)}
+              active={preview}
+            >
+              <Eye className="size-[18px]" />
+            </ToolButton>
+          </>
         )}
         <EmojiPopover label={zh ? "表情" : "Emoji"} onPick={(emoji) => {
           pickEmoji(emoji);

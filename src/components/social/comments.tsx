@@ -218,7 +218,7 @@ export function Comments({
   // 原有的 setQueryData 增量插入/移除模式；静默失败自行 toast + 登录跳转 ----
   const submitMutation = useApiMutation(
     (input: { body: string; replyToCommentId?: string }) =>
-      postJson<CommentItem>("/api/comments", input),
+      postJson<CommentItem>("/api/comments", { ...input, postId }),
     {
       silent: true,
       refresh: false, // 评论区全量走查询缓存，无需 RSC 重验
