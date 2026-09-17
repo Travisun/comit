@@ -31,6 +31,7 @@ export const SETTINGS_SECTION_DEFS: { id: SettingsTab; labelKey: DictKey }[] = [
   { id: "mcp", labelKey: "settings.tab.mcp" },
   { id: "api", labelKey: "settings.tab.api" },
   { id: "export", labelKey: "settings.tab.export" },
+  { id: "extensions", labelKey: "settings.tab.extensions" },
   { id: "delete", labelKey: "settings.tab.delete" },
 ];
 
