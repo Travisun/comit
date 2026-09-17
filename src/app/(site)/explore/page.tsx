@@ -139,7 +139,7 @@ export default async function ExplorePage({ searchParams }: Props) {
             {hot.map((it, i) => (
               <li key={it.post.id}>
                 <Link
-                  href={routes.post(it.post.id)}
+                  href={routes.post(it.post.publicId)}
                   className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>

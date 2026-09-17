@@ -43,6 +43,6 @@ describe("canonical 路由形状", () => {
 
   it("模板表覆盖关键形状（防漂移哨兵）", () => {
     expect(TPL.userProfile).toBe("/:username");
-    expect(TPL.post).toBe("/post/:id");
+    expect(TPL.post).toBe("/post/:publicId");
   });
 });

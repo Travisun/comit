@@ -31,8 +31,8 @@ export function buildPath(
 export const TPL = {
   /** 个人主页：/{username}（proxy 把单段路径 rewrite 到 /u/{username}） */
   userProfile: "/:username",
-  /** 帖子 permalink：/post/{internalId}（短动态与长文统一，slug 旧链接兼容解析） */
-  post: "/post/:id",
+  /** 帖子 permalink：/post/{publicId}（17 位左右数字串，短动态与长文统一；uuid/slug 旧链接兼容解析） */
+  post: "/post/:publicId",
   userPostLegacy: "/u/:username/posts/:slug",
   topic: "/topics/:slug",
   userCollection: "/u/:username/collections/:slug",
@@ -77,10 +77,11 @@ export const routes = {
   userPost: (username: string, slug: string) =>
     buildPath(TPL.userPostLegacy, { username, slug }),
   /**
-   * Canonical post permalink — /post/{internalId}，短动态与长文统一
-   * （slug 旧链接由 /post/[slug] 路由兼容解析）。
+   * Canonical post permalink — /post/{publicId}（Twitter 式数字短 ID，
+   * 见 lib/public-id.ts），短动态与长文统一
+   * （uuid/slug 旧链接由 /post/[slug] 路由兼容解析）。
    */
-  post: (id: string) => buildPath(TPL.post, { id }),
+  post: (publicId: string) => buildPath(TPL.post, { publicId }),
   collection: (username: string, slug: string) =>
     buildPath(TPL.userCollection, { username, slug }),
   userRss: (username: string) => buildPath(TPL.userRss, { username }),

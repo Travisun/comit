@@ -21,26 +21,44 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 type Props = { params: Promise<{ slug: string }> };
 
+const PUBLIC_ID_RE = /^\d{10,20}$/;
+
 /**
- * /post/{param} — 帖子 permalink 统一入口：
- *  - param 为 internalId（canonical 形态，routes.post 生成）；
- *  - param 为 slug 时按 slug 解析（历史/SEO 链接兼容）；
- *  - id 命中短动态时渲染短动态详情（原 /p/{id} 已 308 到此）。
+ * /post/{param} — 帖子 permalink 统一入口，三态解析：
+ *  - param 为 publicId（canonical 形态，17 位左右数字串，routes.post 生成）；
+ *  - param 为 uuid（历史链接兼容）；
+ *  - param 为 slug（历史/SEO 链接兼容）；
+ * publicId/uuid 命中短动态时渲染短动态详情（原 /p/{id} 已 308 到此）。
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug: rawParam } = await params;
   const param = routeParam(rawParam);
   const viewer = await getCurrentUser().catch(() => null);
 
-  if (UUID_RE.test(param)) {
-    // id 形态：短动态走轻量 metadata；长文（有 slug）复用 slug 链路的 metadata
+  if (PUBLIC_ID_RE.test(param)) {
     const [row] = await db
       .select({ type: posts.type, slug: posts.slug })
+      .from(posts)
+      .where(eq(posts.publicId, param))
+      .limit(1);
+    if (!row) return { title: "内容不存在", robots: { index: false, follow: false } };
+    if (row.type === "short") return shortPostMetadataByPublicId(param);
+    if (!row.slug) return { title: "内容不存在", robots: { index: false, follow: false } };
+    return articleMetadata(row.slug, viewer);
+  }
+  if (UUID_RE.test(param)) {
+    // 历史 uuid 链接兼容：短动态走轻量 metadata（canonical 指向 publicId 形态）；
+    // 长文复用 slug 链路
+    const [row] = await db
+      .select({ publicId: posts.publicId, type: posts.type, slug: posts.slug })
       .from(posts)
       .where(eq(posts.id, param))
       .limit(1);
     if (!row) return { title: "内容不存在", robots: { index: false, follow: false } };
-    if (row.type === "short") return shortPostMetadata(param);
+    if (row.type === "short") {
+      const m = await shortPostMetadataByUuid(param);
+      return { ...m, alternates: { canonical: routes.post(row.publicId) } };
+    }
     if (!row.slug) return { title: "内容不存在", robots: { index: false, follow: false } };
     return articleMetadata(row.slug, viewer);
   }
@@ -48,7 +66,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /** 短动态 SEO 元数据 — 轻量查询（只取 needed 列）。 */
-async function shortPostMetadata(id: string): Promise<Metadata> {
+async function shortPostMetadataByPublicId(publicId: string): Promise<Metadata> {
+  return shortPostMetadataByColumn(posts.publicId, publicId);
+}
+
+async function shortPostMetadataByUuid(id: string): Promise<Metadata> {
+  return shortPostMetadataByColumn(posts.id, id);
+}
+
+async function shortPostMetadataByColumn(
+  column: typeof posts.publicId | typeof posts.id,
+  value: string,
+): Promise<Metadata> {
   const [row] = await db
     .select({
       title: posts.title,
@@ -60,7 +89,7 @@ async function shortPostMetadata(id: string): Promise<Metadata> {
     .innerJoin(users, eq(users.id, posts.authorId))
     // 仅已发布内容参与 SEO：否则草稿/回收站/followers-only 的正文片段会经
     // <meta description> 泄露（notFound 时 Next 仍会渲染已生成的 metadata）
-    .where(and(eq(posts.id, id), eq(posts.status, "published")))
+    .where(and(eq(column, value), eq(posts.status, "published")))
     .limit(1);
   if (!row) return { title: "动态不存在", robots: { index: false, follow: false } };
 
@@ -75,7 +104,7 @@ async function shortPostMetadata(id: string): Promise<Metadata> {
   return {
     title,
     description: excerpt || undefined,
-    alternates: { canonical: routes.post(id) },
+    alternates: { canonical: routes.post(value) },
     openGraph: { type: "article", authors: [row.authorName] },
   };
 }
@@ -92,7 +121,7 @@ async function articleMetadata(slug: string, viewer: User | null): Promise<Metad
   return {
     title: post.title ?? post.summary?.slice(0, 40) ?? "无题",
     description: secretive ? undefined : post.summary || undefined,
-    alternates: { canonical: routes.post(post.id) },
+    alternates: { canonical: routes.post(post.publicId) },
     robots: secretive ? { index: false, follow: false } : { index: true, follow: true },
     openGraph: {
       type: "article",
@@ -109,15 +138,26 @@ export default async function PostPermalinkPage({ params }: Props) {
   const param = routeParam(rawParam);
   const viewer = await getCurrentUser();
 
-  if (UUID_RE.test(param)) {
-    // id 形态：先辨类型 —— 短动态渲染短动态详情，长文落到 slug 链路
+  if (PUBLIC_ID_RE.test(param)) {
     const [row] = await db
-      .select({ type: posts.type, slug: posts.slug, status: posts.status })
+      .select({ type: posts.type, slug: posts.slug })
+      .from(posts)
+      .where(eq(posts.publicId, param))
+      .limit(1);
+    if (!row) notFound();
+    if (row.type === "short") return <ShortPostDetail by={posts.publicId} value={param} viewer={viewer} />;
+    if (!row.slug) notFound();
+    return <ArticleDetail slug={row.slug} viewer={viewer} />;
+  }
+  if (UUID_RE.test(param)) {
+    // 历史 uuid 链接兼容
+    const [row] = await db
+      .select({ type: posts.type, slug: posts.slug })
       .from(posts)
       .where(eq(posts.id, param))
       .limit(1);
     if (!row) notFound();
-    if (row.type === "short") return <ShortPostDetail postId={param} viewer={viewer} />;
+    if (row.type === "short") return <ShortPostDetail by={posts.id} value={param} viewer={viewer} />;
     if (!row.slug) notFound();
     return <ArticleDetail slug={row.slug} viewer={viewer} />;
   }

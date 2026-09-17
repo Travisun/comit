@@ -1,4 +1,7 @@
 import { notFound, permanentRedirect } from "next/navigation";
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { posts } from "@/db/schema";
 import { routes } from "@/core/routes";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -12,5 +15,12 @@ type Props = { params: Promise<{ id: string }> };
 export default async function LegacyShortPostPage({ params }: Props) {
   const { id } = await params;
   if (!UUID_RE.test(id)) notFound();
-  permanentRedirect(routes.post(id));
+  // canonical 已切 publicId 数字串：按内部 uuid 找到对应 publicId 再跳
+  const [row] = await db
+    .select({ publicId: posts.publicId })
+    .from(posts)
+    .where(eq(posts.id, id))
+    .limit(1);
+  if (!row) notFound();
+  permanentRedirect(routes.post(row.publicId));
 }

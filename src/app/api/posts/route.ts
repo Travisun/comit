@@ -11,6 +11,7 @@ import { preSubmitCheck } from "@/lib/moderation";
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import { POLL_MAX_DURATION_DAYS, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, validatePollOptions } from "@/lib/poll";
+import { newPublicId } from "@/lib/public-id";
 import {
   assertCollectionOwned,
   blockedResponse,
@@ -140,6 +141,7 @@ export async function POST(req: Request): Promise<Response> {
         const payload: Record<string, unknown> = {
           authorId: auth.user.id,
           type,
+          publicId: newPublicId(),
           slug,
           title,
           summary,

@@ -261,13 +261,13 @@ async function notifyCommentCreated(p: {
     // replyToUserId 的「回复我」通知刻意不做（本次范围仅文章作者，模板已预留）。
     if (p.postAuthorId === p.commenterId) return;
     const [post] = await db
-      .select({ title: posts.title, slug: posts.slug, type: posts.type })
+      .select({ publicId: posts.publicId, title: posts.title, slug: posts.slug, type: posts.type })
       .from(posts)
       .where(eq(posts.id, p.postId))
       .limit(1);
     if (!post) return; // 帖子已被删除
     const actorName = await actorNameOf(p.commenterId);
-    const base = routes.post(p.postId);
+    const base = routes.post(post.publicId);
     const kindZh = post.type === "short" ? "动态" : "文章";
     const postTitle = post.title ?? `（无标题${kindZh}）`; // 短动态可无 title
     await deliver(p.postAuthorId, {

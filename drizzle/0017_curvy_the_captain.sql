@@ -1,0 +1,2 @@
+ALTER TABLE "posts" ADD COLUMN "public_id" varchar(20) DEFAULT lpad((('x' || substr(md5(random()::text), 1, 14)))::bit(56)::bigint::text, 17, '0') NOT NULL;--> statement-breakpoint
+ALTER TABLE "posts" ADD CONSTRAINT "posts_public_id_unique" UNIQUE("public_id");

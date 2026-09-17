@@ -30,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .where(eq(users.status, "active")),
       db
         .select({
-          id: posts.id,
+          publicId: posts.publicId,
           username: users.username,
           slug: posts.slug,
           updatedAt: posts.updatedAt,
@@ -54,7 +54,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       })),
       ...postRows
         .map((p) => ({
-          url: `${base}${routes.post(p.id)}`,
+          url: `${base}${routes.post(p.publicId)}`,
           lastModified: p.updatedAt,
           changeFrequency: "weekly" as const,
           priority: 0.8,

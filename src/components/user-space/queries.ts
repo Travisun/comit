@@ -65,6 +65,7 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
   return {
     post: {
       id: item.post.id,
+      publicId: item.post.publicId,
       type: item.post.type,
       slug: item.post.slug,
       title: item.post.title,
@@ -365,7 +366,7 @@ export async function getFollowState(viewerId: string | null | undefined, target
 /** Monthly archive groups (published public posts), newest first. */
 export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
   const rows = await db
-    .select({ id: posts.id, title: posts.title, slug: posts.slug, publishedAt: posts.publishedAt })
+    .select({ publicId: posts.publicId, title: posts.title, slug: posts.slug, publishedAt: posts.publishedAt })
     .from(posts)
     .where(
       and(
@@ -388,7 +389,7 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
       groups.set(key, g);
     }
     g.count += 1;
-    g.posts.push({ id: r.id, title: r.title, slug: r.slug, publishedAt: d.toISOString() });
+    g.posts.push({ publicId: r.publicId, title: r.title, slug: r.slug, publishedAt: d.toISOString() });
   }
   return [...groups.values()];
 }

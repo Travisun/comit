@@ -120,6 +120,13 @@
       "when": 1789562008039,
       "tag": "0016_groovy_the_twelve",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789617587448,
+      "tag": "0017_curvy_the_captain",
+      "breakpoints": true
     }
   ]
 }

@@ -10,5 +10,5 @@ import type { FeedItemDTO } from "./types";
 export function postHref(post: FeedItemDTO["post"]): string {
   // canonical：/post/{internalId}（短动态与长文统一；slug 旧链接仍由
   // /post/[slug] 路由兼容解析）
-  return routes.post(post.id);
+  return routes.post(post.publicId);
 }

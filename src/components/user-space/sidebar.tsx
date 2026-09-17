@@ -96,7 +96,7 @@ async function ArchivesLazy({ userId }: { userId: string }) {
                       {g.posts.map((p, i) => (
                         <li key={i}>
                           <Link
-                            href={routes.post(p.id)}
+                            href={routes.post(p.publicId)}
                             className="block truncate rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-primary"
                             title={p.title ?? undefined}
                           >
@@ -122,6 +122,7 @@ async function HotPostsWidget({ user }: { user: User }) {
   const items: FeedItemDTO[] = (await getUserHotPosts(user.id, 5)).map((it) => ({
     post: {
       id: it.post.id,
+      publicId: it.post.publicId,
       type: it.post.type,
       slug: it.post.slug,
       title: it.post.title,
@@ -155,7 +156,7 @@ async function HotPostsWidget({ user }: { user: User }) {
             </span>
             {
               <Link
-                href={routes.post(it.post.id)}
+                href={routes.post(it.post.publicId)}
                 className="line-clamp-2 text-sm leading-snug hover:text-primary"
               >
                 {it.post.title ?? "Untitled"}

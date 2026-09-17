@@ -32,7 +32,7 @@ export interface ArchiveGroup {
   year: number;
   month: number;
   count: number;
-  posts: { id: string; title: string | null; slug: string | null; publishedAt: string }[];
+  posts: { publicId: string; title: string | null; slug: string | null; publishedAt: string }[];
 }
 
 export interface CollectionCardData {

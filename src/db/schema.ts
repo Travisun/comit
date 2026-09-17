@@ -259,6 +259,16 @@ export const posts = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     type: postTypeEnum("type").default("article").notNull(),
+    /**
+     * 对外短 ID（permalink 用）：17 位纯数字字符串（56 位 CSPRNG，见
+     * src/lib/public-id.ts 的说明 —— Twitter 式数字串、去序列化防顺序抓取）。
+     * 内部主键仍为 uuid，不对外暴露。列默认值是同熵的 SQL 兜底（非应用
+     * 插入路径的种子/导入也能拿到合法值）；应用路径一律用 newPublicId()。
+     */
+    publicId: varchar("public_id", { length: 20 })
+      .notNull()
+      .unique()
+      .default(sql`lpad((('x' || substr(md5(random()::text), 1, 14)))::bit(56)::bigint::text, 17, '0')`),
     slug: varchar("slug", { length: 180 }),
     title: varchar("title", { length: 200 }),
     summary: varchar("summary", { length: 500 }).default("").notNull(),

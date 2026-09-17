@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { likes, posts, reposts, users } from "@/db/schema";
+import type { PgColumn } from "drizzle-orm/pg-core";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
@@ -25,10 +26,13 @@ import type { User } from "@/db/schema";
  * 统一作者栏、扩展渲染管线、动作行与评论区。
  */
 export async function ShortPostDetail({
-  postId,
+  by,
+  value,
   viewer,
 }: {
-  postId: string;
+  /** 查找列：publicId（canonical）或 id（历史 uuid 链接兼容） */
+  by: PgColumn;
+  value: string;
   /** 已登录观众完整行；匿名传 null */
   viewer: User | null;
 }) {
@@ -38,7 +42,7 @@ export async function ShortPostDetail({
     .select({ post: posts, author: users })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(eq(posts.id, postId))
+    .where(eq(by, value))
     .limit(1);
   if (!row) notFound();
 

@@ -20,6 +20,8 @@ export type UserBrief = z.infer<typeof userBriefSchema>;
 
 export const postBriefSchema = z.object({
   id: z.string(),
+  /** 对外短 ID（permalink /post/{publicId}，Twitter 式数字串，见 lib/public-id.ts） */
+  publicId: z.string(),
   type: z.enum(["article", "short"]),
   slug: z.string().nullable(),
   title: z.string().nullable(),
