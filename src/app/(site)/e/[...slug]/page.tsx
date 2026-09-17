@@ -5,8 +5,9 @@ import { PluginErrorBoundary } from "@/lib/plugins/error-boundary";
 
 /**
  * /e/[...slug] — 扩展独立页面统一入口。
- * 页面由扩展注册（extensions/_boot/registry.ts），layout: "site" 含三栏壳，
- * "bare" 全屏（SiteShell 按 pathname 匹配后跳过站点壳）。
+ * 页面由扩展注册（extensions/_boot/registry.ts），layout 缺省 "site" ——
+ * 继承三栏壳、内容渲染在中间区域；显式 "bare" 才全屏（SiteShell 按
+ * pathname 匹配后跳过站点壳）。
  * 扩展页面整体包裹错误边界:扩展自身抛错只降级本页卡片并上报,
  * 不产生全站错误页。
  */

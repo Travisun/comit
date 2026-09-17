@@ -32,6 +32,9 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
   });
   const [picking, setPicking] = useState<number[]>([]);
   const [busy, setBusy] = useState(false);
+  // 改票模式：已投用户点「修改投票」后进入 —— 预选当前票，可调整后整组提交，
+  // 也可取消回到结果视图（API 本就支持结束前整组替换，此处补齐 UI 入口）
+  const [editing, setEditing] = useState(false);
 
   // 结束时间到期后自动切到结果视图
   const [now, setNow] = useState(() => Date.now());
@@ -59,7 +62,19 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
   const total = poll.tallies.reduce((a, b) => a + b, 0);
   const voted = poll.myVotes.length > 0;
   const ended = poll.ended || new Date(poll.endsAt).getTime() <= now;
-  const showResult = ended || voted;
+  // 已投未结束默认看结果；点「修改投票」进入编辑态（选项变回可点选）
+  const showResult = ended || (voted && !editing);
+
+  function beginEdit() {
+    if (ended || busy) return;
+    setPicking(poll!.myVotes);
+    setEditing(true);
+  }
+
+  function cancelEdit() {
+    setPicking([]);
+    setEditing(false);
+  }
 
   function togglePick(i: number) {
     if (ended || busy) return;
@@ -69,7 +84,8 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
   }
 
   async function submitVote() {
-    const indexes = picking.length > 0 ? picking : poll!.myVotes;
+    // 编辑态下必须带着明确选择提交（不允许"清空选择"把旧票原样重交）
+    const indexes = editing ? picking : picking.length > 0 ? picking : poll!.myVotes;
     if (indexes.length === 0 || busy || !postId) return;
     setBusy(true);
     try {
@@ -84,7 +100,8 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
       // 服务器返回投票后的最新视图 — 直接写入查询缓存，视图即时切换
       queryClient.setQueryData(queryKeys.poll(postId), r.data);
       setPicking([]);
-      toast.success("投票成功");
+      setEditing(false);
+      toast.success(voted ? "已更新投票" : "投票成功");
     } finally {
       setBusy(false);
     }
@@ -105,8 +122,19 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
             <span className="num">{poll.voters}</span> 人参与
           </span>
         </span>
-        <span className={cn("num", ended && "text-foreground/70")}>
-          {ended ? "投票已结束" : `距结束 ${timeLeft(poll.endsAt, now)}`}
+        <span className="inline-flex items-center gap-2">
+          {voted && !ended && !editing && (
+            <button
+              type="button"
+              onClick={beginEdit}
+              className="underline-offset-2 transition-colors hover:text-foreground hover:underline"
+            >
+              修改投票
+            </button>
+          )}
+          <span className={cn("num", ended && "text-foreground/70")}>
+            {ended ? "投票已结束" : `距结束 ${timeLeft(poll.endsAt, now)}`}
+          </span>
         </span>
       </div>
 
@@ -172,19 +200,37 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
       {!ended && (
         <div className="mt-2 flex items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
-            {voted ? "已投票，结束前可修改" : poll.mode === "multiple" ? "可多选" : "请选择一项"}
+            {editing
+              ? "调整选择后保存"
+              : voted
+                ? "已投票，结束前可修改"
+                : poll.mode === "multiple"
+                  ? "可多选"
+                  : "请选择一项"}
           </span>
-          {pendingPick && (
-            <button
-              type="button"
-              onClick={() => void submitVote()}
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-            >
-              {busy && <Loader2 className="size-3 animate-spin" aria-hidden />}
-              投票
-            </button>
-          )}
+          <span className="flex items-center gap-2">
+            {editing && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={busy}
+                className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+              >
+                取消
+              </button>
+            )}
+            {pendingPick && (
+              <button
+                type="button"
+                onClick={() => void submitVote()}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {busy && <Loader2 className="size-3 animate-spin" aria-hidden />}
+                {voted ? "保存修改" : "投票"}
+              </button>
+            )}
+          </span>
         </div>
       )}
     </div>

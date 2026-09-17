@@ -3,7 +3,7 @@ import { Calendar, Eye, Lock, MessageCircle } from "lucide-react";
 import type { Post, User } from "@/db/schema";
 import { config } from "@/core/config";
 import { routes } from "@/core/routes";
-import { formatDate, readingMinutes, timeAgo } from "@/lib/utils";
+import { formatDate, readingMinutes } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
@@ -18,7 +18,7 @@ import { renderMarkdown } from "@/lib/markdown/server";
 import { InterruptView } from "@/lib/plugins/registry";
 import { PostActionsSlot } from "@/lib/plugins/ui";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
-import { TimelineHeader } from "@/components/site-shell";
+import { DetailAuthorBar } from "@/components/user-space/detail-author-bar";
 import type { TopicRef, ViewerFollowState, ViewerInteractions } from "./types";
 
 /**
@@ -97,55 +97,13 @@ export async function PostView({
         />
       )}
 
-      {/* sticky author bar — identity + follow live here, no duplicate row below */}
-      <TimelineHeader
-        back
-        rowClassName="py-3"
-        title={
-          <span className="flex items-center gap-2.5 whitespace-normal">
-            <span className="inline-block size-9 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
-              {author.avatarPath ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={routes.media(author.avatarPath)}
-                  alt={author.displayName}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <span className="grid size-full place-items-center text-xs font-semibold">
-                  {author.displayName.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-            </span>
-            <span className="min-w-0 leading-tight">
-              <Link
-                href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-normal text-foreground hover:underline"
-              >
-                {author.displayName}
-              </Link>
-              <span className="block truncate text-xs text-muted-foreground">
-                @{author.username} · {timeAgo(date, "zh")}
-              </span>
-            </span>
-          </span>
-        }
-        right={
-          viewer && !isSelf ? (
-            <FollowButton
-              username={author.username}
-              initialFollowing={viewerState.following}
-              className="h-8 min-h-0 shrink-0 rounded-full px-4 text-xs font-medium"
-            />
-          ) : (
-            <Link
-              href={routes.profile(author.username)}
-              className="inline-flex h-8 shrink-0 items-center rounded-full border border-border px-4 text-xs font-medium text-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)]"
-            >
-              主页
-            </Link>
-          )
-        }
+      {/* sticky author bar — identity + follow live here, no duplicate row below（统一作者栏组件） */}
+      <DetailAuthorBar
+        author={author}
+        date={date}
+        viewerPresent={Boolean(viewer)}
+        isSelf={isSelf}
+        following={viewerState.following}
       />
 
       <article className="px-4 pb-12 md:px-5">

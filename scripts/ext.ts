@@ -58,7 +58,7 @@ async function cmdRoutes() {
   const { EXTENSION_PAGES } = await import("../src/extensions/_boot/registry");
   console.log("扩展页面（/e/<path>）：");
   for (const p of EXTENSION_PAGES) {
-    console.log(`  /e/${p.path.padEnd(14)} layout=${p.layout.padEnd(4)} ${p.title}`);
+    console.log(`  /e/${p.path.padEnd(14)} layout=${(p.layout ?? "site").padEnd(4)} ${p.title}`);
   }
 }
 

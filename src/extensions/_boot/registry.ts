@@ -12,8 +12,12 @@ export interface ExtensionPageRef {
   /** 挂载在 /e/ 下的路径，如 "signature" → /e/signature */
   path: string;
   title: string;
-  /** site ⇒ 三栏站点壳；bare ⇒ 无侧栏全屏（auth 页同款） */
-  layout: "site" | "bare";
+  /**
+   * 页面布局：缺省 "site" —— 继承站点三栏壳，页面内容渲染在中间内容区
+   * （绝大多数设置/工具类页面的正确形态）；"bare" 显式声明才走无侧栏全屏
+   * （如签名档这类画布型页面）。
+   */
+  layout?: "site" | "bare";
   component: ComponentType;
 }
 

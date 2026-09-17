@@ -1,5 +1,4 @@
 import { notFound, redirect } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
@@ -8,10 +7,9 @@ import { getCurrentUser } from "@/lib/auth/session";
 import { getT } from "@/lib/i18n";
 import { routes } from "@/core/routes";
 import { pageMetadata } from "@/lib/seo";
-import { formatDate, timeAgo } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 import { getFollowState } from "@/components/user-space/queries";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
-import { TimelineHeader } from "@/components/site-shell";
+import { DetailAuthorBar } from "@/components/user-space/detail-author-bar";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
@@ -100,10 +98,11 @@ export default async function PostPermalinkPage({
   //  - followers-only 短动态对非关注者不可经 /p/{id} 绕过（原缺陷：完全
   //    未检查 visibility，关注门禁形同虚设）；
   //  - 被作者拉黑的用户同样 404（原缺陷：未检查 blockedBy）。
+  let viewerState: Awaited<ReturnType<typeof getFollowState>> | null = null;
   if (!isAuthor) {
-    const followState = await getFollowState(viewer?.id, post.authorId);
-    if (followState.blockedBy) notFound();
-    if (post.visibility === "followers" && !followState.following) notFound();
+    viewerState = await getFollowState(viewer?.id, post.authorId);
+    if (viewerState.blockedBy) notFound();
+    if (post.visibility === "followers" && !viewerState.following) notFound();
   }
 
   let liked = false;
@@ -145,30 +144,18 @@ export default async function PostPermalinkPage({
 
   return (
     <div className="min-h-dvh w-full">
-      {/* sticky author bar — identity + date live here, no duplicate row below */}
-      <TimelineHeader
-        back
-        rowClassName="py-3"
-        title={
-          <span className="flex items-center gap-2.5 whitespace-normal">
-            <Avatar className="size-9 shrink-0 border border-border">
-              {author.avatarPath && (
-                <AvatarImage src={routes.media(author.avatarPath)} alt={author.displayName} />
-              )}
-              <AvatarFallback>{author.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-            </Avatar>
-            <span className="min-w-0 leading-tight">
-              <Link
-                href={routes.profile(author.username)}
-                className="block truncate text-[15px] font-medium text-foreground hover:underline"
-              >
-                {author.displayName}
-              </Link>
-              <span className="block truncate text-xs text-muted-foreground">
-                @{author.username} · {timeAgo(published, locale)}{post.status !== "published" ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}` : ""}
-              </span>
-            </span>
-          </span>
+      {/* sticky author bar — identity + date live here（统一作者栏组件，与长文详情对齐） */}
+      <DetailAuthorBar
+        author={author}
+        date={published}
+        locale={locale}
+        viewerPresent={Boolean(viewer)}
+        isSelf={isAuthor}
+        following={viewerState?.following ?? false}
+        subline={
+          post.status !== "published"
+            ? ` · ${post.status === "deleted" ? "回收站" : t("post.draft")}`
+            : undefined
         }
       />
 
