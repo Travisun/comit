@@ -29,6 +29,24 @@ export const SETTINGS_DEFAULTS = {
   "moderation.reviewMode": "off" as "off" | "llm" | "manual",
   "moderation.keywordsEnabled": true,
   "moderation.llmFailMode": "open" as "open" | "closed",
+  /**
+   * LLM 多提供商配置（lib/llm.ts v2）：providers 各自带协议/端点/密钥/
+   * 型号目录；default 为平台默认模型。admin 设置页维护。
+   */
+  "llm.providers": { providers: [], default: null } as {
+    providers: {
+      id: string;
+      label: string;
+      protocol: "openai" | "anthropic";
+      baseUrl: string;
+      apiKey: string;
+      models: string[];
+      temperature?: number;
+      thinking?: "off" | "low" | "medium" | "high";
+      enabled: boolean;
+    }[];
+    default: { providerId: string; model: string } | null;
+  },
   "moderation.llm": {
     baseURL: "https://api.openai.com/v1",
     apiKey: "",

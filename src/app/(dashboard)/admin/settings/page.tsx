@@ -16,6 +16,7 @@ import {
   SettingsSectionHeader,
 } from "@/components/ui/settings";
 import { EmptyState, OverrideBadge, PageHeader } from "@/components/admin/bits";
+import { LlmProvidersPanel } from "@/components/admin/llm-providers-panel";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
@@ -81,7 +82,7 @@ const SSO_KEYS: { key: string; label: string }[] = [
   { key: "sso.linuxdo", label: "Linux.do" },
 ];
 
-type AdminTab = "general" | "mode" | "features" | "login" | "ratelimit";
+type AdminTab = "general" | "mode" | "features" | "login" | "ratelimit" | "llm";
 
 export default function AdminSettingsPage() {
   // 设置查询 — 表单为 keyed 子组件：data 版本变化（首次到达/保存失效重取）时
@@ -217,6 +218,7 @@ function AdminSettingsForm({
           { id: "features", label: "功能开关" },
           { id: "login", label: "登录" },
           { id: "ratelimit", label: "频率限制" },
+          { id: "llm", label: "AI 模型" },
         ]}
       />
 
@@ -338,6 +340,7 @@ function AdminSettingsForm({
       )}
 
       {tab === "ratelimit" && <RateLimitBucketsSection seedValue={seed.entries["ratelimit.buckets"]} />}
+      {tab === "llm" && <LlmProvidersPanel value={seed.entries["llm.providers"]} />}
     </div>
   );
 }
