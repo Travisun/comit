@@ -34,6 +34,7 @@ import {
   listFlagDefs,
 } from "@/core/capabilities/flags";
 import { registerSeed } from "@/core/capabilities/seeds";
+import { gatePluginContext } from "@/core/plugins/gate";
 import { isExtensionEnabled } from "@/lib/settings";
 
 /**
@@ -74,9 +75,10 @@ export function satisfiesVersion(version: string, range: string): boolean {
   return rv.every((v, i) => v >= ([rr[i] ?? 0][i] ?? 0));
 }
 
-/** 逐插件绑定命名空间（jobs/notifications 自动带扩展 id） */
-function ctxFor(extensionId: string): PluginContext {
-  return {
+/** 逐插件绑定命名空间（jobs/notifications 自动带扩展 id）+ 权限门控 */
+function ctxFor(extensionId: string, permissions?: string[]): PluginContext {
+  return gatePluginContext(
+    {
     ...baseCtx,
     jobs: createJobsCapability(extensionId),
     notifications: {
@@ -95,7 +97,10 @@ function ctxFor(extensionId: string): PluginContext {
       defs: () => listFlagDefs(),
     },
     seeds: { register: (name, fn) => registerSeed(`ext.${extensionId}.${name}`, fn) },
-  };
+    } as PluginContext,
+    permissions,
+    extensionId,
+  );
 }
 
 // 平台默认策略（AND 语义 —— 扩展可叠加条件，不可绕过）
@@ -185,15 +190,15 @@ export function bootPlugins(): Promise<void> {
           if (p.deferred) {
             // B3: 延迟注册 — 首次 container.resolve("ext.<id>") 时执行
             container.singleton(`ext.${p.name}`, async () => {
-              await p.register(ctxFor(p.name));
+              await p.register(ctxFor(p.name, p.permissions));
               console.log(`[plugins] booted (deferred): ${p.name}@${p.version}`);
               return p;
             });
             console.log(`[plugins] deferred: ${p.name}@${p.version}`);
             continue;
           }
-          await p.register(ctxFor(p.name));
-          console.log(`[plugins] booted: ${p.name}@${p.version}`);
+          await p.register(ctxFor(p.name, p.permissions));
+          console.log(`[plugins] booted: ${p.name}@${p.version}${p.permissions ? ` (permissions: ${p.permissions.join(",")})` : " (full access)"}`);
         } catch (err) {
           console.error(`[plugins] failed to boot ${p.name}:`, err);
         }

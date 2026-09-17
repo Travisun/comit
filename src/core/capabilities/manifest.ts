@@ -40,6 +40,25 @@ export interface ExtensionManifest {
   title: { zh: string; en: string };
   description?: { zh: string; en: string };
   version: string;
+  /**
+   * 权限声明（能力白名单，app-store 模型）：
+   * 未声明 = 全量信任（内置扩展兼容）；声明后仅列出的能力在 ctx 中可用，
+   * 未声明能力以「拒绝存根」注入（调用即抛错并告警）。
+   * 键与 PluginContext 一致：events / hooks / registerChannel / registerMcpTool /
+   * registerPostRenderFilter / registerMediaProcessor / registerSitemapSource /
+   * registerExtApiRoute / cron / llm / storage / policies / jobs / notifications /
+   * broadcast / search / middleware / flags / seeds
+   */
+  permissions?: string[];
+  /**
+   * 信任分级：trusted（默认，本仓库一等公民，渲染输出不过强制净化）；
+   * untrusted（外部交付，渲染输出强制过净化白名单）。
+   */
+  trust?: "trusted" | "untrusted";
+  /** 来源元数据（分发展示用） */
+  author?: string;
+  license?: string;
+  homepage?: string;
   /** 注册到 设置 → 扩展 的配置表单 */
   settingsFields?: SettingFieldDef[];
   /** 注册到 资料编辑 / 主页「关于」 的自定义资料字段 */

@@ -159,6 +159,10 @@ export interface Plugin {
    * boot 拓扑排序时校验，不满足则拒绝启动本插件并告警）。
    */
   requires?: (string | { name: string; version: string })[];
+  /** 权限声明（同 manifest.permissions；boot 按 permitted ctx 门控） */
+  permissions?: string[];
+  /** 信任分级：untrusted 的渲染输出强制净化 */
+  trust?: "trusted" | "untrusted";
   /** true ⇒ 延迟注册：首次被容器 resolve（ext.<name>）时才 register（B3） */
   deferred?: boolean;
   register(ctx: PluginContext): void | Promise<void>;
