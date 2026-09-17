@@ -48,7 +48,7 @@ export default async function ExtensionPageRoute({
         <Page />
       ) : (
         <div className="min-h-dvh w-full pt-[10px]">
-          <TimelineHeader title={def.title} paddingClass="px-5" />
+          <TimelineHeader back title={def.title} paddingClass="px-5" />
           <div className="px-4 pb-12 md:px-5">
             <Page />
           </div>
