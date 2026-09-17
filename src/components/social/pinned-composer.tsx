@@ -38,7 +38,7 @@ import { VirtualSelect } from "@/components/ui/virtual-select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
 import { CONTENT_LABELS, type ContentLabelId } from "@/lib/content-labels";
-import { validatePollEndsAt, validatePollOptions } from "@/lib/poll";
+import { validatePollEndsAt, validatePollOptionsForMode } from "@/lib/poll";
 import {
   ApiError,
   SHORT_DRAFT_KEY,
@@ -566,7 +566,7 @@ export function PinnedComposer({
 
     // 投票草稿校验
     if (poll) {
-      const optErr = validatePollOptions(poll.options, zh);
+      const optErr = validatePollOptionsForMode(poll.mode, poll.options, zh);
       if (optErr) {
         toast.error(optErr);
         return;

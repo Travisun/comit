@@ -399,8 +399,18 @@ export const comments = pgTable(
     status: varchar("status", { length: 16 }).default("visible").notNull(), // visible|hidden|deleted
     likeCount: integer("like_count").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    /**
+     * 博主置顶（单槽：置顶新评论时清同帖其它置顶）。置顶评论在列表首页
+     * 排最前（Discourse 式 floats-to-top）。
+     */
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    /** 博主标记的解决方案（可多个，Discourse Solve 式）；展示绿勾徽标 */
+    solutionAt: timestamp("solution_at", { withTimezone: true }),
   },
-  (t) => [index("comments_post_idx").on(t.postId, t.createdAt)],
+  (t) => [
+    index("comments_post_idx").on(t.postId, t.createdAt),
+    index("comments_post_pinned_idx").on(t.postId, t.pinnedAt),
+  ],
 );
 
 export const reposts = pgTable(

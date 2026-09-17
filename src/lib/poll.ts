@@ -11,7 +11,9 @@ export const POLL_OPTION_MAX_WEIGHT = 32;
 /** 投票最长持续 30 天 */
 export const POLL_MAX_DURATION_DAYS = 30;
 
-export type PollMode = "single" | "multiple";
+export type PollMode = "single" | "multiple" | "pk";
+/** PK 恒为两方对战（A vs B） */
+export const POLL_PK_OPTIONS = 2;
 
 export function isCjkChar(ch: string): boolean {
   return /[\u2E80-\u9FFF\uF900-\uFAFF\uFF00-\uFFEF\u3000-\u303F]/.test(ch);
@@ -41,6 +43,23 @@ export function validatePollOptions(
         ? `每个选项最多 ${POLL_OPTION_MAX_WEIGHT / 2} 个汉字或 ${POLL_OPTION_MAX_WEIGHT} 个英文字符`
         : `Each option is limited to ${POLL_OPTION_MAX_WEIGHT / 2} CJK or ${POLL_OPTION_MAX_WEIGHT} latin characters`;
     }
+  }
+  return null;
+}
+
+/**
+ * mode 感知校验：single/multiple 走通用 2–5 规则；PK 恒为恰好 2 个选项
+ * （A vs B 对战，参考 Twitter Poll 的两选项形态）。
+ */
+export function validatePollOptionsForMode(
+  mode: PollMode,
+  options: string[],
+  zh = true,
+): string | null {
+  const base = validatePollOptions(options, zh);
+  if (base) return base;
+  if (mode === "pk" && options.length !== POLL_PK_OPTIONS) {
+    return zh ? "PK 需要恰好 2 个选项" : "PK needs exactly 2 options";
   }
   return null;
 }

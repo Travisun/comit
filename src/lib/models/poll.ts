@@ -5,7 +5,7 @@ import { z } from "zod";
 export const pollViewSchema = z.object({
   id: z.string(),
   postId: z.string(),
-  mode: z.enum(["single", "multiple"]),
+  mode: z.enum(["single", "multiple", "pk"]),
   options: z.array(z.string()),
   endsAt: z.string(),
   ended: z.boolean(),

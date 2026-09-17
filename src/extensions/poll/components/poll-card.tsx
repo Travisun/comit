@@ -79,7 +79,11 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
   function togglePick(i: number) {
     if (ended || busy) return;
     setPicking((prev) =>
-      poll!.mode === "single" ? [i] : prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i],
+      poll!.mode === "single" || poll!.mode === "pk"
+        ? [i]
+        : prev.includes(i)
+          ? prev.filter((x) => x !== i)
+          : [...prev, i],
     );
   }
 
@@ -115,7 +119,7 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
         <span className="inline-flex items-center gap-1.5">
           <BarChart3 className="size-3.5" aria-hidden />
-          {poll.mode === "multiple" ? "多选投票" : "单选投票"}
+          {poll.mode === "pk" ? "PK 对战" : poll.mode === "multiple" ? "多选投票" : "单选投票"}
           <span aria-hidden>·</span>
           <span className="inline-flex items-center gap-1">
             <Users className="size-3" aria-hidden />
@@ -138,7 +142,79 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
         </span>
       </div>
 
-      {/* options */}
+      {/* options —— PK：A/B 双列对战；其余：纵向行 */}
+      {poll.mode === "pk" ? (
+        <div className="relative mt-2 grid grid-cols-2 gap-2" role="group" aria-label="PK 对战选项">
+          {poll.options.map((opt, i) => {
+            const n = poll.tallies[i] ?? 0;
+            const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+            const mine = poll.myVotes.includes(i);
+            const pickingThis = picking.includes(i);
+            const leader = total > 0 && n === Math.max(...poll.tallies) && n > 0;
+            const showBattleResult = showResult;
+            return showBattleResult ? (
+              <div
+                key={i}
+                className={cn(
+                  "relative overflow-hidden rounded-xl border p-3 text-center transition-colors",
+                  mine ? "border-primary" : "border-border",
+                  leader && !mine ? "border-emerald-500/40" : "",
+                )}
+              >
+                <div
+                  aria-hidden
+                  className={cn(
+                    "absolute inset-0 transition-[width] duration-500",
+                    mine ? "bg-primary/10" : leader ? "bg-emerald-500/10" : "bg-[var(--muted)]/40",
+                  )}
+                  style={{ width: `${pct}%` }}
+                />
+                <div className="relative">
+                  <div className="num text-2xl font-bold leading-none">
+                    {pct}
+                    <span className="text-sm">%</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+                    <span className="num">{n}</span> 票
+                    {mine && <span className="font-medium text-primary">· 你在这方</span>}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                key={i}
+                type="button"
+                onClick={() => togglePick(i)}
+                aria-pressed={pickingThis}
+                className={cn(
+                  "rounded-xl border p-3 text-sm transition-colors",
+                  pickingThis
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-card hover:border-primary/40",
+                )}
+              >
+                <span
+                  className={cn(
+                    "mb-1 block text-[10px] font-bold uppercase tracking-widest",
+                    i === 0 ? "text-rose-500" : "text-sky-500",
+                  )}
+                >
+                  {i === 0 ? "A 方" : "B 方"}
+                </span>
+                <span className="block break-words font-medium">{opt}</span>
+              </button>
+            );
+          })}
+          {showResult && (
+            <span
+              aria-hidden
+              className="absolute left-1/2 top-1/2 grid size-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-card text-[10px] font-black text-foreground shadow ring-1 ring-border"
+            >
+              VS
+            </span>
+          )}
+        </div>
+      ) : (
       <div className="mt-2 space-y-1.5">
         {poll.options.map((opt, i) => {
           const n = poll.tallies[i] ?? 0;
@@ -195,6 +271,7 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
           );
         })}
       </div>
+      )}
 
       {/* vote action */}
       {!ended && (

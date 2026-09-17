@@ -12,7 +12,7 @@ import {
   POLL_OPTIONS_MAX,
   POLL_OPTIONS_MIN,
   POLL_OPTION_MAX_WEIGHT,
-  validatePollOptions,
+  validatePollOptionsForMode,
   validatePollEndsAt,
   type PollMode,
 } from "@/lib/poll";
@@ -267,7 +267,7 @@ export function PollPopover({
 
   const trimmed = options.map((o) => o.trim());
   const err =
-    validatePollOptions(trimmed, zh) ??
+    validatePollOptionsForMode(mode, trimmed, zh) ??
     (() => {
       const d = new Date(endsLocal);
       return Number.isFinite(d.getTime()) ? validatePollEndsAt(d, zh) : zh ? "结束时间无效" : "Invalid end time";
@@ -279,12 +279,13 @@ export function PollPopover({
   }
 
   function addOption() {
-    if (options.length >= POLL_OPTIONS_MAX) return;
+    if (options.length >= (mode === "pk" ? 2 : POLL_OPTIONS_MAX)) return;
     setOptions((prev) => [...prev, ""]);
   }
 
   function removeOption(i: number) {
-    setOptions((prev) => (prev.length <= POLL_OPTIONS_MIN ? prev : prev.filter((_, idx) => idx !== i)));
+    const floor = mode === "pk" ? 2 : POLL_OPTIONS_MIN;
+    setOptions((prev) => (prev.length <= floor ? prev : prev.filter((_, idx) => idx !== i)));
   }
 
   function preset(days: number) {
@@ -333,11 +334,14 @@ export function PollPopover({
         <div className="flex items-center gap-2">
           <span className="w-14 shrink-0 text-xs text-muted-foreground">{zh ? "类型" : "Type"}</span>
           <div className="inline-flex rounded-md bg-[var(--muted)] p-[2px]">
-            {(["single", "multiple"] as const).map((m) => (
+            {(["single", "pk", "multiple"] as const).map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => setMode(m)}
+                onClick={() => {
+                  setMode(m);
+                  if (m === "pk") setOptions((prev) => (prev.length > 2 ? prev.slice(0, 2) : prev));
+                }}
                 className={cn(
                   "h-6 rounded-[5px] px-3 text-xs transition-colors",
                   mode === m
@@ -345,7 +349,15 @@ export function PollPopover({
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {m === "single" ? (zh ? "单选" : "Single") : zh ? "多选" : "Multiple"}
+                {m === "single"
+                  ? zh
+                    ? "单选"
+                    : "Single"
+                  : m === "pk"
+                    ? "PK"
+                    : zh
+                      ? "多选"
+                      : "Multiple"}
               </button>
             ))}
           </div>

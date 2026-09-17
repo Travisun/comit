@@ -10,7 +10,12 @@ import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
-import { POLL_MAX_DURATION_DAYS, POLL_OPTIONS_MAX, POLL_OPTIONS_MIN, validatePollOptions } from "@/lib/poll";
+import {
+  POLL_MAX_DURATION_DAYS,
+  POLL_OPTIONS_MAX,
+  POLL_OPTIONS_MIN,
+  validatePollOptionsForMode,
+} from "@/lib/poll";
 import { newPublicId } from "@/lib/public-id";
 import {
   assertCollectionOwned,
@@ -98,7 +103,7 @@ export async function POST(req: Request): Promise<Response> {
     const pollRow =
       body.type === "short" && body.poll
         ? (() => {
-            const err = validatePollOptions(body.poll.options);
+            const err = validatePollOptionsForMode(body.poll.mode, body.poll.options);
             if (err) throw new AppError(err, 400, "validation_error");
             const endsAt = body.poll.endsAt;
             const t = endsAt.getTime();

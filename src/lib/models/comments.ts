@@ -17,6 +17,12 @@ export const commentItemSchema = z.object({
   }),
   replyToCommentId: z.string().nullable(),
   replyToUsername: z.string().nullable(),
+  /** 博主置顶（Discourse floats-to-top） */
+  pinned: z.boolean().optional(),
+  /** 博主标记的解决方案（可多个，绿勾徽标） */
+  solution: z.boolean().optional(),
+  /** 帖子作者管理权（置顶/解决方案菜单的显隐依据） */
+  canManage: z.boolean().optional(),
 });
 export type CommentItem = z.infer<typeof commentItemSchema>;
 

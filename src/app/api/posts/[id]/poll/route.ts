@@ -71,6 +71,10 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
     if (poll.mode === "single" && unique.length !== 1) {
       throw new AppError("单选投票只能选择一项 / Pick exactly one option", 400, "validation_error");
     }
+    // PK 为两方对战：同单选，一方一票
+    if (poll.mode === "pk" && unique.length !== 1) {
+      throw new AppError("PK 只能为其中一方投票 / Pick exactly one side", 400, "validation_error");
+    }
 
     // 整组替换：改票 = 删旧插新
     await db.transaction(async (tx) => {

@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { Loader2, MessageCircle, Send, Smile, Trash2, X } from "lucide-react";
+import { BadgeCheck, Loader2, MessageCircle, Pin, Send, Smile, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ import {
 import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
 import { EmojiPopover, insertAtCursor } from "./composer-panels";
+import { patchJsonSafe } from "@/lib/client/api";
 
 export type { CommentItem };
 
@@ -258,6 +259,25 @@ export function Comments({
     },
   );
 
+  /** 博主管理评论：置顶（单槽）/标记解决方案（可多个）— PATCH 后失效列表回拉 */
+  async function manage(id: string, action: "pin" | "unpin" | "solve" | "unsolve") {
+    const r = await patchJsonSafe(`/api/comments`, { id, action });
+    if (!r.ok) {
+      toast.error(r.error ?? t("common.error"));
+      return;
+    }
+    toast.success(
+      action === "pin"
+        ? "已置顶"
+        : action === "unpin"
+          ? "已取消置顶"
+          : action === "solve"
+            ? "已标记为解决方案"
+            : "已取消解决方案",
+    );
+    void queryClient.invalidateQueries({ queryKey: queryKeys.comments(postId) });
+  }
+
   async function submit() {
     const text = body.trim();
     if (!text || submitMutation.pending) return;
@@ -379,8 +399,27 @@ export function Comments({
                   >
                     {timeAgo(c.createdAt, locale)}
                   </a>
+                  {(c.pinned || c.solution) && (
+                    <span className="ml-auto inline-flex shrink-0 items-center gap-1">
+                      {c.pinned && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          <Pin className="size-2.5" aria-hidden /> 置顶
+                        </span>
+                      )}
+                      {c.solution && (
+                        <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600">
+                          <BadgeCheck className="size-2.5" aria-hidden /> 解决方案
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </div>
-                <p className="reading-serif mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">
+                <p
+                  className={cn(
+                    "reading-serif mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed",
+                    c.solution ? "rounded-lg border-l-2 border-emerald-500/50 bg-emerald-500/5 px-2 py-1 text-foreground/90" : "text-foreground/90",
+                  )}
+                >
                   {c.body}
                 </p>
                 <div className="mt-1 flex items-center gap-1">
@@ -408,6 +447,25 @@ export function Comments({
                     >
                       <Trash2 className="size-3.5" />
                     </button>
+                  )}                  {c.canManage && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => void manage(c.id, c.pinned ? "unpin" : "pin")}
+                        className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <Pin className="size-3.5" />
+                        {c.pinned ? "取消置顶" : "置顶"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void manage(c.id, c.solution ? "unsolve" : "solve")}
+                        className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-emerald-600"
+                      >
+                        <BadgeCheck className="size-3.5" />
+                        {c.solution ? "取消解决方案" : "解决方案"}
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

@@ -170,6 +170,11 @@ export async function GET(req: Request) {
     const conditions = [eq(comments.postId, postId), eq(comments.status, "visible")];
     if (cursor) conditions.push(lt(comments.createdAt, new Date(cursor)));
 
+    // 首页（无 cursor）把博主置顶的评论浮到最前（Discourse 式）；翻页保持时间序
+    const order = cursor
+      ? [desc(comments.createdAt)]
+      : [sql`${comments.pinnedAt} desc nulls last`, desc(comments.createdAt)];
+
     const rows = await db
       .select({
         id: comments.id,
@@ -178,6 +183,9 @@ export async function GET(req: Request) {
         likeCount: comments.likeCount,
         userId: comments.userId,
         replyToCommentId: comments.replyToCommentId,
+        replyToUserId: comments.replyToUserId,
+        pinnedAt: comments.pinnedAt,
+        solutionAt: comments.solutionAt,
         username: users.username,
         displayName: users.displayName,
         avatarPath: users.avatarPath,
@@ -187,7 +195,7 @@ export async function GET(req: Request) {
       .innerJoin(users, eq(users.id, comments.userId))
       .leftJoin(replyUsers, eq(replyUsers.id, comments.replyToUserId))
       .where(and(...conditions))
-      .orderBy(desc(comments.createdAt))
+      .orderBy(...order)
       .limit(limit + 1);
 
     const hasMore = rows.length > limit;
@@ -219,7 +227,16 @@ export async function GET(req: Request) {
       likeCount: r.likeCount,
       liked: viewer ? likedSet.has(r.id) : null, // 键恒存在，响应形状不随登录态漂移
       mine: viewer ? r.userId === viewer.user.id : false,
-      canDelete: viewer ? r.userId === viewer.user.id || isPostAuthor : false,
+      // 删除权限：评论作者本人 / 帖子作者 / 被回复评论的作者（管理自己楼下的回复）
+      canDelete: viewer
+        ? r.userId === viewer.user.id ||
+          isPostAuthor ||
+          (r.replyToUserId !== null && r.replyToUserId === viewer.user.id)
+        : false,
+      // 管理权限（置顶/解决方案）：仅帖子作者
+      canManage: isPostAuthor,
+      pinned: Boolean(r.pinnedAt),
+      solution: Boolean(r.solutionAt),
       user: {
         username: r.username,
         displayName: r.displayName,
@@ -251,7 +268,21 @@ export async function DELETE(req: Request) {
       .where(eq(comments.id, id))
       .limit(1);
     if (!row) throw notFound("评论不存在 / Comment not found");
-    if (row.comment.userId !== auth.user.id && row.postAuthorId !== auth.user.id) {
+    // 删除权限：评论作者本人 / 帖子作者 / 被回复评论的作者（清理自己楼下的回复）
+    let parentUserId: string | null = null;
+    if (row.comment.replyToCommentId) {
+      const [parent] = await db
+        .select({ userId: comments.userId })
+        .from(comments)
+        .where(eq(comments.id, row.comment.replyToCommentId))
+        .limit(1);
+      parentUserId = parent?.userId ?? null;
+    }
+    if (
+      row.comment.userId !== auth.user.id &&
+      row.postAuthorId !== auth.user.id &&
+      parentUserId !== auth.user.id
+    ) {
       throw forbidden("没有权限删除该评论 / Not allowed to delete this comment");
     }
 
@@ -260,7 +291,7 @@ export async function DELETE(req: Request) {
       await db.transaction(async (tx) => {
         await tx
           .update(comments)
-          .set({ status: "deleted", body: "" })
+          .set({ status: "deleted", body: "", pinnedAt: null, solutionAt: null })
           .where(eq(comments.id, id));
         await tx
           .update(posts)
@@ -269,5 +300,54 @@ export async function DELETE(req: Request) {
       });
     }
     return ok();
+  });
+}
+
+/** PATCH /api/comments — 博主管理评论：置顶（单槽）/解决方案（可多个）。 */
+const patchSchema = z.object({
+  id: z.uuid(),
+  action: z.enum(["pin", "unpin", "solve", "unsolve"]),
+});
+
+export async function PATCH(req: Request): Promise<Response> {
+  return withUser(req, async (auth) => {
+    const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) bad();
+    const { id, action } = parsed.data;
+
+    const [row] = await db
+      .select({ comment: comments, postAuthorId: posts.authorId })
+      .from(comments)
+      .innerJoin(posts, eq(posts.id, comments.postId))
+      .where(eq(comments.id, id))
+      .limit(1);
+    if (!row) throw notFound("评论不存在 / Comment not found");
+    if (row.postAuthorId !== auth.user.id) {
+      throw forbidden("仅帖子作者可以管理评论 / Only the post author can manage comments");
+    }
+    if (row.comment.status !== "visible") {
+      throw forbidden("该评论不可操作 / Comment is not visible");
+    }
+
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      if (action === "pin") {
+        // 单槽语义：置顶前清掉同帖其它置顶
+        await tx
+          .update(comments)
+          .set({ pinnedAt: null })
+          .where(and(eq(comments.postId, row.comment.postId), eq(comments.status, "visible")));
+        await tx.update(comments).set({ pinnedAt: now }).where(eq(comments.id, id));
+      } else if (action === "unpin") {
+        await tx.update(comments).set({ pinnedAt: null }).where(eq(comments.id, id));
+      } else if (action === "solve") {
+        // 解决方案允许多个（Discourse 多解扩展语义）
+        await tx.update(comments).set({ solutionAt: now }).where(eq(comments.id, id));
+      } else {
+        await tx.update(comments).set({ solutionAt: null }).where(eq(comments.id, id));
+      }
+    });
+
+    return ok({ ok: true });
   });
 }
