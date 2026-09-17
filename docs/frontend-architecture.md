@@ -114,7 +114,8 @@ const q = useInfiniteQuery({
 // 提交（点赞/收藏/删除…）
 const { mutate, pending } = useApiMutation(
   (postId: string) => postJson("/api/bookmarks", { postId }),
-  { successToast: "已收藏", invalidate: [queryKeys.feed()] },
+  // 跨 scope 失效用 feedPrefix()（feed() 只命中 all 流）
+  { successToast: "已收藏", invalidate: [queryKeys.feedPrefix()] },
 );
 
 // 服务器响应即最新视图 → 直接写缓存（投票）
@@ -203,7 +204,7 @@ src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after�
 | 组件 | 现架构 |
 | --- | --- |
 | `social/comments.tsx` | `useInfiniteQuery`（游标分页）+ `commentsCheck` 轮询 query（30s，后台暂停）+ 提交/删除经 `setQueryData` 局部更新 |
-| `social/chat.tsx` | 会话 `useQuery(refetchInterval: 30s)`；更早消息为渲染期重置的本地分页累积（携带 userId，换会话自动清空）；上传走 `apiUpload` |
+| `social/chat.tsx` | 会话 `useInfiniteQuery`（SSE 为主）；`messagesCheck` 轻量探测轮询（只拉第一页，探测到新消息才失效 thread，避免无限流全页重放）；更早消息为渲染期重置的本地分页累积；上传走 `apiUpload` |
 | `social/inbox-list.tsx` | 会话/通知双 `useQuery` + 乐观已读（`setQueryData`）+ 新私信人选 `enabled: composeOpen` 条件查询 |
 | `dashboard/my-posts-manager.tsx` | `useQuery(myPostList(status, q))` + 搜索防抖进 key + `placeholderData: keepPreviousData` 平滑切页签；增删后按 `["posts","mine-list"]` 前缀失效 |
 | `dashboard/console-topbar.tsx` | 未读角标 `useQuery(notificationBadge)`，键挂在 `["notifications"]` 前缀下与收件箱联动 |
@@ -224,10 +225,12 @@ src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after�
 
 ## 10. 已知问题与说明
 
-- **`enqueueModel` / flight 竞态**：Next 16 dev 下快速切换动态路由时
-  React Flight 客户端缓存竞态（上游问题）。已在 `next.config.ts` 用
-  `dynamicOnHover + staleTimes` 缓解；本架构把交互数据引导到普通 fetch
-  （TanStack Query）也减少触发面。
+- **`enqueueModel` / flight 竞态**：Next 16 dev 下 React Flight 客户端的
+  上游缺陷（截至 16.4.0-canary.33 未修）。历史上与「依赖代际切换 ×
+  `.next/dev` 缓存不失效」叠加，造成 2026-09 两天连环的 module factory /
+  数据流错误；现由实例守卫 + patch 退役 + 缓存治理体系化解决，
+  见 `docs/runbook-dev-cache.md`。本架构把交互数据引导到
+  TanStack Query（普通 fetch）也持续减少触发面。
 - **成功响应的两种形状**：动作用 `ok({ ok: true })`、列表用
   `Paginated<T>`，不要发明第三种。
 - Zustand persist 的旧 localStorage 键（`unread-seen:*`）未做迁移，

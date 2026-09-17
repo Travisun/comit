@@ -7,6 +7,7 @@ import { TimelineHeader } from "@/components/site-shell";
 import { ArticleCard, FEED_ROW_CLASS } from "@/components/user-space/article-card";
 import { ShortCard } from "@/components/user-space/short-card";
 import { getCurrentUser } from "@/lib/auth/session";
+import { routeParam } from "@/lib/route-params";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,8 @@ type Props = {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const topic = await getTopicBySlug(decodeURIComponent(slug));
-  if (!topic) return { title: "话题不存在" };
+  const topic = await getTopicBySlug(routeParam(slug));
+  if (!topic) return { title: "话题不存在", robots: { index: false, follow: false } };
   return {
     title: `#${topic.name}`,
     description: topic.description || `话题「${topic.name}」下的全部文章。`,
@@ -33,7 +34,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
   const { page: pageParam } = await searchParams;
   const page = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
 
-  const topic = await getTopicBySlug(decodeURIComponent(slug));
+  const topic = await getTopicBySlug(routeParam(slug));
   if (!topic) notFound();
 
   const { items, nextOffset } = await getPublishedPosts({

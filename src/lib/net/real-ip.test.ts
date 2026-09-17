@@ -178,3 +178,40 @@ describe("clientIp · direct 模式", () => {
     expect(ip).toBe(UNKNOWN_IP);
   });
 });
+
+describe("伪造头 IP 格式防御（isPlausibleIp 行为）", () => {
+  it("nginx 模式：x-real-ip 垃圾值不被采信，回退 XFF 链路", () => {
+    vi.stubEnv("TRUST_PROXY", "nginx");
+    const r = req({ "x-real-ip": "not-an-ip", "x-forwarded-for": "203.0.113.7" });
+    expect(clientIp(r)).toBe("203.0.113.7");
+  });
+
+  it("nginx 模式：x-real-ip 合法 IPv6 仍被采信", () => {
+    vi.stubEnv("TRUST_PROXY", "nginx");
+    const r = req({ "x-real-ip": "2001:db8::1" });
+    expect(clientIp(r)).toBe("2001:db8::1");
+  });
+
+  it("nginx 模式：x-real-ip / XFF 全是垃圾 → UNKNOWN（限流键退化为粗粒度而非被投毒）", () => {
+    vi.stubEnv("TRUST_PROXY", "nginx");
+    const r1 = req({ "x-real-ip": "<script>alert(1)</script>" });
+    expect(clientIp(r1)).toBe(UNKNOWN_IP);
+    const r2 = req({ "x-forwarded-for": "garbage, 198.51.100.9" });
+    // 右起 1 跳是受信代理追加的合法 IP → 采信
+    expect(clientIp(r2)).toBe("198.51.100.9");
+    const r3 = req({ "x-forwarded-for": "garbage1, garbage2" });
+    expect(clientIp(r3)).toBe(UNKNOWN_IP);
+  });
+
+  it("cloudflare 模式：cf-connecting-ip 垃圾值回退 nginx 链路", () => {
+    vi.stubEnv("TRUST_PROXY", "cloudflare");
+    const r = req({ "cf-connecting-ip": "999.999.999.999", "x-real-ip": "203.0.113.5" });
+    expect(clientIp(r)).toBe("203.0.113.5");
+  });
+
+  it("越界八位组/IPv4 段数不符 → 不合法", () => {
+    vi.stubEnv("TRUST_PROXY", "nginx");
+    expect(clientIp(req({ "x-real-ip": "256.1.1.1" }))).toBe(UNKNOWN_IP);
+    expect(clientIp(req({ "x-real-ip": "1.2.3" }))).toBe(UNKNOWN_IP);
+  });
+});

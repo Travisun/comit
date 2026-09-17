@@ -9,10 +9,35 @@ import { WIDGET_CATALOG } from "@/components/user-space/widget-catalog";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// 背景值只接受三类：本站相对路径 / http(s) 绝对 URL / CSS 颜色。
+// 显式拒绝 url(javascript:…)、url(data:…)、站外追踪图与任意 CSS 注入；
+// accent 只接受标准颜色语法（会拼进 color-mix(in oklab, ${accent} 35%)）。
+const CSS_COLOR_RE =
+  /^(#[0-9a-fA-F]{3,8}|rgb[a]?\([^)]*\)|hsl[a]?\([^)]*\)|[a-zA-Z]+)$/;
+const bgValue = z
+  .string()
+  .trim()
+  .max(300)
+  .refine(
+    (v) =>
+      v.startsWith("/") ||
+      /^https?:\/\//i.test(v) ||
+      (/^url\(/i.test(v)
+        ? /^url\(["']?(\/(?!\/)|https?:\/\/)[^"')]*["']?\)$/i.test(v) &&
+          !/javascript:|data:/i.test(v)
+        : CSS_COLOR_RE.test(v)),
+    "不支持背景值格式",
+  );
 const appearanceSchema = z.object({
-  homeBg: z.string().trim().max(300).nullable().optional(),
-  postBg: z.string().trim().max(300).nullable().optional(),
-  accent: z.string().trim().max(100).nullable().optional(),
+  homeBg: bgValue.nullable().optional(),
+  postBg: bgValue.nullable().optional(),
+  accent: z
+    .string()
+    .trim()
+    .max(100)
+    .refine((v) => CSS_COLOR_RE.test(v) || /^var\(--/.test(v), "不支持的颜色格式")
+    .nullable()
+    .optional(),
   fontFamily: z.enum(["system", "serif", "mono"]).nullable().optional(),
   fontSize: z.enum(["sm", "md", "lg"]).nullable().optional(),
 });

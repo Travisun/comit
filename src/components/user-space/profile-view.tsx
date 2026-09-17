@@ -251,8 +251,11 @@ export async function UserProfileView({
   page?: number;
 }) {
   const isSelf = Boolean(viewer && viewer.id === user.id);
-  const viewerState = isSelf ? null : await getFollowState(viewer?.id ?? null, user.id);
-  const stats = await getUserStats(user.id);
+  // 两个查询相互独立，并行省一整个 RTT
+  const [viewerState, stats] = await Promise.all([
+    isSelf ? Promise.resolve(null) : getFollowState(viewer?.id ?? null, user.id),
+    getUserStats(user.id),
+  ]);
 
   return (
     <main className="w-full">
@@ -381,27 +384,26 @@ async function PostsTab({
   return (
     <div>
       {top.length > 0 &&
-        top.map((it) => {
-          const dto = toFeedItemDTO(it);
-          return (
-            <ArticleCard
-              key={it.post.id}
-              post={dto.post}
-              author={dto.author}
-              pinned
-              className={FEED_ROW_CLASS}
-              viewerUsername={viewerUsername}
-              rowHref
-              menu={Boolean(viewerUsername)}
-            />
-          );
-        })}
+        top.map((it) => (
+          <ArticleCard
+            key={it.post.id}
+            post={it.post}
+            author={it.author}
+            pinned
+            className={FEED_ROW_CLASS}
+            viewerUsername={viewerUsername}
+            rowHref
+            menu={Boolean(viewerUsername)}
+          />
+        ))}
 
       {rest.map((it) => {
+        // rest 来自 getPublishedPosts（原始 FeedItem 行，含 Date），出 DAL
+        // 边界前必须 DTO 化；top 已由 getTopPosts 在查询层完成映射
         const dto = toFeedItemDTO(it);
         return (
           <ArticleCard
-            key={it.post.id}
+            key={dto.post.id}
             post={dto.post}
             author={dto.author}
             variant="list"
@@ -487,13 +489,12 @@ async function BookmarksTab({
   }
   return (
     <div>
-      {items.map((it) => {
-        const dto = toFeedItemDTO(it);
-        return dto.post.type === "short" ? (
+      {items.map((it) =>
+        it.post.type === "short" ? (
           <ShortCard
-            key={`bm-${dto.post.id}`}
-            post={dto.post}
-            author={dto.author}
+            key={`bm-${it.post.id}`}
+            post={it.post}
+            author={it.author}
             className={FEED_ROW_CLASS}
             viewerUsername={viewerUsername}
             rowHref
@@ -501,17 +502,17 @@ async function BookmarksTab({
           />
         ) : (
           <ArticleCard
-            key={`bm-${dto.post.id}`}
-            post={dto.post}
-            author={dto.author}
+            key={`bm-${it.post.id}`}
+            post={it.post}
+            author={it.author}
             variant="list"
             className={FEED_ROW_CLASS}
             viewerUsername={viewerUsername}
             rowHref
             menu={Boolean(viewerUsername)}
           />
-        );
-      })}
+        ),
+      )}
     </div>
   );
 }

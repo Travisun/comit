@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { posts } from "@/db/schema";
-import { withAdmin, ok } from "@/lib/http"
+import { ok } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { notFound } from "@/core/errors";
 import { assertUuid, logAdmin } from "@/app/api/admin/_shared";

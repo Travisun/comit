@@ -136,3 +136,16 @@ export function blogPostingJsonLd(opts: {
     inLanguage: "zh-CN",
   };
 }
+
+/**
+ * JSON-LD 安全序列化：`</script>`、`<`、U+2028/2029 在 <script> 上下文里
+ * 会被浏览器提前终止脚本或注入标签 —— displayName/标题等用户输入经
+ * JSON.stringify 后必须再转义（存储型 XSS 防线，2026-09 审计 P0）。
+ */
+export function safeJsonLd(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/\u2028/g, "\\u2028")
+    .replace(/\u2029/g, "\\u2029");
+}

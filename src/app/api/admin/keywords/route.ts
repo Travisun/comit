@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { keywords } from "@/db/schema";
 import { ok, jsonBody } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
+import { pagination } from "@/app/api/admin/_shared";
 import { conflict } from "@/core/errors";
 import { parseOrThrow } from "@/app/api/admin/_shared";
 
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   return withPermission(req, "admin.moderate", async () => {
     const url = new URL(req.url);
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 100, 1), 200);
+    const { limit } = pagination(url, { defaultLimit: 100, maxLimit: 200 });
     const q = (url.searchParams.get("q") ?? "").trim();
 
     const items = await db

@@ -71,20 +71,29 @@ let listenerEnsured = false;
 function ensureListener(): void {
   if (listenerEnsured) return;
   listenerEnsured = true;
-  ensurePgListener((raw) => {
-    try {
-      const frame = JSON.parse(raw) as NotifyFrame;
-      // 自身 NOTIFY 回环：本进程已在 broadcast() 里同步投递过，跳过防重复
-      if (frame.o === pgOrigin()) return;
-      deliverLocally(frame.targets, {
-        type: frame.type,
-        payload: frame.payload,
-        ts: frame.ts,
-      });
-    } catch (err) {
-      console.warn("[broadcast] malformed notify frame", err);
-    }
-  });
+  ensurePgListener(
+    (raw) => {
+      try {
+        const frame = JSON.parse(raw) as NotifyFrame;
+        // 自身 NOTIFY 回环：本进程已在 broadcast() 里同步投递过，跳过防重复
+        if (frame.o === pgOrigin()) return;
+        deliverLocally(frame.targets, {
+          type: frame.type,
+          payload: frame.payload,
+          ts: frame.ts,
+        });
+      } catch (err) {
+        console.warn("[broadcast] malformed notify frame", err);
+      }
+    },
+    // pg LISTEN 断线重连成功：重连窗口内的 NOTIFY 已静默丢失，而各 SSE 连接
+    // 仍存活（客户端 onopen 不会触发、reconnected 补偿失效）。广播全量 resync
+    // 让所有订阅方 invalidate 补数。targets "all" 不过滤、本进程全部 channel
+    // 都收到；其它 worker 的监听器各自重连后各自补，无需跨进程转发。
+    () => {
+      deliverLocally("all", { type: "realtime.resync", ts: Date.now() });
+    },
+  );
 }
 
 /** 跨进程发布（fire-and-forget，绝不同步抛出、不阻塞请求路径）。 */

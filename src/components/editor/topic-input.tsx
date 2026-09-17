@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 import { X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { Badge } from "@/components/ui/primitives";
@@ -40,8 +41,8 @@ export function TopicInput({
   // 话题联想 — 防抖值进 queryKey；空词 enabled 门控不发请求（下拉随之隐藏）。
   // placeholderData 让继续输入时旧联想保留到新结果到达（原手管行为）。
   const suggestionsQ = useQuery({
-    // keys.ts 冻结期内就地字面量（暂未入厂）；与 TopicPopover 共享同一份缓存
-    queryKey: ["topics", "search", debouncedQ],
+    // 与 TopicPopover 共享同一份缓存
+    queryKey: queryKeys.topicsSearch(debouncedQ),
     queryFn: async () => {
       const data = await apiGet<{ items?: { name: string; count: number }[] }>(
         `/api/posts/topics?q=${encodeURIComponent(debouncedQ)}`,

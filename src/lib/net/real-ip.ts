@@ -26,6 +26,27 @@ export function trustProxyMode(): TrustProxyMode {
 export const UNKNOWN_IP = "unknown";
 
 /**
+ * IP 形状防御：x-real-ip / cf-connecting-ip / XFF 选中跳在接受前先做格式
+ * 校验。nginx 默认**不会**剥除入站 X-Real-IP，直连形态下该头可被任意伪造 ——
+ * 无校验时攻击者每请求换一个垃圾值即可让所有按 IP 的限流桶全部失效，且
+ * 任意字符串成为限流键后还会放大内存降级表的驱逐（挤掉合法用户的桶）。
+ * 宽松匹配（IPv4 点分 / IPv6 含冒号的十六进制串，≤45 字符）即可区分
+ * "长得像 IP"与"纯垃圾"，不必做完整 RFC 解析。
+ */
+export function isPlausibleIp(value: string): boolean {
+  const v = value.trim();
+  if (v.length === 0 || v.length > 45) return false;
+  if (v.includes(":")) {
+    // IPv6（含映射形式 ::ffff:1.2.3.4）：只允许十六进制与分隔符
+    return /^[0-9a-fA-F:.]+$/.test(v) && (v.match(/:/g)?.length ?? 0) >= 2;
+  }
+  // IPv4：恰好 4 段 0-255
+  const parts = v.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every((p) => /^\d{1,3}$/.test(p) && Number(p) <= 255);
+}
+
+/**
  * XFF 语义：每个代理追加"它所看到的对端地址"。因此最右 trustedCount 跳是
  * 受信代理链追加的地址（最右 = 最末代理看到的对端），客户端 IP 在第
  * `length - trustedCount` 位；伪造头会被挤到更左侧而被忽略。
@@ -34,7 +55,10 @@ export const UNKNOWN_IP = "unknown";
 function pickFromXff(xff: string, trustedCount: number): string | null {
   const hops = xff.split(",").map((h) => h.trim()).filter(Boolean);
   const idx = hops.length - trustedCount;
-  return idx >= 0 ? (hops[idx] || null) : null;
+  if (idx < 0) return null;
+  const hop = hops[idx] || "";
+  // 受信代理链正常只追加合法 IP；格式不符视为不可信输入，回退 UNKNOWN
+  return isPlausibleIp(hop) ? hop : null;
 }
 
 /**
@@ -53,12 +77,12 @@ export function clientIp(req: Request): string {
 
   if (mode === "cloudflare") {
     const cf = req.headers.get("cf-connecting-ip");
-    if (cf) return cf.trim();
+    if (cf && isPlausibleIp(cf)) return cf.trim();
     // CF → Nginx 双层：回退 nginx 链路
   }
 
   const realIp = req.headers.get("x-real-ip");
-  if (realIp) return realIp.trim();
+  if (realIp && isPlausibleIp(realIp)) return realIp.trim();
 
   const rawCount = Number(process.env.TRUSTED_PROXY_COUNT ?? 1);
   const trustedCount = Number.isFinite(rawCount) && rawCount >= 0 ? Math.floor(rawCount) : 1;

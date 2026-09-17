@@ -38,7 +38,16 @@ export function assertSameOrigin(req: Request): void {
   }
 }
 
+/** JSON body 大小预检上限：route handler 无框架级 body 限制，先按
+ * content-length 短路再解析，避免超大 body 全额进内存后才被 zod 拒绝。
+ * 站内 JSON 载荷（评论 ≤2000 字、设置项等）远低于 1MB。 */
+const JSON_BODY_MAX_BYTES = 1024 * 1024;
+
 export async function jsonBody<T>(req: Request): Promise<T> {
+  const len = Number(req.headers.get("content-length") ?? "0");
+  if (Number.isFinite(len) && len > JSON_BODY_MAX_BYTES) {
+    throw new AppError("请求体过大 / Payload too large", 413, "payload_too_large");
+  }
   try {
     return (await req.json()) as T;
   } catch {

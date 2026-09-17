@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { CalendarClock, ListPlus, Loader2, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet } from "@/lib/client/api";
+import { queryKeys } from "@/lib/query/keys";
 import { cn } from "@/lib/utils";
 import {
   POLL_OPTIONS_MAX,
@@ -139,8 +140,8 @@ export function TopicPopover({
   // placeholderData 让切换搜索词时旧结果保留到新结果到达（原手管行为），
   // isPending 仅在首帧（还没有任何结果）时为 true。
   const topicsQ = useQuery({
-    // keys.ts 冻结期内就地字面量（暂未入厂）；与 TopicInput 共享同一份缓存
-    queryKey: ["topics", "search", debouncedQ],
+    // 与 TopicInput 共享同一份缓存
+    queryKey: queryKeys.topicsSearch(debouncedQ),
     queryFn: async () => {
       const d = await apiGet<{ items?: TopicItem[] }>(
         `/api/posts/topics?q=${encodeURIComponent(debouncedQ)}`,

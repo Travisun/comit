@@ -1,7 +1,7 @@
 import { and, count, desc, eq, ilike, or, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, users } from "@/db/schema";
-import { withAdmin, ok } from "@/lib/http"
+import { ok } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { pagination } from "@/app/api/admin/_shared";
 

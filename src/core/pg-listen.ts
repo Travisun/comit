@@ -29,6 +29,12 @@ interface PgListenerState {
   attempt: number;
   /** 收到 notification 时的分发回调（broadcast.ts 注册，每进程一个）。 */
   onFrame?: (json: string) => void;
+  /**
+   * 断线重连成功后的补偿回调（broadcast.ts 注册）：重连窗口内 NOTIFY 丢失、
+   * 而 SSE TCP 连接仍存活（客户端 onopen 不触发、补偿机制失效），必须由
+   * 服务端主动广播 resync，否则未读数/私信无限期 stale。
+   */
+  onReconnect?: () => void;
 }
 
 // globalThis 单例守卫：跟随项目 HMR 模式（dev 下模块可能被多次求值，
@@ -92,6 +98,9 @@ function connect(): Promise<Client | null> {
       if (settled) return;
       settled = true;
       if (state.client === client) state.client = undefined;
+      // 释放半开 socket（幂等；失败/已断的连接 end() 报错吞掉即可）。
+      // 只清引用会让长期多次断线的进程累积半开 socket。
+      void client.end().catch(() => undefined);
       scheduleReconnect();
     };
     client.on("notification", (msg) => {
@@ -110,8 +119,21 @@ function connect(): Promise<Client | null> {
       await client.connect();
       await client.query(`LISTEN ${MB_NOTIFY_CHANNEL}`);
       state.client = client;
+      const isReconnect = state.attempt > 0;
       state.attempt = 0; // 成功后重置退避
+      // 告警去重表复位：恢复后再次故障要能重新告警（否则故障期间长期静默）
+      warned.delete("notify-failed");
+      warned.delete("start-failed");
       console.log(`[pg-listen] connected, listening on "${MB_NOTIFY_CHANNEL}"`);
+      if (isReconnect) {
+        // 断线窗口内的 NOTIFY 已丢失且客户端无法感知（SSE 仍存活），广播
+        // resync 让全部订阅方 invalidate 补数。回调抛错只记日志。
+        try {
+          state.onReconnect?.();
+        } catch (err) {
+          console.warn("[pg-listen] onReconnect callback threw", err);
+        }
+      }
       return client;
     } catch (err) {
       drop();
@@ -137,9 +159,14 @@ function connect(): Promise<Client | null> {
  * 注册跨进程 notification 分发回调并确保监听器已启动（懒启动入口）。
  * 同进程重复调用只更新回调（HMR 后旧闭包被替换，channels 数组本身
  * 挂在 globalThis 上，不受模块重求值影响）。
+ * `onReconnect`：断线重连成功后的补偿回调（可选）。
  */
-export function ensurePgListener(onFrame: (json: string) => void): void {
+export function ensurePgListener(
+  onFrame: (json: string) => void,
+  onReconnect?: () => void,
+): void {
   state.onFrame = onFrame;
+  if (onReconnect) state.onReconnect = onReconnect;
   if (!state.client && !state.startPromise && !state.reconnectTimer) void connect();
 }
 

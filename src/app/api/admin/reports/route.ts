@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { comments, posts, reports, users } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
+import { pagination } from "@/app/api/admin/_shared";
 import { makeExcerpt, truncate } from "@/lib/utils";
 
 export const runtime = "nodejs";
@@ -40,8 +41,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const statusParam = url.searchParams.get("status") ?? "all";
     const type = url.searchParams.get("type") ?? "";
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 50, 1), 100);
-    const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
+    const { limit, offset } = pagination(url, { defaultLimit: 50 });
 
     const conds: SQL[] = [];
     if (statusParam === "open" || statusParam === "resolved" || statusParam === "dismissed") {

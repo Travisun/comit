@@ -1,140 +1,31 @@
+/**
+ * 用户名领域逻辑 — 查库可用性/交互校验/工具函数。
+ * 规则常量、保留字与纯格式校验的单一来源在 src/lib/username-policy.ts
+ * （与 src/proxy.ts 共享，勿在此处再复制一份清单）。
+ */
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { follows, users, blocks, posts } from "@/db/schema";
 import { conflict, forbidden, notFound } from "@/core/errors";
 import { slugifyTitle, randomSuffix } from "@/lib/utils";
+import {
+  RESERVED_USERNAMES,
+  USERNAME_MAX,
+  USERNAME_MIN,
+  checkUsernameFormat,
+  isValidUsername,
+  type UsernameCheck,
+} from "./username-policy";
 
-/**
- * 用户名（主页地址 handle，/{username} 访问）规则：
- *  - 3–30 字符，英文开头，仅英文/数字/下划线，下划线不可开头或结尾；
- *  - 大小写不区分（统一以小写存储与比较）；
- *  - 命中保留字列表即不可用（系统路由冲突 + 官方/权威冒充 + 易混淆词）。
- */
+// 单一来源 re-export：既有调用方（settings/_data、api/me/username 等）与
+// 新代码统一从此导入；proxy.ts 直接导入 username-policy（纯模块，无 db 依赖）。
+export { RESERVED_USERNAMES, USERNAME_MAX, USERNAME_MIN, checkUsernameFormat, isValidUsername };
+export type { UsernameCheck };
+
+/** 改名冷却期（天）：防止频繁改名造成外链与 @ 引用大面积失效 */
 export const USERNAME_COOLDOWN_DAYS = 30;
-export const USERNAME_MIN = 5;
-export const USERNAME_MAX = 35;
-export const USERNAME_RE = /^[a-z](?:[a-z0-9_]*[a-z0-9])?$/;
 
-const RESERVED_SYSTEM_NAMES = new Set([
-  "www", "app", "api", "admin", "mail", "smtp", "ftp", "ns1", "ns2",
-  "feed", "blog", "help", "support", "about", "login", "logout", "register",
-  "signup", "signin", "settings", "notifications", "messages", "write",
-  "explore", "topics", "archive", "u", "p", "auth", "legal", "static",
-  "assets", "cdn", "status", "docs", "rss", "sitemap", "me", "my", "user",
-  "users", "post", "posts", "following", "followers", "collections",
-  "account", "profile", "dashboard", "search", "upload", "media",
-  "icons", "images", "img", "robots", "manifest", "favicon", "home",
-  "index", "main", "new", "edit", "delete", "create", "verify", "reset",
-  "forgot", "password", "2fa", "privacy", "terms", "copyright", "abuse",
-  "dmca", "security", "report", "reports", "inbox", "console",
-  "comit", "comitsh", "comit_sh", "official", "official_account", "staff",
-  "team", "mod", "moderator", "sysadmin", "root", "administrator",
-  "ceo", "cto", "founder", "owner", "null", "undefined", "none",
-  "true", "false",
-]);
-
-/** 国家与地区名：英文常用名 + 主要拼音 */
-const RESERVED_COUNTRY_NAMES = new Set([
-  "china", "prc", "taiwan", "hongkong", "macau", "macao", "taiwan_region",
-  "japan", "korea", "southkorea", "northkorea", "vietnam", "thailand",
-  "myanmar", "burma", "cambodia", "laos", "malaysia", "singapore",
-  "indonesia", "philippines", "india", "pakistan", "bangladesh",
-  "srilanka", "nepal", "mongolia", "kazakhstan", "afghanistan",
-  "iran", "iraq", "syria", "jordan", "lebanon", "israel", "palestine",
-  "saudi", "saudiarabia", "uae", "qatar", "kuwait", "oman", "yemen",
-  "turkey", "turkiye", "russia", "ukraine", "belarus", "poland",
-  "germany", "france", "spain", "portugal", "italy", "greece",
-  "netherlands", "holland", "belgium", "switzerland", "austria",
-  "sweden", "norway", "denmark", "finland", "iceland", "ireland",
-  "uk", "britain", "greatbritain", "england", "scotland", "wales",
-  "usa", "america", "mexico", "cuba", "canada", "brazil", "argentina",
-  "chile", "peru", "colombia", "venezuela", "bolivia", "ecuador",
-  "egypt", "libya", "tunisia", "morocco", "algeria", "nigeria",
-  "kenya", "ethiopia", "southafrica", "ghana", "sudan",
-  "australia", "newzealand", "fiji",
-  // 拼音
-  "zhongguo", "meiguo", "yingguo", "faguo", "deguo", "eluosi", "eguo",
-  "riben", "hanguo", "chaoxian", "yuenan", "taiguo", "miandian",
-  "laowo", "xinjiapo", "malaixiya", "yinni", "feilvbin", "yindu",
-  "bajisitan", "yilang", "yilake", "xuliya", "tuerqi", "bolan",
-  "xibanya", "putaoya", "yidali", "xila", "helan", "bilishi",
-  "ruidian", "nuowei", "danmai", "fenlan", "bingdao", "aodili",
-  "ruishi", "jianada", "moxige", "guba", "baxi", "agenting", "zhili",
-  "bilu", "gelunbiya", "weineiruila", "aiji", "nanfei", "keniya",
-  "aodaliya", "xinxilan",
-]);
-
-/** 中国省市与行政区划（拼音） */
-const RESERVED_CN_REGION_NAMES = new Set([
-  "beijing", "shanghai", "tianjin", "chongqing",
-  "guangzhou", "shenzhen", "zhuhai", "shantou", "foshan", "dongguan",
-  "hangzhou", "ningbo", "wenzhou", "nanjing", "suzhou", "wuxi",
-  "wuhan", "changsha", "chengdu", "xian", "xianyang", "zhengzhou",
-  "jinan", "qingdao", "yantai", "shenyang", "dalian", "harbin",
-  "changchun", "shijiazhuang", "taiyuan", "hefei", "fuzhou", "xiamen",
-  "nanchang", "haikou", "kunming", "guiyang", "nanning", "lanzhou",
-  "xining", "yinchuan", "urumqi", "lhasa", "hohhot",
-  "guangdong", "jiangsu", "zhejiang", "sichuan", "hubei", "hunan",
-  "henan", "hebei", "shandong", "shanxi", "shaanxi", "yunnan",
-  "guizhou", "gansu", "qinghai", "hainan", "liaoning", "jilin",
-  "heilongjiang", "anhui", "fujian", "jiangxi", "guangxi",
-  "neimenggu", "ningxia", "xinjiang", "xizang", "xianggang", "aomen",
-  "guowuyuan", "waijiaobu", "gonganbu", "minzhengbu", "caizhengbu",
-  "jiaoyubu", "kejibu", "junwei", "fayuan", "jianchayuan",
-]);
-
-/** 知名企业名 */
-const RESERVED_COMPANY_NAMES = new Set([
-  "google", "apple", "microsoft", "meta", "facebook", "amazon", "netflix",
-  "twitter", "xcorp", "openai", "anthropic", "deepmind", "spacex",
-  "tesla", "nvidia", "intel", "amd", "ibm", "oracle", "sap",
-  "salesforce", "adobe", "samsung", "sony", "huawei", "xiaomi",
-  "tencent", "alibaba", "baidu", "bytedance", "toutiao", "douyin",
-  "tiktok", "wechat", "weixin", "alipay", "taobao", "tmall", "jd",
-  "jingdong", "meituan", "didi", "netease", "wangyi", "bilibili",
-  "zhihu", "weibo", "kuaishou", "pinduoduo", "pdd", "linuxdo",
-  "antgroup", "shein", "temu", "lenovo", "dji",
-]);
-
-export const RESERVED_USERNAMES = new Set([
-  ...RESERVED_SYSTEM_NAMES,
-  ...RESERVED_COUNTRY_NAMES,
-  ...RESERVED_CN_REGION_NAMES,
-  ...RESERVED_COMPANY_NAMES,
-]);
-
-/** 系统路由与官方/权威冒充词 */
-
-export interface UsernameCheck {
-  ok: boolean;
-  reason?: string;
-}
-
-/** 格式与保留字检查（不查库）。输入应为用户原始输入，内部统一小写。 */
-export function checkUsernameFormat(raw: string): UsernameCheck {
-  const u = raw.trim().toLowerCase();
-  if (u.length < USERNAME_MIN) {
-    return { ok: false, reason: `用户名至少 ${USERNAME_MIN} 个字符 / At least ${USERNAME_MIN} characters` };
-  }
-  if (u.length > USERNAME_MAX) {
-    return { ok: false, reason: `用户名最多 ${USERNAME_MAX} 个字符 / At most ${USERNAME_MAX} characters` };
-  }
-  if (!/^[a-z]/.test(u)) {
-    return { ok: false, reason: "用户名必须以英文开头 / Must start with a letter" };
-  }
-  if (!USERNAME_RE.test(u)) {
-    return {
-      ok: false,
-      reason: "仅支持英文、数字和下划线，且下划线不可结尾 / Only letters, digits and underscores (no trailing underscore)",
-    };
-  }
-  if (RESERVED_USERNAMES.has(u)) {
-    return { ok: false, reason: "该用户名为系统保留字 / This username is reserved" };
-  }
-  return { ok: true };
-}
-
-/** 完整可用性检查：格式 → 保留字 → 占用。 */
+/** 完整可用性检查：格式 → 保留字 → 占用（改名路径走这一套）。 */
 export async function checkUsernameAvailable(raw: string): Promise<UsernameCheck> {
   const fmt = checkUsernameFormat(raw);
   if (!fmt.ok) return fmt;
@@ -146,10 +37,6 @@ export async function checkUsernameAvailable(raw: string): Promise<UsernameCheck
     .limit(1);
   if (row) return { ok: false, reason: "该用户名已被占用 / Username already taken" };
   return { ok: true };
-}
-
-export function isValidUsername(u: string): boolean {
-  return /^[a-z0-9][a-z0-9-]{1,62}$/.test(u) && RESERVED_USERNAMES.has(u) === false;
 }
 
 export function isValidSubdomain(s: string): boolean {

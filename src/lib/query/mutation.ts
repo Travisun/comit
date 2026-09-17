@@ -71,10 +71,15 @@ export function useApiMutation<TInput, TOutput>(
         }
       : undefined,
     onError: (err, _input, context) => {
-      // 乐观更新失败：回滚到 onMutate 时的快照
+      // 乐观更新失败：回滚到 onMutate 时的快照。
+      // snapshot === undefined 意味着 onMutate 时缓存本来就没有该键 ——
+      // setQueryData(key, undefined) 在 TanStack 里是显式 no-op，会把
+      // apply 写入的乐观脏数据永久留在缓存里；此时应直接移除该键，
+      // 让下次挂载回到「无缓存 → 正常拉取」的干净路径。
       if (context && typeof context === "object" && "key" in context) {
         const { key, snapshot } = context as { key: readonly unknown[]; snapshot: unknown };
-        queryClient.setQueryData(key, snapshot);
+        if (snapshot === undefined) queryClient.removeQueries({ queryKey: key });
+        else queryClient.setQueryData(key, snapshot);
       }
       const e = err instanceof ApiError ? err : err instanceof Error ? err : new Error(String(err));
       if (!silent) toast.error(e.message);
@@ -94,9 +99,14 @@ export function useApiMutation<TInput, TOutput>(
     },
   });
 
-  /** 与历史契约一致：失败不抛出，返回 undefined 由调用方判空 */
+  /**
+   * 与历史契约一致：失败不抛出，返回 undefined 由调用方判空。
+   * pending 期间直接拒绝并发调用 —— 防抖责任收敛到 hook 一处，调用点
+   * 不必各自手写 `if (pending) return`（漏写即双发请求）。
+   */
   const mutate = useCallback(
     async (input: TInput) => {
+      if (mutation.isPending) return undefined;
       try {
         return await mutation.mutateAsync(input);
       } catch {

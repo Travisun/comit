@@ -36,6 +36,7 @@ export interface ArchiveGroup {
 }
 
 export interface CollectionCardData {
+  id: string;
   slug: string;
   name: string;
   description: string;

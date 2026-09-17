@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import {
   and,
   count,
@@ -396,7 +397,7 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
 export async function listBookmarkPosts(
   userId: string,
   limit = 100,
-): Promise<FeedItem[]> {
+): Promise<FeedItemDTO[]> {
   const rows = await db
     .select({
       post: posts,
@@ -410,7 +411,8 @@ export async function listBookmarkPosts(
     .where(and(eq(bookmarks.userId, userId), eq(posts.status, "published")))
     .orderBy(desc(bookmarks.createdAt))
     .limit(limit);
-  return rows;
+  // DAL 出口即 DTO：杜绝 Date/全文 db 行对象经类型注解漂移到客户端
+  return rows.map(toFeedItemDTO);
 }
 
 /** Topics an author uses most (for the sidebar topic cloud). */
@@ -444,6 +446,7 @@ export async function getUserTopicCloud(userId: string, limit = 14): Promise<Top
 export async function getUserCollections(userId: string): Promise<CollectionCardData[]> {
   const rows = await db
     .select({
+      id: collections.id,
       slug: collections.slug,
       name: collections.name,
       description: collections.description,
@@ -455,7 +458,8 @@ export async function getUserCollections(userId: string): Promise<CollectionCard
   return rows.map((r) => ({ ...r, postCount: Number(r.postCount) }));
 }
 
-export async function getCollectionBySlug(
+// cache()：同一请求内 generateMetadata 与页面组件共享同一次查询结果
+export const getCollectionBySlug = cache(async function getCollectionBySlug(
   userId: string,
   slug: string,
 ): Promise<CollectionCardData | null> {
@@ -469,17 +473,11 @@ export async function getCollectionBySlug(
     .select({ n: count() })
     .from(posts)
     .where(and(eq(posts.collectionId, c.id), eq(posts.status, "published")));
-  return { slug: c.slug, name: c.name, description: c.description, postCount: Number(n) };
-}
+  // id 一并返回：调用方（collections/[slug] 页）不再需要 getCollectionIdBySlug
+  // 的第二次同条件查询
+  return { id: c.id, slug: c.slug, name: c.name, description: c.description, postCount: Number(n) };
+});
 
-export async function getCollectionIdBySlug(userId: string, slug: string): Promise<string | null> {
-  const [c] = await db
-    .select({ id: collections.id })
-    .from(collections)
-    .where(and(eq(collections.userId, userId), eq(collections.slug, slug)))
-    .limit(1);
-  return c?.id ?? null;
-}
 
 /* ------------------------------ post detail ------------------------------ */
 
@@ -747,7 +745,9 @@ export async function listFollowing(userId: string, limit = 100): Promise<UserCa
 export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedItem[]> {
   const needle = q.trim().slice(0, 80);
   if (!needle) return [];
-  const like = `%${needle}%`;
+  // 转义 LIKE 通配符：q="%" 会退化为全表 ilike 顺序扫描（低成本放大）
+  const escaped = needle.replace(/[\\%_]/g, "\\$&");
+  const like = `%${escaped}%`;
   return db
     .select({
       post: posts,
@@ -771,7 +771,7 @@ export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedI
 export async function getTopPosts(
   userId: string,
   limit = 2,
-): Promise<{ post: Post; author: { username: string; displayName: string; avatarPath: string | null } }[]> {
+): Promise<FeedItemDTO[]> {
   const rows = await db
     .select({ post: posts, author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath } })
     .from(posts)
@@ -786,5 +786,5 @@ export async function getTopPosts(
     )
     .orderBy(desc(sql`(${posts.likeCount} * 3 + ${posts.views})`))
     .limit(limit);
-  return rows as never;
+  return rows.map(toFeedItemDTO);
 }

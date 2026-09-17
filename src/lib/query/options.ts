@@ -35,9 +35,12 @@ export function apiQueryOptions<T>({
       const raw = await apiGet<unknown>(url);
       const parsed = schema.safeParse(raw);
       if (!parsed.success) {
-        throw new ApiError(422, {
-          error: `响应数据模型不匹配 (${url})：${parsed.error.issues[0]?.path.join(".")} ${parsed.error.issues[0]?.message}`,
-        });
+        // 汇总前 3 个 issue：多字段漂移时只报第一个会把后续问题藏进日志外
+        const detail = parsed.error.issues
+          .slice(0, 3)
+          .map((i) => `${i.path.join(".") || "(root)"} ${i.message}`)
+          .join("; ");
+        throw new ApiError(422, { error: `响应数据模型不匹配 (${url})：${detail}` });
       }
       return parsed.data;
     },

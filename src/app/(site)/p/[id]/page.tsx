@@ -9,6 +9,7 @@ import { getT } from "@/lib/i18n";
 import { routes } from "@/core/routes";
 import { pageMetadata } from "@/lib/seo";
 import { formatDate, timeAgo } from "@/lib/utils";
+import { getFollowState } from "@/components/user-space/queries";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { TimelineHeader } from "@/components/site-shell";
 import { ShortContent } from "@/components/social/short-content";
@@ -41,9 +42,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(eq(posts.id, id))
+    // 仅已发布内容参与 SEO：否则草稿/回收站/followers-only 的正文片段会经
+    // <meta description> 泄露（notFound 时 Next 仍会渲染已生成的 metadata）
+    .where(and(eq(posts.id, id), eq(posts.status, "published")))
     .limit(1);
-  if (!row) notFound();
+  if (!row)
+    return { title: "动态不存在", robots: { index: false, follow: false } };
 
   // 标题：显式标题 → 正文截断（~60 字符）→ 作者名兜底
   const excerpt = row.excerpt?.replace(/\s+/g, " ").trim();
@@ -83,13 +87,24 @@ export default async function PostPermalinkPage({
 
   const { post, author } = row;
 
-  // articles live on their canonical slug page
+  const isAuthor = viewer?.id === post.authorId;
+  if (post.status !== "published" && !isAuthor) notFound();
+
+  // articles live on their canonical slug page —— 必须在 status/visibility
+  // 门禁之后：提前 redirect 会让「307 vs 404」成为探测隐藏文章 slug 的 oracle
   if (post.type === "article") {
     redirect(routes.article(post.slug ?? post.id));
   }
 
-  const isAuthor = viewer?.id === post.authorId;
-  if (post.status !== "published" && !isAuthor) notFound();
+  // 可见性门禁与 /post/[slug]（postVisibleTo + blocked → 404）对齐：
+  //  - followers-only 短动态对非关注者不可经 /p/{id} 绕过（原缺陷：完全
+  //    未检查 visibility，关注门禁形同虚设）；
+  //  - 被作者拉黑的用户同样 404（原缺陷：未检查 blockedBy）。
+  if (!isAuthor) {
+    const followState = await getFollowState(viewer?.id, post.authorId);
+    if (followState.blockedBy) notFound();
+    if (post.visibility === "followers" && !followState.following) notFound();
+  }
 
   let liked = false;
   let reposted = false;

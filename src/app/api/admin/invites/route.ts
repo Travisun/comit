@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { invites, users } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
+import { pagination } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,8 +18,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const filter = url.searchParams.get("filter") ?? "all";
     const q = (url.searchParams.get("q") ?? "").trim();
-    const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 100, 1), 200);
-    const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
+    // 统一分页入口（浮点/NaN/越界防御收敛在 _shared.pagination）
+    const { limit, offset } = pagination(url, { defaultLimit: 100, maxLimit: 200 });
 
     const creator = alias(users, "creator");
     const consumer = alias(users, "consumer");

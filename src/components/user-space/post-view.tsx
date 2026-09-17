@@ -4,7 +4,7 @@ import type { Post, User } from "@/db/schema";
 import { config } from "@/core/config";
 import { routes } from "@/core/routes";
 import { formatDate, readingMinutes, timeAgo } from "@/lib/utils";
-import { blogPostingJsonLd, personJsonLd } from "@/lib/seo";
+import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
@@ -73,7 +73,7 @@ export async function PostView({
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
+          __html: safeJsonLd(
             blogPostingJsonLd({
               post,
               author: { displayName: author.displayName, username: author.username },
@@ -85,7 +85,7 @@ export async function PostView({
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd(author)) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(personJsonLd(author)) }}
       />
 
       {/* author preview banner — lifecycle states only the author can see */}

@@ -10,7 +10,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useInfiniteQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { ArrowLeft, ImagePlus, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
@@ -57,9 +57,27 @@ export function ChatClient({ other }: { other: ChatPartner }) {
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
+  });
+
+  // 兜底轮询（SSE 断线/不可用时保底收新消息）：只拉第一页做轻量探测，
+  // 探测到新消息才失效 thread。直接把 refetchInterval 挂在无限流上会每
+  // 60s 重放全部已加载页 —— 用户点过「加载更早」后就是每分钟 N 个请求。
+  const checkQ = useQuery({
+    queryKey: queryKeys.messagesCheck(other.id),
+    queryFn: async () =>
+      messagesPageSchema.parse(await apiGet<unknown>(`/api/messages/${other.id}`)),
     refetchInterval: 60_000,
     refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
+  // items 升序（API 内部 page.reverse()），最新消息在末尾
+  const newestFromCheck = checkQ.data?.items.at(-1)?.id;
+  const newestInThread = threadQ.data?.pages[0]?.items.at(-1)?.id;
+  useEffect(() => {
+    if (newestFromCheck && newestFromCheck !== newestInThread) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.messages(other.id) });
+    }
+  }, [newestFromCheck, newestInThread, other.id, queryClient]);
 
   // 实时接入（单例 SSE 总线）：message.created 的 payload 只有
   // `{ from: senderId, messageId }` —— `from` 等于当前会话对端 id 才是本

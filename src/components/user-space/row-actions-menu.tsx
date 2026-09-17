@@ -68,10 +68,10 @@ export function RowActionsMenu({
   const [preset, setPreset] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
 
-  // 关注/屏蔽关系 — 语义化 GET 端点，菜单打开时拉取（键暂未入厂：keys.ts 冻结）。
+  // 关注/屏蔽关系 — 语义化 GET 端点，菜单打开时拉取。
   // 加载中按 null 展示默认文案（关注/屏蔽），与原"打开瞬间未知态"一致
   const relationQ = useQuery({
-    queryKey: ["relation", author.username] as const,
+    queryKey: queryKeys.relation(author.username),
     queryFn: async () => {
       const [follow, block] = await Promise.all([
         apiGet<{ following: boolean }>(
@@ -103,7 +103,7 @@ export function RowActionsMenu({
     {
       refresh: false,
       // 关注状态缓存随 toggle 结果刷新，菜单文案立即翻转
-      invalidate: [["relation", author.username]],
+      invalidate: [queryKeys.relation(author.username)],
       successToast: (res) =>
         res.following ? `已关注 @${author.username}` : `已取消关注 @${author.username}`,
     },
@@ -114,7 +114,7 @@ export function RowActionsMenu({
     {
       // 原行为等价：仅"屏蔽成功"改变可见范围时回流 RSC
       refresh: false,
-      invalidate: [["relation", author.username]],
+      invalidate: [queryKeys.relation(author.username)],
       successToast: (res) =>
         res.blocked ? `已屏蔽 @${author.username}` : `已取消屏蔽 @${author.username}`,
       onSuccess: (res) => {

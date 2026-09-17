@@ -217,7 +217,7 @@ export async function GET(req: Request) {
       body: r.body,
       createdAt: r.createdAt,
       likeCount: r.likeCount,
-      liked: viewer ? likedSet.has(r.id) : undefined,
+      liked: viewer ? likedSet.has(r.id) : null, // 键恒存在，响应形状不随登录态漂移
       mine: viewer ? r.userId === viewer.user.id : false,
       canDelete: viewer ? r.userId === viewer.user.id || isPostAuthor : false,
       user: {

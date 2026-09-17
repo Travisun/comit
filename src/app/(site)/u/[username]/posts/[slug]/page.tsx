@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, users } from "@/db/schema";
 import { routes } from "@/core/routes";
+import { routeParam } from "@/lib/route-params";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +15,8 @@ type Props = { params: Promise<{ username: string; slug: string }> };
  */
 export default async function LegacyPostPage({ params }: Props) {
   const { username, slug } = await params;
-  const decodedUser = decodeURIComponent(username);
-  const decodedSlug = decodeURIComponent(slug);
+  const decodedUser = routeParam(username);
+  const decodedSlug = routeParam(slug);
 
   const [row] = await db
     .select({ slug: posts.slug, id: posts.id })

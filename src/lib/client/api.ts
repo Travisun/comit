@@ -82,12 +82,42 @@ async function parseBody(res: Response): Promise<unknown> {
   }
 }
 
+/**
+ * 请求超时：服务器接受连接但不响应时，fetch 的 promise 永不 settle，
+ * useQuery 会永久 pending、该 key 的轮询也被在途请求去重卡死。15s 与
+ * 服务端出站 http-client.ts 的预算一致；调用方自带 signal 时两者取先触发。
+ */
+const REQUEST_TIMEOUT_MS = 15_000;
+
+function withTimeout(init?: RequestInit): RequestInit {
+  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  return {
+    ...init,
+    signal: init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout,
+  };
+}
+
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(url, init);
+  let res: Response;
+  try {
+    res = await fetch(url, withTimeout(init));
+  } catch (err) {
+    // abort/超时归一为 ApiError(0)：调用方与 Query 的错误处理只需面对
+    // 一种错误类型（status 0 = 网络层失败，不参与 4xx 重试豁免逻辑）
+    if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
+      throw new ApiError(0, { error: "请求超时或被中断，请重试" });
+    }
+    throw err;
+  }
   const body = await parseBody(res);
   if (!res.ok) {
     redirectIfSessionExpired(res.status, url);
     throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
+  }
+  if (body === null && res.status !== 204) {
+    // 200 但响应体不是 JSON（网关异常页 / 代理劫持）：null 强转后下游解引用
+    // 只会得到无上下文的 TypeError，这里归一为带状态码的 ApiError
+    throw new ApiError(res.status, { error: "响应不是有效 JSON / Malformed JSON response" });
   }
   return body as T;
 }
@@ -134,15 +164,26 @@ export type SafeResult<T> =
 
 export async function requestSafe<T>(url: string, init?: RequestInit): Promise<SafeResult<T>> {
   try {
-    const res = await fetch(url, init);
+    const res = await fetch(url, withTimeout(init));
     const body = await parseBody(res);
-    if (res.ok) return { ok: true, data: body as T };
+    if (res.ok) {
+      if (body === null && res.status !== 204) {
+        return { ok: false, status: res.status, error: "响应不是有效 JSON / Malformed JSON response" };
+      }
+      return { ok: true, data: body as T };
+    }
     redirectIfSessionExpired(res.status, url);
     const d = (body ?? {}) as ApiErrorBody;
     return { ok: false, status: res.status, error: d.error, blocked: d.blocked };
-  } catch {
-    // 网络层失败（断网 / abort）— 没有状态码，归一为 0
-    return { ok: false, status: 0 };
+  } catch (err) {
+    // 网络层失败（断网 / 超时 abort）— 没有状态码，归一为 0。
+    // 带上诊断信息：调用方 r.error 可直接展示；真正的代码 bug 也不再静默。
+    console.warn(`[api] ${url} network failure`, err);
+    return {
+      ok: false,
+      status: 0,
+      error: err instanceof Error && err.name === "TimeoutError" ? "请求超时，请重试" : "网络错误，请检查连接",
+    };
   }
 }
 
@@ -166,8 +207,22 @@ export function deleteJsonSafe<T = void>(url: string): Promise<SafeResult<T>> {
 /**
  * multipart 文件上传（FormData）— 不要手动设置 Content-Type，浏览器会
  * 自动带 boundary。响应契约与 requestSafe 一致。
+ *
+ * 体积前置校验：与服务端 media/upload 的 10MB 上限对齐，超限直接本地拒绝，
+ * 不再白传几十 MB 才吃 413。
  */
+export const UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
+
 export async function apiUpload<T>(url: string, formData: FormData): Promise<SafeResult<T>> {
+  for (const value of formData.values()) {
+    if (value instanceof File && value.size > UPLOAD_MAX_BYTES) {
+      return {
+        ok: false,
+        status: 413,
+        error: `文件不能超过 ${Math.floor(UPLOAD_MAX_BYTES / 1024 / 1024)}MB`,
+      };
+    }
+  }
   return requestSafe<T>(url, { method: "POST", body: formData });
 }
 

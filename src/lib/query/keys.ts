@@ -32,8 +32,14 @@ export const queryKeys = {
   /** 私信：会话列表 / 单会话消息 / 新私信人选 */
   conversations: () => ["messages", "conversations"] as const,
   messages: (userId: string) => ["messages", "thread", userId] as const,
+  /** 会话新消息轻量探测（只拉第一页；thread 为无限流，不直接挂 interval） */
+  messagesCheck: (userId: string) => ["messages", "thread-check", userId] as const,
   allowedDmUsers: () => ["messages", "allowed"] as const,
   /** 通知列表（前缀 ["notifications"] 可连带未读角标一起失效） */
   notifications: () => ["notifications"] as const,
   notificationBadge: () => ["notifications", "badge"] as const,
+  /** 话题搜索联想（composer-panels 与 topic-input 共享同一份缓存） */
+  topicsSearch: (q: string) => ["topics", "search", q] as const,
+  /** 关注/屏蔽关系（按用户名；follow-button 走 RSC refresh 不占键） */
+  relation: (username: string) => ["relation", username] as const,
 } as const;

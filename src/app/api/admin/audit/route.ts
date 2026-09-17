@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { modLogs, users } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
-import { pagination } from "@/app/api/admin/_shared";
+import { optionalUuid, pagination } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,7 +19,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const { limit, offset } = pagination(url);
     const action = (url.searchParams.get("action") ?? "").trim();
-    const adminId = (url.searchParams.get("adminId") ?? "").trim();
+    // 非法 UUID 直接 400，避免垃圾值打穿 drizzle eq(uuid) 变 PG 500
+    const adminId = optionalUuid(url, "adminId");
 
     const conds: SQL[] = [];
     if (action) conds.push(eq(modLogs.action, action));

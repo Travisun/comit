@@ -16,10 +16,32 @@ export function parseOrThrow<T>(schema: ZodType<T>, data: unknown): T {
 }
 
 /** Parse `limit`/`offset` query params with sane bounds. */
-export function pagination(url: URL): { limit: number; offset: number } {
-  const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 25, 1), 100);
-  const offset = Math.max(Number(url.searchParams.get("offset")) || 0, 0);
+export function pagination(
+  url: URL,
+  opts: { defaultLimit?: number; maxLimit?: number } = {},
+): { limit: number; offset: number } {
+  const { defaultLimit = 25, maxLimit = 100 } = opts;
+  // trunc 拦截浮点数：limit=12.5 会作为 12.5 传给 drizzle limit，PG 在
+  // bigint 上下文解析 '12.5' 报 invalid input syntax → 500
+  const limit = Math.trunc(
+    Math.min(Math.max(Number(url.searchParams.get("limit")) || defaultLimit, 1), maxLimit),
+  );
+  const offset = Math.trunc(Math.max(Number(url.searchParams.get("offset")) || 0, 0));
   return { limit, offset };
+}
+
+/**
+ * Optional UUID query-param guard: 空值放行（表示"不过滤"）；非空但格式
+ * 不对直接 400 —— 直传 drizzle `eq(x.uuidColumn, 垃圾值)` 会打穿成 PG
+ * `22P02 invalid input syntax for type uuid` 的 500。
+ */
+export function optionalUuid(url: URL, name: string): string | null {
+  const v = (url.searchParams.get(name) ?? "").trim();
+  if (!v) return null;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) {
+    throw new AppError(`${name} 参数格式错误 / Invalid ${name}`, 400, "bad_request");
+  }
+  return v;
 }
 
 /** Mask an email for display: `admin@myblogs.local` → `a***@myblogs.local`. */

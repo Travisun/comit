@@ -59,6 +59,7 @@ export interface AppEventPayloads {
     senderId: string;
     receiverId: string;
     excerpt: string;
+    /** 投递语义：webhook 扇出仅限收发双方当事人（见 webhooks/server.ts PARTICIPANT_SCOPED_EVENTS） */
   };
   // auth lifecycle（扩展可订阅：欢迎邮件、风控、外部系统同步…）
   "auth:login": { userId: string; ip?: string };
@@ -115,7 +116,16 @@ export function emit<K extends keyof AppEventPayloads>(
   name: K,
   payload: AppEventPayloads[K],
 ): Promise<void> {
-  return bus.emit(name, payload).then(() => undefined);
+  // 单点收口监听器异常：bus.emit 返回的 promise 在任一监听器（notifications/
+  // webhooks 扩展）抛错时 reject，调用方大量以 `void emit(...)` fire-and-forget，
+  // 若在此不接住就是 unhandledRejection（Node ≥15 默认终止进程）。
+  // 监听器自身的错误处理语义不受影响（错误只记日志，不向 emit 方传播）。
+  return bus.emit(name, payload).then(
+    () => undefined,
+    (err) => {
+      console.error(`[events] listener failed for "${String(name)}"`, err);
+    },
+  );
 }
 
 /**

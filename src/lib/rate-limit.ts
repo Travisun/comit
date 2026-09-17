@@ -51,6 +51,18 @@ g.__mbRateLimitDegradeLog = degradeLog;
 
 const MAX_KEYS = 10_000;
 
+/**
+ * 内存降级是 per-worker 计数（降级只发生在 Redis 与 PG 双双不可用时，往往
+ * 正是攻击窗口），cluster 多 worker 下同一客户端的请求被分摊到 N 个进程，
+ * 实际可打满 N × limit。按 WEB_CONCURRENCY（cluster fork 时已注入）折算
+ * 单进程阈值，保底 1 —— 全局总阈值 ≈ 配置阈值，宁紧勿松。
+ */
+function memLimit(limit: number): number {
+  const workers = Number(process.env.WEB_CONCURRENCY);
+  const n = Number.isFinite(workers) && workers >= 1 ? Math.floor(workers) : 1;
+  return Math.max(1, Math.ceil(limit / n));
+}
+
 function prune(now: number) {
   for (const [k, b] of store) {
     if (b.resetAt <= now) store.delete(k);
@@ -68,6 +80,7 @@ function prune(now: number) {
 
 /** 降级路径计数：窗口与 PG/Redis 一致按 epoch 对齐，超限抛 429 */
 function memRateLimit(key: string, limit: number, windowMs: number): void {
+  const effective = memLimit(limit);
   const now = Date.now();
   const windowStart = Math.floor(now / windowMs) * windowMs;
   const bucket = store.get(key);
@@ -77,7 +90,7 @@ function memRateLimit(key: string, limit: number, windowMs: number): void {
     return;
   }
   bucket.count += 1;
-  if (bucket.count > limit) throw tooMany();
+  if (bucket.count > effective) throw tooMany();
 }
 
 /**

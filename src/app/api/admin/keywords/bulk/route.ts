@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { db } from "@/db";
 import { keywords } from "@/db/schema";
-import { withAdmin, ok, jsonBody } from "@/lib/http"
+import { ok, jsonBody } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { parseOrThrow } from "@/app/api/admin/_shared";
 
