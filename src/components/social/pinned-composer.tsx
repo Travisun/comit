@@ -353,6 +353,11 @@ export function PinnedComposer({
           method: "POST",
           body: fd,
         });
+        if (isComment) {
+          // 评论正文即 markdown：图片完成上传后以独立行语法插入光标处
+          insertAtCursor(taRef.current, `![图片](${r.url})\n`, content, setContent);
+          return;
+        }
         setImages((prev) =>
           prev.map((i) => (i.key === item.key ? { ...i, status: "done", url: r.url } : i)),
         );
@@ -368,7 +373,7 @@ export function PinnedComposer({
         );
       }
     },
-    [router, t],
+    [router, t, content, isComment],
   );
 
   const uploadFiles = useCallback(
@@ -376,6 +381,17 @@ export function PinnedComposer({
       const imgs = files.filter((f) => f.type.startsWith("image/"));
       if (files.length > 0 && imgs.length === 0) {
         toast.error(zh ? "仅支持图片文件" : "Only image files are supported");
+        return;
+      }
+      if (isComment) {
+        // 评论模式：无瓦片/数量面板，直接上传并插入 markdown
+        for (const f of imgs) {
+          void uploadOne({
+            key: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            status: "uploading",
+            file: f,
+          });
+        }
         return;
       }
       const room = MAX_IMAGES - images.length;
@@ -398,7 +414,7 @@ export function PinnedComposer({
       setImages((prev) => [...prev, ...batch]);
       for (const item of batch) void uploadOne(item);
     },
-    [images.length, uploadOne, zh],
+    [images.length, uploadOne, isComment, zh],
   );
 
   const retryImage = useCallback(
@@ -679,8 +695,7 @@ export function PinnedComposer({
           </div>
         </div>
       )}
-      {expanded &&
-        (preview ? (
+      {(preview ? (
           /* 预览：与发布同一服务端渲染管线；图片默认居中、合适尺寸 */
           <div
             className={cn(
@@ -841,14 +856,21 @@ export function PinnedComposer({
             e.target.value = "";
           }}
         />
-        {!isComment && (
+        <ToolButton
+          label={zh ? "图片" : "Image"}
+          onClick={() => {
+            requestAnimationFrame(() => fileRef.current?.click());
+          }}
+        >
+          <ImagePlus className="size-[18px]" />
+        </ToolButton>
+        {isComment && (
           <ToolButton
-            label={zh ? "图片" : "Image"}
-            onClick={() => {
-              requestAnimationFrame(() => fileRef.current?.click());
-            }}
+            label={zh ? "预览" : "Preview"}
+            onClick={() => setPreview((v) => !v)}
+            active={preview}
           >
-            <ImagePlus className="size-[18px]" />
+            <Eye className="size-[18px]" />
           </ToolButton>
         )}
         <EmojiPopover label={zh ? "表情" : "Emoji"} onPick={(emoji) => {

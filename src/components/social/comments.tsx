@@ -29,6 +29,7 @@ import { patchJsonSafe } from "@/lib/client/api";
 import { openLoginDialog } from "@/lib/store/login-dialog";
 import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
 import { PinnedComposer } from "@/components/social/pinned-composer";
+import { ShortContent } from "@/components/social/short-content";
 
 export type { CommentItem };
 
@@ -387,14 +388,15 @@ export function Comments({
                     </span>
                   )}
                 </div>
-                <p
+                {/* 正文经 ShortContent 渲染：支持独立行图片（粘贴/选择上传的图片） */}
+                <div
                   className={cn(
-                    "reading-serif mt-0.5 whitespace-pre-wrap break-words text-sm leading-relaxed",
-                    c.solution ? "rounded-lg border-l-2 border-emerald-500/50 bg-emerald-500/5 px-2 py-1 text-foreground/90" : "text-foreground/90",
+                    "reading-serif mt-0.5 text-sm leading-relaxed",
+                    c.solution && "rounded-lg border-l-2 border-emerald-500/50 bg-emerald-500/5 px-2 py-1",
                   )}
                 >
-                  {c.body}
-                </p>
+                  <ShortContent content={c.body} className="text-sm text-foreground/90" />
+                </div>
                 <div className="mt-1 flex items-center gap-1">
                   <LikeButton
                     targetType="comment"
