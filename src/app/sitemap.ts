@@ -30,6 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         .where(eq(users.status, "active")),
       db
         .select({
+          id: posts.id,
           username: users.username,
           slug: posts.slug,
           updatedAt: posts.updatedAt,
@@ -52,9 +53,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.6,
       })),
       ...postRows
-        .filter((p): p is typeof p & { slug: string } => Boolean(p.slug))
         .map((p) => ({
-          url: `${base}${routes.article(p.slug)}`,
+          url: `${base}${routes.post(p.id)}`,
           lastModified: p.updatedAt,
           changeFrequency: "weekly" as const,
           priority: 0.8,

@@ -5,6 +5,7 @@ import { TOKEN_SCOPES } from "@/lib/tokens";
 import { getSettingsPageData, isSettingsTab } from "../_data";
 import { TimelineHeader } from "@/components/site-shell";
 import { getT } from "@/lib/i18n";
+import { routes } from "@/core/routes";
 
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,7 @@ export default async function SettingsTabPage({
     subdomain: "username",
     site: "username",
   };
-  if (tab in LEGACY) redirect(`/settings/${LEGACY[tab]}`);
+  if (tab in LEGACY) redirect(routes.settingsTab(LEGACY[tab])); // 统一走 routes
   if (!isSettingsTab(tab)) notFound();
 
   const auth = await requireUser();

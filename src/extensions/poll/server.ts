@@ -36,7 +36,7 @@ export async function processPollEnd(postId: string): Promise<void> {
     .where(eq(pollVotes.pollId, poll.id));
   const recipients = [...new Set([...voterRows.map((v) => v.userId), post.authorId])];
 
-  const url = post.slug ? routes.article(post.slug) : routes.shortPost(post.id);
+  const url = routes.post(post.id);
   const title = { zh: "投票已结束 · 结果出炉", en: "Poll ended — results are in" };
   const lead = leadLine(poll.options, tallies);
 

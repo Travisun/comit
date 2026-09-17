@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { cn } from "@/lib/utils";
+import { uploadImage } from "@/components/editor/upload";
+import { toast } from "sonner";
 
 /**
  * Vditor wrapper — visual markdown editor with real-time rendering (IR mode
@@ -118,26 +120,26 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
       },
       toolbar: [...TOOLBARS[toolbar]],
       upload: {
-        // paste/drop uploads post to our media endpoint (field: file, → {url});
-        // map the response into Vditor's succMap shape so the markdown gets
-        // the image link inserted automatically
-        url: "/api/media/upload",
-        fieldName: "file",
+        // paste/drop 上传统一走 editor/upload.ts 的 uploadImage（含预压缩 /
+        // HEIC 兜底，与 textarea 模式行为一致），再把结果映射成 Vditor 的
+        // succMap 形状让 markdown 自动插入图片链接。Vditor 的内建直传
+        // （upload.url）没有压缩环节，已弃用。
         max: 10 * 1024 * 1024,
         accept: "image/*",
-        format: (files: File[] | string, responseText: string) => {
-          try {
-            const res = JSON.parse(responseText) as { url?: string; filename?: string; error?: string };
-            if (!res.url) return JSON.stringify({ code: -1, msg: res.error ?? "上传失败" });
-            const fallback = Array.isArray(files) ? (files[0]?.name ?? "image") : String(files);
-            const name = res.filename || fallback || "image";
-            return JSON.stringify({
-              code: 0,
-              data: { errFiles: [], succMap: { [name]: res.url } },
-            });
-          } catch {
-            return JSON.stringify({ code: -1, msg: "上传失败" });
+        handler: async (files: File[]): Promise<string> => {
+          const errFiles: string[] = [];
+          const succMap: Record<string, string> = {};
+          for (const file of files ?? []) {
+            try {
+              const res = await uploadImage(file, "inline");
+              succMap[file.name || "image"] = res.url;
+            } catch (err) {
+              console.error("[vditor] upload failed:", err);
+              errFiles.push(file.name);
+              toast.error(err instanceof Error ? err.message : "上传失败");
+            }
           }
+          return JSON.stringify({ code: 0, data: { errFiles, succMap } });
         },
       },
       input: (md) => {

@@ -25,5 +25,5 @@ export default async function LegacyPostPage({ params }: Props) {
     .where(and(eq(users.username, decodedUser), eq(posts.slug, decodedSlug)))
     .limit(1);
 
-  redirect(routes.article(row?.slug ?? row?.id ?? decodedSlug));
+  redirect(routes.post(row?.id ?? decodedSlug));
 }

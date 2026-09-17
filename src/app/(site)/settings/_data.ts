@@ -6,7 +6,7 @@ import { listApiTokens } from "@/lib/tokens";
 import { listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
 
-import { bootPlugins, channels } from "@/core/plugins/registry";
+import { bootPlugins, channels } from "@/extensions/_boot/server";
 import { config } from "@/core/config";
 import type { SettingsTab, SettingsData } from "@/components/settings/types";
 
@@ -71,10 +71,9 @@ export async function getSettingsPageData(auth: {
   // registry is populated even if instrumentation has not run yet
   if (channels.size === 0) await bootPlugins();
 
-  const [twoFactorConfirmed] = await Promise.all([
-    Promise.resolve(false),
-    hasConfirmedTotp(u.id),
-  ]);
+  // 真值来自 totp 注册状态（历史缺陷：解构误取硬编码 false，导致已开启
+  // 2FA 的用户在安全面板永远看到"未开启"分支）
+  const twoFactorConfirmed = await hasConfirmedTotp(u.id);
 
   const [totp] = await db
     .select({ recoveryCodes: totpSecrets.recoveryCodes })

@@ -34,7 +34,13 @@ const eslintConfig = defineConfig([
     // 服务端出站调用（OAuth/webhooks/LLM）位于 src/lib、src/plugins、
     // src/app/api，不在本规则范围。
     files: ["src/components/**/*.{ts,tsx}", "src/app/**/*.{ts,tsx}"],
-    ignores: ["src/app/api/**/*.ts"],
+    ignores: [
+      "src/app/api/**/*.ts",
+      // 第二豁免（有意为之）：src/lib/client/error-report.ts 是错误上报通道，
+      // 必须零依赖裸 fetch —— 错误边界崩溃时 api.ts 本身可能就是嫌疑对象；
+      // keepalive fire-and-forget 语义也与传输层不同。除此之外浏览器侧
+      // 一律禁直接 fetch（架构铁律 1）。
+    ],
     rules: {
       "no-restricted-globals": [
         "error",

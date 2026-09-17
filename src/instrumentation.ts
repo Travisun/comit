@@ -7,7 +7,7 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   try {
-    const { bootPlugins } = await import("@/core/plugins/registry");
+    const { bootPlugins } = await import("@/extensions/_boot/server");
     await bootPlugins();
     const { startWorkers } = await import("@/core/workers");
     await startWorkers();

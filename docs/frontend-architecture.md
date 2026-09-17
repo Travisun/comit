@@ -233,7 +233,16 @@ src/plugins.client/poll.tsx   投票插件（feed:row:after + post:detail:after�
   TanStack Query（普通 fetch）也持续减少触发面。
 - **成功响应的两种形状**：动作用 `ok({ ok: true })`、列表用
   `Paginated<T>`，不要发明第三种。
-- Zustand persist 的旧 localStorage 键（`unread-seen:*`）未做迁移，
-  升级后首次未读计数可能偏高，一次点击即归零。
+- Zustand persist 旧键迁移已完成（v2 `migrate` 读取 `unread-seen:*` 并清除）。
+- **已知迁移债（2026-09 盘点，按优先级）**：
+  1. query key 字面量未入厂：admin 域 ~13 处、settings 域 4 处、signature 扩展
+     1 处（机械提升进 `queryKeys`，别再新增字面量）；
+  2. 组件超 400 行约定失守：pinned-composer(1277)、profile-view(674)、
+     composer-panels(578)、article-editor(568) 等 —— 触碰时拆；
+  3. settings 域数据层未按 queries.ts + models 规范落位（`_data.ts` 手写装配、
+     settings/types.ts 手写 DTO、面板 HTTP 重取与 page data 重复计算）；
+  4. `resolveSingleUser` 位于 profile-view 组件文件内且返回整行 db User
+     （两端皆 server 组件无泄露，但绕过 queries.ts 铁律）——迁回 queries.ts
+     并做列投影。
 - pnpm v10+ 对新依赖的构建脚本需 `pnpm approve-builds` 批准；TanStack
   Query / Zustand 为纯 JS 包，无构建脚本，不受影响。

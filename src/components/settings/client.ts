@@ -2,6 +2,7 @@
 
 import { deleteJson, patchJson, postJson, putJson, requestJson } from "@/lib/client/api";
 import { uploadImage as uploadMedia } from "@/components/editor/upload";
+import { routes } from "@/core/routes";
 
 /** Settings 域客户端 — 各设置面板共享的 API/剪贴板助手。
  * 传输统一委托 lib/client/api，本文件只保留域语义入口。 */
@@ -62,7 +63,7 @@ export async function uploadImage(
 }
 
 export function mediaUrl(path: string | null | undefined): string | null {
-  return path ? `/api/media/file/${path}` : null;
+  return path ? routes.media(path) : null; // 统一走 routes（原手拼与 routes.media 重复实现）
 }
 
 export function deviceLabel(ua: string | null): string {

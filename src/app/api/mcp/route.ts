@@ -6,7 +6,7 @@ import {
   mcpErrorResponse,
   MCP_SERVER_INFO,
 } from "@/lib/mcp-transport";
-import { mcpTools } from "@/core/plugins/registry";
+import { mcpTools } from "@/extensions/_boot/server";
 import { AppError } from "@/core/errors";
 import { assertNotUnderMaintenance } from "@/lib/maintenance";
 import { MCP_MUTATING_TOOLS } from "@/extensions/mcp/server";

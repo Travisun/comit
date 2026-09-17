@@ -365,7 +365,7 @@ export async function getFollowState(viewerId: string | null | undefined, target
 /** Monthly archive groups (published public posts), newest first. */
 export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
   const rows = await db
-    .select({ title: posts.title, slug: posts.slug, publishedAt: posts.publishedAt })
+    .select({ id: posts.id, title: posts.title, slug: posts.slug, publishedAt: posts.publishedAt })
     .from(posts)
     .where(
       and(
@@ -388,7 +388,7 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
       groups.set(key, g);
     }
     g.count += 1;
-    g.posts.push({ title: r.title, slug: r.slug, publishedAt: d.toISOString() });
+    g.posts.push({ id: r.id, title: r.title, slug: r.slug, publishedAt: d.toISOString() });
   }
   return [...groups.values()];
 }

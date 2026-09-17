@@ -8,5 +8,7 @@ import type { FeedItemDTO } from "./types";
  * cannot be invoked from the server.
  */
 export function postHref(post: FeedItemDTO["post"]): string {
-  return post.slug ? routes.article(post.slug) : routes.shortPost(post.id);
+  // canonical：/post/{internalId}（短动态与长文统一；slug 旧链接仍由
+  // /post/[slug] 路由兼容解析）
+  return routes.post(post.id);
 }

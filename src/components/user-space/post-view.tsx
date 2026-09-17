@@ -77,7 +77,7 @@ export async function PostView({
             blogPostingJsonLd({
               post,
               author: { displayName: author.displayName, username: author.username },
-              url: `${config.app.url}${routes.article(post.slug ?? post.id)}`,
+              url: `${config.app.url}${routes.post(post.id)}`,
               topics: topics.map((t) => t.name),
             }),
           ),
@@ -232,7 +232,7 @@ export async function PostView({
 
         {viaSubdomain && (
           <p className="mt-10 text-center text-xs text-muted-foreground">
-            由 {config.app.name} 驱动 · {routes.article(post.slug ?? post.id)}
+            由 {config.app.name} 驱动 · {routes.post(post.id)}
           </p>
         )}
       </article>

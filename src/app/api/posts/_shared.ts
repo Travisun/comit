@@ -2,7 +2,7 @@ import { nanoid } from "nanoid";
 import { z } from "zod";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { collections, postTopics, posts, topics } from "@/db/schema";
+import { collections, postTopics, posts, topics, type Post } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { makeExcerpt, slugifyTitle } from "@/lib/utils";
@@ -249,4 +249,44 @@ export function blockedResponse(blocked: string[]): Response {
 export function ensureSummary(summary: string | null | undefined, content: string): string {
   const trimmed = (summary ?? "").trim();
   return (trimmed || makeExcerpt(content)).slice(0, 500);
+}
+
+/**
+ * 带生命周期钩子的帖子更新（原 src/lib/post-repo.ts 唯一存活能力，仓储层
+ * 已退役收编至此 —— create 的钩子语义由 /api/posts 的事务内联实现承担）。
+ * 触发 post:saving（扩展可 reject → 422）与 post:saved（提交后）。
+ */
+export async function updatePostWithHooks(
+  postId: string,
+  values: Partial<typeof posts.$inferInsert>,
+  author: { id: string; username: string; role: string },
+): Promise<Post> {
+  const { runPostSaving, runPostSaved } = await import("@/core/capabilities/post-lifecycle");
+  const payload: Record<string, unknown> = { ...values };
+  const ctx = {
+    action: "update" as const,
+    postId,
+    payload,
+    author,
+    rejection: null as string | null,
+    reject(reason: string) {
+      ctx.rejection = reason;
+    },
+  };
+  await runPostSaving(ctx);
+  if (ctx.rejection) {
+    const { AppError } = await import("@/core/errors");
+    throw new AppError(ctx.rejection, 422, "extension_rejected");
+  }
+  const [row] = await db
+    .update(posts)
+    .set(payload as Partial<typeof posts.$inferInsert>)
+    .where(eq(posts.id, postId))
+    .returning();
+  await runPostSaved({
+    action: "update",
+    post: { id: row.id, type: row.type, status: row.status, title: row.title },
+    author: { id: author.id },
+  });
+  return row;
 }

@@ -267,7 +267,7 @@ async function notifyCommentCreated(p: {
       .limit(1);
     if (!post) return; // 帖子已被删除
     const actorName = await actorNameOf(p.commenterId);
-    const base = post.slug ? routes.article(post.slug) : routes.shortPost(p.postId);
+    const base = routes.post(p.postId);
     const kindZh = post.type === "short" ? "动态" : "文章";
     const postTitle = post.title ?? `（无标题${kindZh}）`; // 短动态可无 title
     await deliver(p.postAuthorId, {

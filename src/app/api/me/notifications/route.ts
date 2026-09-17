@@ -6,7 +6,7 @@ import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DEFAULT_CHANNELS } from "@/extensions/notifications/server";
-import { channels } from "@/core/plugins/registry";
+import { channels } from "@/extensions/_boot/server";
 import { NOTIFICATION_EVENTS } from "@/components/settings/types";
 import { parseOrThrow } from "../_shared";
 

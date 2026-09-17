@@ -7,7 +7,7 @@ import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { preSubmitCheck } from "@/lib/moderation";
 import { authorize } from "@/core/capabilities/policies";
-import { postRepo } from "@/lib/post-repo";
+import { updatePostWithHooks } from "../_shared";
 import {
   assertCollectionOwned,
   blockedResponse,
@@ -139,7 +139,7 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
         ? "pending_review"
         : (body.status ?? post.status);
 
-    const updated = await postRepo.update(
+    const updated = await updatePostWithHooks(
       post.id,
       {
         title,

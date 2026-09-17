@@ -93,19 +93,17 @@ async function ArchivesLazy({ userId }: { userId: string }) {
                       <span>{g.count}</span>
                     </summary>
                     <ul className="mt-1 space-y-1">
-                      {g.posts.map((p, i) =>
-                        p.slug ? (
-                          <li key={i}>
-                            <Link
-                              href={routes.article(p.slug)}
-                              className="block truncate rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-primary"
-                              title={p.title ?? undefined}
-                            >
-                              {p.title ?? "Untitled"}
-                            </Link>
-                          </li>
-                        ) : null,
-                      )}
+                      {g.posts.map((p, i) => (
+                        <li key={i}>
+                          <Link
+                            href={routes.post(p.id)}
+                            className="block truncate rounded px-2 py-0.5 text-xs text-muted-foreground hover:text-primary"
+                            title={p.title ?? undefined}
+                          >
+                            {p.title ?? "Untitled"}
+                          </Link>
+                        </li>
+                      ))}
                     </ul>
                   </details>
                 ))}
@@ -155,16 +153,14 @@ async function HotPostsWidget({ user }: { user: User }) {
             >
               {i + 1}
             </span>
-            {it.post.slug ? (
+            {
               <Link
-                href={routes.article(it.post.slug ?? it.post.id)}
+                href={routes.post(it.post.id)}
                 className="line-clamp-2 text-sm leading-snug hover:text-primary"
               >
                 {it.post.title ?? "Untitled"}
               </Link>
-            ) : (
-              <span className="line-clamp-2 text-sm leading-snug">{it.post.title ?? "Untitled"}</span>
-            )}
+            }
           </li>
         ))}
       </ol>

@@ -50,11 +50,11 @@ export default async function TopicPage({ params, searchParams }: Props) {
     "rounded-full border border-border px-4 py-1.5 font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]";
 
   return (
-    <div className="min-h-dvh w-full max-w-[600px]">
-      <TimelineHeader title={`# ${topic.name}`} subtitle={`${topic.postCount} 条公开内容`} />
+    <div className="min-h-dvh w-full pt-[10px]">
+      <TimelineHeader title={`# ${topic.name}`} subtitle={`${topic.postCount} 条公开内容`} paddingClass="px-5" />
 
       {topic.description && (
-        <p className="border-b border-border px-4 py-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="border-b border-border px-5 py-3 text-sm leading-relaxed text-muted-foreground">
           {topic.description}
         </p>
       )}
@@ -62,7 +62,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
       {/* post stream — X-style rows */}
       <div>
         {items.length === 0 ? (
-          <div className="px-6 py-14 text-center text-sm text-muted-foreground">
+          <div className="px-4 py-16 text-center text-sm text-muted-foreground">
             该话题下还没有公开内容
           </div>
         ) : (
@@ -95,7 +95,7 @@ export default async function TopicPage({ params, searchParams }: Props) {
       </div>
 
       {(page > 0 || nextOffset !== null) && (
-        <nav className="flex items-center justify-between px-4 py-4 text-sm" aria-label="Pagination">
+        <nav className="flex items-center justify-between px-5 py-4 text-sm" aria-label="Pagination">
           {page > 0 ? (
             <Link href={pageHref(page - 1)} className={pagerCls}>
               上一页

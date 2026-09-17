@@ -1,10 +1,50 @@
 import { config } from "./config";
 
 /**
- * Named route registry (Laravel `route()` equivalent). All internal links are
- * generated through this so path shapes change in one place. Subdomain-aware
- * absolute helpers live at the bottom.
+ * Named route registry (Laravel `route()` / urlcat equivalent). All internal
+ * links are generated through this so path shapes change in one place.
+ *
+ * 动态路由统一经 `buildPath` 模板生成（path-to-regexp 风格的 ":param" 段，
+ * 参数自动 encodeURIComponent），模板集中在下方 `TPL` —— 路由形状调整
+ * 只改模板，所有调用点自动跟随。参考实现：path-to-regexp / urlcat /
+ * Laravel route() helpers。
  */
+
+/**
+ * 模板化路径生成：":param" 段替换为 encodeURIComponent 后的参数值。
+ * 缺参直接抛错（URL 拼错宁可炸在开发期，不带病上线）。
+ */
+export function buildPath(
+  template: string,
+  params: Record<string, string | number> = {},
+): string {
+  return template.replace(/:([A-Za-z0-9_]+)/g, (_m, key: string) => {
+    const v = params[key];
+    if (v === undefined || v === null) {
+      throw new Error(`[routes] missing param "${key}" for template "${template}"`);
+    }
+    return encodeURIComponent(String(v));
+  });
+}
+
+/** 动态路由模板 — URL 形状的唯一出处（结构变更只改这里）。 */
+export const TPL = {
+  /** 个人主页：/{username}（proxy 把单段路径 rewrite 到 /u/{username}） */
+  userProfile: "/:username",
+  /** 帖子 permalink：/post/{internalId}（短动态与长文统一，slug 旧链接兼容解析） */
+  post: "/post/:id",
+  userPostLegacy: "/u/:username/posts/:slug",
+  topic: "/topics/:slug",
+  userCollection: "/u/:username/collections/:slug",
+  userRss: "/u/:username/feed.xml",
+  editorEdit: "/write/:postId",
+  conversation: "/messages/:userId",
+  resetPassword: "/auth/reset",
+  oauthStart: "/api/auth/oauth/:provider",
+  oauthCallback: "/api/auth/oauth/callback/:provider",
+  media: "/api/media/file/:path",
+} as const;
+
 export const routes = {
   // public
   home: "/",
@@ -12,7 +52,7 @@ export const routes = {
   following: "/following",
   feed: "/feed",
   explore: "/explore",
-  topic: (slug: string) => `/topics/${slug}`,
+  topic: (slug: string) => buildPath(TPL.topic, { slug }),
   archive: () => "/archive",
 
   // auth
@@ -20,41 +60,48 @@ export const routes = {
   register: "/auth/register",
   verifyEmail: "/auth/verify",
   forgotPassword: "/auth/forgot",
-  resetPassword: (token: string) => `/auth/reset?token=${encodeURIComponent(token)}`,
+  resetPassword: (token: string) =>
+    `${buildPath(TPL.resetPassword)}?token=${encodeURIComponent(token)}`,
   twofaSetup: "/auth/2fa/setup",
   twofaChallenge: "/auth/2fa/challenge",
-  oauthStart: (provider: string) => `/api/auth/oauth/${provider}`,
-  oauthCallback: (provider: string) => `/api/auth/oauth/callback/${provider}`,
+  oauthStart: (provider: string) => buildPath(TPL.oauthStart, { provider }),
+  oauthCallback: (provider: string) => buildPath(TPL.oauthCallback, { provider }),
   discourseSso: "/api/auth/sso/discourse",
 
-  // user space (path-based; rewritten from subdomains by middleware)
-  profile: (username: string) => `/u/${username}`,
+  // user space —— canonical 主页即 /{username}（proxy rewrite 到 /u/{username}，
+  // /u/… 直链继续可用；页面 canonical metadata 统一指向短形态）
+  profile: (username: string) => buildPath(TPL.userProfile, { username }),
   profileTab: (username: string, tab: "posts" | "short" | "collections" | "about") =>
-    `/u/${username}?tab=${tab}`,
-  post: (username: string, slug: string) => `/u/${username}/posts/${slug}`,
-  /** Canonical article permalink — opaque short id, author-independent. */
-  article: (idOrSlug: string) => `/post/${idOrSlug}`,
-  collection: (username: string, slug: string) => `/u/${username}/collections/${slug}`,
-  shortPost: (id: string) => `/p/${id}`,
-  userRss: (username: string) => `/u/${username}/feed.xml`,
+    `${buildPath(TPL.userProfile, { username })}?tab=${tab}`,
+  /** Legacy author-scoped article URL（保留旧链接解析，canonical 用 post） */
+  userPost: (username: string, slug: string) =>
+    buildPath(TPL.userPostLegacy, { username, slug }),
+  /**
+   * Canonical post permalink — /post/{internalId}，短动态与长文统一
+   * （slug 旧链接由 /post/[slug] 路由兼容解析）。
+   */
+  post: (id: string) => buildPath(TPL.post, { id }),
+  collection: (username: string, slug: string) =>
+    buildPath(TPL.userCollection, { username, slug }),
+  userRss: (username: string) => buildPath(TPL.userRss, { username }),
 
   // creator
   editorNew: (type: "article" | "short" = "article") =>
     type === "article" ? "/write" : "/write?type=short",
-  editorEdit: (postId: string) => `/write/${postId}`,
+  editorEdit: (postId: string) => buildPath(TPL.editorEdit, { postId }),
 
   // user settings
   settings: () => "/settings/profile",
   settingsTab: (tab: string) => `/settings/${tab}`,
   notifications: "/notifications",
   messages: "/messages",
-  conversation: (userId: string) => `/messages/${userId}`,
+  conversation: (userId: string) => buildPath(TPL.conversation, { userId }),
 
   // admin
   admin: (path = "") => `/admin${path}`,
 
   // assets / data
-  media: (relativePath: string) => `/api/media/file/${relativePath}`,
+  media: (relativePath: string) => buildPath(TPL.media, { path: relativePath }),
   globalRss: "/feed.xml",
   sitemap: "/sitemap.xml",
   export: "/api/export",

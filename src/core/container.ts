@@ -4,7 +4,7 @@ import { hooks } from "./hooks";
 import { queue } from "./queue";
 import { config } from "./config";
 import { routes, absolute } from "./routes";
-import { channels, mcpTools, widgets, adminSections } from "./plugins/registry";
+import { channels, mcpTools, widgets, adminSections } from "./plugins/types";
 
 /**
  * Application service locator / facade (Laravel `app()` equivalent).

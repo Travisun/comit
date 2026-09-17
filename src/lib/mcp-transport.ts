@@ -10,7 +10,7 @@ import {
   type JSONRPCRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { mcpTools, bootPlugins } from "@/core/plugins/registry";
+import { mcpTools, bootPlugins } from "@/extensions/_boot/server";
 
 /**
  * MCP over Streamable HTTP (stateless mode), hand-rolled on the SDK:

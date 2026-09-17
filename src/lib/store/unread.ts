@@ -27,8 +27,28 @@ export const useUnreadSeenStore = create<UnreadSeenState>()(
     }),
     {
       name: "unread-seen.v2",
+      version: 2,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ seen: s.seen }),
+      // v1 迁移：旧键 unread-seen:{latest|following|messages}（扁平三键）→
+      // 写入新结构并清除，消除升级后未读数一次性虚高
+      migrate: (state) => {
+        try {
+          const legacy: Partial<Record<"latest" | "following" | "messages", number>> = {};
+          for (const k of ["latest", "following", "messages"] as const) {
+            const raw = localStorage.getItem(`unread-seen:${k}`);
+            if (raw) {
+              const n = Number(raw);
+              if (Number.isFinite(n)) legacy[k] = n;
+              localStorage.removeItem(`unread-seen:${k}`);
+            }
+          }
+          const merged = { latest: 0, following: 0, messages: 0, ...(state as { seen?: object })?.seen, ...legacy };
+          return { seen: merged };
+        } catch {
+          return state as { seen: Record<string, number> };
+        }
+      },
     },
   ),
 );
