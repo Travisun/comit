@@ -49,6 +49,12 @@
 
 ## 四、flight 竞态回归时的恢复预案（补丁退役通道）
 
+> **✅ 已激活（2026-09-17）**：纯净环境下竞态在真实使用中复发 —— Chrome 悬停
+> 触发 dynamicOnHover 预取，快速导航时预取流与导航流交叠，日志捕获
+> `enqueueModel` 崩溃 7 次（/explore 等）。按本节流程恢复补丁；实例守卫
+> v2 在 `pnpm install` 时自动清缓存（日志见 [instance-guard]），恢复过程
+> 无混代际风险。补丁退役结论保持有效：等 16.4 stable 含上游修复后再退役。
+
 上游状态：截至 `next@16.4.0-canary.33`，`resolveModelChunk` 的
 `chunk.reason.enqueueModel` 仍无守卫（已实测 canary 产物），即该竞态为 React
 flight 客户端已知缺陷、Next 稳定版尚无修复可升。若纯净环境下竞态频繁回落为硬崩溃：

@@ -18,6 +18,12 @@ onlyBuiltDependencies:
   - unrs-resolver
   - workerd
 
+# 2026-09-17：flight 竞态在纯净环境真实使用中复发（Chrome 悬停预取触发，
+# 日志 enqueueModel 崩溃 7 次）→ 按 docs/runbook-dev-cache.md §4 恢复补丁。
+# 有实例守卫 v2 兜底，本次实例切换自动清 .next/dev，不会再引发缓存混代际。
+patchedDependencies:
+  next@16.3.5: patches/next@16.3.5.patch
+
 # 2026-09-16 起 next@16.3.5 不再打 pnpm patch（flight-fix 已退役）：
 # 补丁会更换 next 的安装实例目录（patch_hash 路径），每次增删改补丁都制造
 # 一次「实例代际切换」，是 .next/dev 持久缓存与新代际模块混用的主要诱因，
