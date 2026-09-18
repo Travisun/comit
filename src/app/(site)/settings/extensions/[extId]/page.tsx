@@ -44,8 +44,8 @@ export default async function ExtensionSettingsPage({
       <TimelineHeader back title={manifest.title.zh} />
       <div className="mx-auto w-full max-w-[600px] pb-10">
         <SettingsSection>
+          {/* 标题即页面标题（TimelineHeader），正文不再重复扩展名 */}
           <SettingsSectionHeader
-            title={zh ? manifest.title.zh : manifest.title.en}
             description={
               manifest.description
                 ? zh
