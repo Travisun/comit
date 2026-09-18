@@ -226,6 +226,7 @@ const plugin: Plugin = {
     ctx.events.on("moderation:review.completed", (p) => void notifyModerationCompleted(p));
     // ---- 互动与管理处置通知（点赞 / 回复 / 解决方案 / 举报处理 / 人工审核 / 内容删除）
     ctx.events.on("post:liked", (p) => void notifyPostLiked(p));
+    ctx.events.on("post:reposted", (p) => void notifyPostReposted(p));
     ctx.events.on("comment:liked", (p) => void notifyCommentLiked(p));
     ctx.events.on("comment:solved", (p) => void notifyCommentSolved(p));
     ctx.events.on("post:approved", (p) => void notifyPostApproved(p));
@@ -267,6 +268,39 @@ async function notifyPostLiked(p: {
     });
   } catch (err) {
     console.error("[notify] post:liked listener failed:", err);
+  }
+}
+
+/** 帖子被转发：通知帖子作者（自转跳过）。 */
+async function notifyPostReposted(p: {
+  postId: string;
+  actorId: string;
+  authorId: string;
+}): Promise<void> {
+  try {
+    if (p.actorId === p.authorId) return;
+    const [post] = await db
+      .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    if (!post) return;
+    const actorName = await actorNameOf(p.actorId);
+    const kindZh = post.type === "short" ? "动态" : "文章";
+    const postTitle = post.title ?? `（无标题${kindZh}）`;
+    await deliver(p.authorId, {
+      key: "post.reposted",
+      title: { zh: postTitle, en: postTitle },
+      body: {
+        zh: `${actorName} 转发了你的${kindZh}`,
+        en: `${actorName} reposted your ${post.type === "short" ? "post" : "article"}`,
+      },
+      url: routes.post(post.publicId),
+      actorId: p.actorId,
+      payload: { postId: p.postId, actorName },
+    });
+  } catch (err) {
+    console.error("[notify] post:reposted listener failed:", err);
   }
 }
 

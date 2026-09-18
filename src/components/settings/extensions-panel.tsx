@@ -1,220 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input, Label, Textarea } from "@/components/ui/input";
-import {
-  SettingsPanelList,
-  SettingsSection,
-  SettingsSectionHeader,
-} from "@/components/ui/settings";
-import { SwitchRow } from "@/components/admin/switch-row";
-import { VirtualSelect } from "@/components/ui/virtual-select";
-import { useApiMutation } from "@/lib/query/mutation";
-import { apiRequest } from "./client";
-import type { SettingsData } from "./types";
+import Link from "next/link";
+import { ChevronRight, Puzzle } from "lucide-react";
+import { SettingsSection, SettingsSectionHeader } from "@/components/ui/settings";
 import { EXTENSION_MANIFESTS } from "@/extensions/_boot/manifests";
-import type { SettingFieldDef } from "@/core/capabilities/manifest";
+import type { SettingsData } from "./types";
 
 /**
- * 设置 → 扩展 — 已注册扩展的统一设置入口。
- * 每个扩展的表单由其 manifest 的 settingsFields 声明驱动（自动表单），
- * 控件统一使用平台 UI 原语（Input / Textarea / SwitchRow / VirtualSelect / Radio）。
- * 需要自定义 UI 的扩展可在 extensions/_boot/registry.ts 覆盖面板。
+ * 设置 → 扩展 — 三级架构的列表层：仅展示**注册了前台设置项**的扩展
+ * （manifest.settingsFields 非空；纯后台能力的扩展不在此出现）。
+ * 点击行进入 扩展子设置页 /settings/extensions/[extId]（表单层）。
+ * 管理员级扩展配置（启停、全局参数）在管理后台，与本页（用户级、按
+ * 用户隔离存储）权限边界互不重叠 —— 详见 core/capabilities/manifest.ts。
  */
-
-/** 单个设置字段的标签 + 描述 + 控件渲染（统一平台 UI 原语）。 */
-function FieldRow({
-  field,
-  value,
-  onChange,
-}: {
-  field: SettingFieldDef;
-  value: unknown;
-  onChange: (v: unknown) => void;
-}) {
-  const label = (
-    <Label htmlFor={`ext-${field.key}`} className="text-sm font-medium">
-      {field.label}
-    </Label>
-  );
-  const desc = field.description ? (
-    <p className="text-xs text-muted-foreground">{field.description}</p>
-  ) : null;
-
-  switch (field.type) {
-    case "boolean":
-      return (
-        <div className="space-y-1">
-          <SwitchRow
-            label={field.label}
-            description={field.description}
-            checked={Boolean(value)}
-            onCheckedChange={onChange as (v: boolean) => void}
-            last
-          />
-        </div>
-      );
-    case "textarea":
-      return (
-        <div className="space-y-1.5">
-          {label}
-          <Textarea
-            id={`ext-${field.key}`}
-            value={String(value ?? "")}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder}
-            maxLength={field.maxLength}
-            rows={3}
-          />
-          {desc}
-        </div>
-      );
-    case "select":
-      return (
-        <div className="space-y-1.5">
-          {label}
-          <VirtualSelect
-            value={String(value ?? "")}
-            options={(field.options ?? []).map((o) => ({ value: o.value, label: o.label }))}
-            onChange={onChange as (v: string) => void}
-            className="max-w-xs"
-          />
-          {desc}
-        </div>
-      );
-    case "radio":
-      return (
-        <div className="space-y-1.5">
-          {label}
-          <div className="flex flex-wrap gap-3">
-            {(field.options ?? []).map((o) => (
-              <label key={o.value} className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
-                <input
-                  type="radio"
-                  name={`ext-${field.key}`}
-                  value={o.value}
-                  checked={String(value ?? "") === o.value}
-                  onChange={() => onChange(o.value)}
-                  className="accent-[var(--primary)]"
-                />
-                {o.label}
-              </label>
-            ))}
-          </div>
-          {desc}
-        </div>
-      );
-    case "number":
-      return (
-        <div className="space-y-1.5">
-          {label}
-          <Input
-            id={`ext-${field.key}`}
-            type="number"
-            value={value === undefined || value === "" ? "" : String(value)}
-            onChange={(e) => onChange(e.target.value === "" ? "" : Number(e.target.value))}
-            className="max-w-32"
-          />
-          {desc}
-        </div>
-      );
-    default:
-      return (
-        <div className="space-y-1.5">
-          {label}
-          <Input
-            id={`ext-${field.key}`}
-            value={String(value ?? "")}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={field.placeholder}
-            maxLength={field.maxLength}
-            className="max-w-xs"
-          />
-          {desc}
-        </div>
-      );
-  }
-}
-
-function ExtensionForm({
-  id,
-  fields,
-  initial,
-}: {
-  id: string;
-  fields: SettingFieldDef[];
-  initial: Record<string, unknown>;
-}) {
-  const [values, setValues] = useState<Record<string, unknown>>(initial);
-
-  const saveMutation = useApiMutation(
-    (payload: Record<string, unknown>) => apiRequest(`/api/me/ext/${id}/settings`, "PUT", payload),
-    { successToast: "已保存" },
-  );
-
-  function save() {
-    void saveMutation.mutate(values);
-  }
-
-  return (
-    <div className="space-y-4">
-      {fields.map((field) => (
-        <div key={field.key}>
-          <FieldRow
-            field={field}
-            value={values[field.key]}
-            onChange={(v) => setValues((prev) => ({ ...prev, [field.key]: v }))}
-          />
-        </div>
-      ))}
-      <Button size="sm" onClick={() => save()} disabled={saveMutation.pending}>
-        {saveMutation.pending ? "保存中…" : "保存"}
-      </Button>
-    </div>
-  );
-}
-
 export function ExtensionsPanel({ data }: { data: SettingsData }) {
-  if (EXTENSION_MANIFESTS.length === 0) {
+  void data; // 列表层不消费设置值（子页经 /api/me/ext/<id>/settings 拉取）
+  const configurable = EXTENSION_MANIFESTS.filter((m) => (m.settingsFields?.length ?? 0) > 0);
+
+  if (configurable.length === 0) {
     return (
       <SettingsSection>
-        <SettingsSectionHeader description="尚未安装任何扩展。" />
+        <SettingsSectionHeader description="当前没有提供前台设置项的扩展。" />
       </SettingsSection>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <SettingsSection>
-        <SettingsSectionHeader
-          description="以下设置由各扩展注册，数据按扩展命名空间隔离存储。"
-        />
-        <SettingsPanelList>
-          {EXTENSION_MANIFESTS.map((m) => (
-            <div key={m.id} className="px-4 py-4">
-              <div className="mb-3">
-                <p className="text-sm font-semibold">
+    <SettingsSection>
+      <SettingsSectionHeader description="以下扩展提供个人偏好设置，数据按扩展命名空间隔离存储；点击进入具体设置。" />
+      <ul>
+        {configurable.map((m) => (
+          <li key={m.id}>
+            <Link
+              href={`/settings/extensions/${m.id}`}
+              className="flex items-center gap-2.5 rounded-lg px-2 py-3 transition-colors hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] focus-visible:outline-none"
+            >
+              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--muted)] text-muted-foreground">
+                <Puzzle className="size-4" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                   {m.title.zh}
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                  <span className="text-xs font-normal text-muted-foreground">
                     {m.id} · v{m.version}
                   </span>
-                </p>
-                {m.description && <p className="mt-0.5 text-xs text-muted-foreground">{m.description.zh}</p>}
-              </div>
-              {(m.settingsFields?.length ?? 0) > 0 ? (
-                <ExtensionForm
-                  id={m.id}
-                  fields={m.settingsFields ?? []}
-                  initial={data.extSettings[m.id] ?? {}}
-                />
-              ) : (
-                <p className="text-xs text-muted-foreground">此扩展没有可配置项。</p>
-              )}
-            </div>
-          ))}
-        </SettingsPanelList>
-      </SettingsSection>
-    </div>
+                </span>
+                {m.description && (
+                  <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                    {m.description.zh}
+                  </span>
+                )}
+              </span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </SettingsSection>
   );
 }

@@ -236,6 +236,13 @@ export async function publishComment(
       replyToUserId: comment.replyToUserId ?? null,
       excerpt: makeExcerpt(comment.body, 120),
     });
+    // 评论过审（LLM 自动 / 管理员人工）→ 通知评论作者「已通过审核并公开」
+    void emit("moderation:review.completed", {
+      postId: comment.postId,
+      commentId: comment.id,
+      approved: true,
+      by: moderation?.reviewedBy === "llm" ? "llm" : "manual",
+    });
   }
 }
 
