@@ -194,6 +194,35 @@ export const totpSecrets = pgTable("totp_secrets", {
   lastUsedStep: bigint("last_used_step", { mode: "number" }),
 });
 
+/** WebAuthn 通行密钥（Passkey）凭据 — 用户可注册多把，credentialId 全站唯一 */
+export const passkeyCredentials = pgTable(
+  "passkey_credentials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 120 }).notNull(),
+    /** base64url(WebAuthn credential ID)，注册时由认证器生成 */
+    credentialId: text("credential_id").notNull(),
+    /** base64url(COSE 公钥) — 验签用 */
+    publicKey: text("public_key").notNull(),
+    /** 签名计数器（防克隆检测；认证器不支持时恒 0） */
+    counter: integer("counter").notNull().default(0),
+    transports: jsonb("transports").$type<string[]>().default([]).notNull(),
+    /** multiDevice（同步到密钥串/云）| singleDevice（仅本机） */
+    deviceType: varchar("device_type", { length: 32 }).notNull().default("singleDevice"),
+    backedUp: boolean("backed_up").notNull().default(false),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("passkey_credentials_cid_key").on(t.credentialId),
+    index("passkey_credentials_user_idx").on(t.userId),
+  ],
+);
+
+
 /** 分布式限流（固定窗口计数；进程内 Map 的 PG 后备，多 worker 共享阈值）— 无外键，过期行由 retention cron 清理 */
 export const rateLimits = pgTable(
   "rate_limits",

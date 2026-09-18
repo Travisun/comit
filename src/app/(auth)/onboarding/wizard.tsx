@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
-import { apiUpload, mediaPathFromUrl, postJsonSafe } from "@/lib/client/api";
+import { apiUpload, mediaPathFromUrl, postJsonSafe, putJsonSafe } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 
 /**
@@ -84,7 +84,8 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
   );
 
   async function saveProfile(patch: Record<string, unknown>) {
-    const r = await postJsonSafe("/api/me/profile", patch);
+    // PUT /api/me/profile（该路由只有 PUT；旧实现用 POST 恒 405，资料静默丢失）
+    const r = await putJsonSafe("/api/me/profile", patch);
     return r.ok;
   }
 

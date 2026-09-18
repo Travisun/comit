@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError, forbidden } from "@/core/errors";
@@ -20,10 +20,14 @@ const BAD_CREDENTIALS = "邮箱或密码错误 / Incorrect email or password";
 // 也对其跑一遍同样的 scrypt 验证，使响应耗时与真实用户一致，防枚举。
 const DUMMY_HASH = `scrypt$16384$${"0".repeat(32)}$${"0".repeat(128)}`;
 
-const schema = z.object({
-  email: z.string().trim().toLowerCase().min(1, BAD_CREDENTIALS),
-  password: z.string().min(1, BAD_CREDENTIALS),
-});
+const schema = z
+  .object({
+    /** 邮箱或用户名（登录页统一标识符字段；兼容旧客户端的 email 字段名） */
+    identifier: z.string().trim().toLowerCase().min(1, BAD_CREDENTIALS).optional(),
+    email: z.string().trim().toLowerCase().min(1, BAD_CREDENTIALS).optional(),
+    password: z.string().min(1, BAD_CREDENTIALS),
+  })
+  .refine((d) => Boolean(d.identifier ?? d.email), { message: BAD_CREDENTIALS });
 
 export async function POST(req: Request) {
   return withApi(req, async () => {
@@ -33,8 +37,14 @@ export async function POST(req: Request) {
       throw forbidden("站点已关闭密码登录，请使用第三方登录 / Password sign-in is disabled, use federated sign-in");
     }
     const body = await parseJsonBody(req, schema);
+    const identifier = (body.identifier ?? body.email)!;
 
-    const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);
+    // 邮箱或用户名登录：两个唯一列都可能是命中项；用户名与邮箱统一小写存储
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(or(eq(users.email, identifier), eq(users.username, identifier)))
+      .limit(1);
     // 无论用户是否存在都执行一次同构的 scrypt 验证（不存在时对 dummy 哈希）
     const passwordOk = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || user.status === "deleted" || user.deletedAt || !passwordOk) {

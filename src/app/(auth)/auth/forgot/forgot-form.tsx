@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { routes } from "@/core/routes";
 import { useI18n } from "@/lib/i18n/client";
 import { postJsonSafe } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
@@ -33,7 +35,15 @@ export function ForgotForm() {
   }
 
   if (sent) {
-    return <AuthBanner tone="success">{t("auth.forgot.sent")}</AuthBanner>;
+    return (
+      <div className="flex flex-col gap-3">
+        <AuthBanner tone="success">{t("auth.forgot.sent")}</AuthBanner>
+        <p className="text-xs text-muted-foreground">{t("auth.forgot.spam")}</p>
+        <Link href={routes.login} className="text-sm text-link hover:underline">
+          {t("auth.forgot.backLogin")}
+        </Link>
+      </div>
+    );
   }
 
   return (

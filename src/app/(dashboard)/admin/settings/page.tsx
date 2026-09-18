@@ -164,6 +164,7 @@ function AdminSettingsForm({
       next[k] = Boolean(seed.entries[k]);
     }
     next["notify.emailEnabled"] = Boolean(seed.entries["notify.emailEnabled"]);
+    next["auth.passkeys"] = Boolean(seed.entries["auth.passkeys"]);
     return next;
   });
 
@@ -211,6 +212,7 @@ function AdminSettingsForm({
         ...Object.fromEntries(FEATURE_KEYS.map((k) => [k.key, switches[k.key] ?? false])),
         ...Object.fromEntries(SSO_KEYS.map((k) => [k.key, switches[k.key] ?? false])),
         "notify.emailEnabled": switches["notify.emailEnabled"] ?? false,
+        "auth.passkeys": switches["auth.passkeys"] ?? false,
       },
     });
   }
@@ -409,6 +411,13 @@ function AdminSettingsForm({
                   />
                 );
               })}
+              <SwitchRow
+                label="通行密钥登录（Passkey）"
+                description="支持 Touch ID / Windows Hello / 手机等系统级通行密钥；用户在 设置 → 安全 注册后，登录页出现「使用通行密钥登录」"
+                checked={switches["auth.passkeys"] ?? false}
+                onCheckedChange={(v) => setSwitches((s) => ({ ...s, "auth.passkeys": v }))}
+                last={false}
+              />
               <SwitchRow
                 label="启用邮件发送"
                 description="关闭后验证码/通知邮件将不再发出（需已配置 SMTP）"

@@ -129,6 +129,7 @@ export interface SettingsData {
     twoFactorConfirmed: boolean;
     recoveryCodesCount: number;
     hasPassword: boolean;
+    passkeysEnabled: boolean;
     sessions: SessionView[];
   };
   notifications: {

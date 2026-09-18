@@ -70,7 +70,7 @@ export function LoginDialog({
     mutationFn: async () => {
       if (mode === "login") {
         const r = await postJsonSafe<{ status?: string }>("/api/auth/login", {
-          email,
+          identifier: email,
           password,
         });
         return r;
@@ -180,12 +180,12 @@ export function LoginDialog({
             />
           )}
           <Input
-            type="email"
+            type="text"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="邮箱"
+            placeholder={mode === "login" ? "邮箱或用户名" : "邮箱"}
             className="mt-2"
-            autoComplete="email"
+            autoComplete="username"
           />
           <Input
             type="password"

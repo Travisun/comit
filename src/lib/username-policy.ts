@@ -21,7 +21,7 @@ const RESERVED_SYSTEM_NAMES = new Set([
   "feed", "blog", "help", "support", "about", "login", "logout", "register",
   "signup", "signin", "settings", "notifications", "messages", "write",
   "explore", "topics", "archive", "u", "p", "auth", "legal", "static",
-  "hot",
+  "hot", "onboarding",
   "assets", "cdn", "status", "docs", "rss", "sitemap", "me", "my", "user",
   "users", "post", "posts", "following", "followers", "collections",
   "account", "profile", "dashboard", "search", "upload", "media",

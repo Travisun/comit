@@ -145,6 +145,7 @@ export async function getSettingsPageData(auth: {
       twoFactorConfirmed,
       recoveryCodesCount: totp?.recoveryCodes.length ?? 0,
       hasPassword: Boolean(u.passwordHash),
+      passkeysEnabled: Boolean(await getSetting("auth.passkeys")),
       sessions: sessionRows
         .filter((s) => s.expiresAt > new Date())
         .map((s) => ({

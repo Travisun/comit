@@ -50,6 +50,13 @@ export const RATE_BUCKETS = [
     zh: "两步验证 setup/confirm/challenge（按 IP）",
     en: "2FA setup/confirm/challenge (per IP)",
   },
+  {
+    name: "auth.passkey",
+    limit: 20,
+    windowSec: 60,
+    zh: "通行密钥注册/登录仪式（按 IP）",
+    en: "Passkey registration/authentication (per IP)",
+  },
   { name: "write.post", limit: 10, windowSec: 3600, zh: "发文章/短动态（按用户）", en: "Post creation (per user)" },
   { name: "write.comment", limit: 30, windowSec: 60, zh: "发评论（按用户）", en: "Comment creation (per user)" },
   { name: "write.upload", limit: 20, windowSec: 60, zh: "图片上传（按用户）", en: "Media upload (per user)" },

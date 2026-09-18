@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+import { routes } from "@/core/routes";
 import { useI18n } from "@/lib/i18n/client";
 import { postJsonSafe } from "@/lib/client/api";
 import { Button } from "@/components/ui/button";
@@ -46,7 +48,14 @@ export function ResetForm({ token }: { token: string }) {
   }
 
   if (done) {
-    return <AuthBanner tone="success">{t("auth.reset.success")}</AuthBanner>;
+    return (
+      <div className="flex flex-col items-center gap-4 py-2 text-center">
+        <AuthBanner tone="success">{t("auth.reset.success")}</AuthBanner>
+        <Button asChild className="w-full">
+          <Link href={routes.login}>{t("auth.reset.goLogin")}</Link>
+        </Button>
+      </div>
+    );
   }
 
   return (

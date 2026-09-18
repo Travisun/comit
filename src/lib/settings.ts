@@ -32,6 +32,9 @@ export const SETTINGS_DEFAULTS = {
   "site.inviteRequired": false,
   /** 账号密码登录与注册总开关：关闭后仅允许 OSS 登录/注册，登录页/注册页/登录弹窗隐藏邮箱表单 */
   "auth.passwordAuth": true,
+  /** 通行密钥（Passkey/WebAuthn）登录总开关：开启后登录页出现「使用通行密钥」，
+   *  用户可在 设置 → 安全 注册/管理本机或跨设备通行密钥（Touch ID / Windows Hello / 手机） */
+  "auth.passkeys": false,
   "site.force2fa": true,
   "site.maintenance": false as boolean,
   "sso.github": false,

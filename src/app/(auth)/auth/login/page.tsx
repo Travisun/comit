@@ -17,9 +17,10 @@ export default async function LoginPage({
   const { t } = await getT();
   const sp = await searchParams;
   const verified = sp.verified === "1";
-  const oauthError = sp.error === "oauth";
+  const oauthError = typeof sp.error === "string" && sp.error.startsWith("oauth");
   // 后台关闭密码登录（仅 OSS）时隐藏邮箱表单
   const passwordAuth = await getSetting("auth.passwordAuth");
+  const passkeysEnabled = await getSetting("auth.passkeys");
 
   return (
     <AuthCard
@@ -43,7 +44,7 @@ export default async function LoginPage({
       {!passwordAuth ? (
         <AuthBanner tone="info">站点已开启仅第三方登录，请使用下方方式继续 / This site accepts federated sign-in only</AuthBanner>
       ) : (
-        <LoginForm />
+        <LoginForm passkeysEnabled={passkeysEnabled} />
       )}
       <OAuthButtons />
     </AuthCard>
