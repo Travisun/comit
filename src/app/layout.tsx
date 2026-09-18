@@ -5,9 +5,10 @@ import "@fontsource/noto-sans-sc/700.css";
 import "./globals.css";
 import { siteMetadata } from "@/lib/seo";
 import { getLocale } from "@/lib/i18n/index.server";
-import { getSetting } from "@/lib/settings";
+import { getSetting, type SettingsKey } from "@/lib/settings";
 import { LoginDialog } from "@/components/social/login-dialog";
 import { oauthEnabled } from "@/lib/auth/oauth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { I18nProvider } from "@/lib/i18n/client";
 import { DataProvider } from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -27,29 +28,41 @@ export const viewport: Viewport = {
 
 /** 登录引导 Dialog 的宿主 — 服务端读取启用中的 OSS 提供商与站点参数注入。 */
 async function LoginDialogHost() {
-  const [siteName, inviteRequired] = await Promise.all([
+  const [siteName, inviteRequired, passwordAuth, viewer] = await Promise.all([
     getSetting("site.name"),
     getSetting("site.inviteRequired"),
+    getSetting("auth.passwordAuth"),
+    getCurrentUser(),
   ]);
+  // 与登录页 OAuthButtons 同一套启用判定：env 凭证 + 后台 sso.* 开关缺一不可
   const oauthProviders = (
     await Promise.all(
       (
         [
+          { key: "linuxdo", label: "Linux.do" },
           { key: "github", label: "GitHub" },
           { key: "google", label: "Google" },
           { key: "x", label: "X (Twitter)" },
-          { key: "linuxdo", label: "Linux.do" },
           { key: "discourse", label: "Discourse" },
           { key: "cfaccess", label: "Cloudflare Access" },
         ] as const
-      ).map(async (p) => ({ ...p, on: await oauthEnabled(p.key) })),
+      ).map(async (p) => ({
+        ...p,
+        on: (await oauthEnabled(p.key)) && (await getSetting(`sso.${p.key}` as SettingsKey)),
+      })),
     )
   )
     .filter((p) => p.on)
     .map((p) => ({ key: p.key, label: p.label }));
 
   return (
-    <LoginDialog providers={oauthProviders} siteName={siteName} inviteRequired={inviteRequired} />
+    <LoginDialog
+      providers={oauthProviders}
+      siteName={siteName}
+      inviteRequired={inviteRequired}
+      authenticated={Boolean(viewer)}
+      passwordAuth={passwordAuth}
+    />
   );
 }
 

@@ -131,7 +131,7 @@ export default function TemplatesClient() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewLocale, setPreviewLocale] = useState<"zh" | "en">("zh");
   const [previewNarrow, setPreviewNarrow] = useState(false);
-  const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [preview, setPreview] = useState<{ subject: string; text: string } | null>(null);
 
   const selectedKeyRef = useRef<string | null>(null);
   const lastFocused = useRef<TextField>("bodyZh");
@@ -194,7 +194,7 @@ export default function TemplatesClient() {
   // 预览渲染 — POST 但属临时产物（不上缓存），结果进本地 state
   const previewMutation = useApiMutation(
     (input: { key: string; locale: "zh" | "en"; form: FormState }) =>
-      postJson<{ subject: string; html: string }>(`/api/admin/templates/${input.key}/preview`, {
+      postJson<{ subject: string; text: string }>(`/api/admin/templates/${input.key}/preview`, {
         locale: input.locale,
         subjectZh: input.form.subjectZh,
         subjectEn: input.form.subjectEn,
@@ -503,12 +503,10 @@ export default function TemplatesClient() {
             {previewMutation.pending && !preview ? (
               <Skeleton className="h-[60vh] w-full rounded-lg" />
             ) : (
-              <iframe
-                title="邮件预览"
-                sandbox=""
-                srcDoc={preview?.html ?? ""}
-                className="h-[60vh] w-full rounded-md border border-border bg-card"
-              />
+              // 邮件已全量纯文本化：预览即最终文本形态（等宽滚动区）
+              <pre className="h-[60vh] w-full overflow-auto rounded-md border border-border bg-card p-4 font-mono text-[13px] leading-relaxed whitespace-pre-wrap break-words">
+                {preview?.text ?? ""}
+              </pre>
             )}
           </div>
         </DialogContent>

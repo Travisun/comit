@@ -2,13 +2,13 @@
 
 import { useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { UserCheck, UserPlus } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { isAuthError, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { openLoginDialog } from "@/lib/store/login-dialog";
 
 export function FollowButton({
   username,
@@ -21,7 +21,6 @@ export function FollowButton({
   className?: string;
 }) {
   const { t } = useI18n();
-  const router = useRouter();
   const queryClient = useQueryClient();
 
   // 关注状态放查询缓存（组件本地乐观键）：optimistic 先翻转、失败自动回滚。
@@ -46,8 +45,8 @@ export function FollowButton({
         queryClient.setQueryData<boolean>(stateKey, r.following);
       },
       onError: (err) => {
-        // 失败 toast 由 useApiMutation 默认给出；这里只补登录跳转
-        if (isAuthError(err)) router.push("/auth/login");
+        // 失败 toast 由 useApiMutation 默认给出；游客 → 唤起登录引导
+        if (isAuthError(err)) openLoginDialog();
       },
     },
   );

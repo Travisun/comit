@@ -53,7 +53,8 @@ async function getTransport(cfg: MailConfig): Promise<Transporter> {
 export async function sendMail(opts: {
   to: string;
   subject: string;
-  html: string;
+  /** 可选 HTML 部分；纯文本邮件不要传（保持 multipart 最小化，降低拦截率） */
+  html?: string;
   text?: string;
   headers?: Record<string, string>;
 }): Promise<void> {
@@ -62,9 +63,11 @@ export async function sendMail(opts: {
     console.warn(`[mail] SMTP disabled; would send "${opts.subject}" to ${opts.to}`);
     return;
   }
+  const { html, ...rest } = opts;
   await (await getTransport(cfg)).sendMail({
     from: cfg.from,
-    ...opts,
+    ...rest,
+    ...(html ? { html } : {}),
   });
 }
 
@@ -80,9 +83,11 @@ export async function verifySmtp(): Promise<boolean> {
 }
 
 /* ------------------------------------------------------------------ */
-/* Email templates (bilingual, table-based for client compatibility)   */
+/* Email templates (bilingual, PLAIN TEXT — 纯文本邮件不触发反垃圾      */
+/* 规则/HTML 钓鱼评分，各大邮箱的拦截率显著低于 HTML 模板)              */
 /* ------------------------------------------------------------------ */
 
+/** 纯文本公共版式：标题 + 正文 + 页脚（站点名与链接）。 */
 export function layout(
   locale: Locale,
   body: string,
@@ -94,32 +99,15 @@ export function layout(
     locale === "zh"
       ? `你收到这封邮件是因为注册了 ${site}。如非本人操作请忽略。`
       : `You received this email because you have an account at ${site}. Ignore if this wasn't you.`;
-  return `<!doctype html>
-<html lang="${locale === "zh" ? "zh-CN" : "en"}">
-<body style="margin:0;padding:0;background:#f4f5f7;font-family:-apple-system,'PingFang SC','Segoe UI',Roboto,'Noto Sans SC',sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:32px 16px;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-        <tr><td style="padding:24px 32px;border-bottom:1px solid #eee;">
-          <a href="${url}" style="font-size:18px;font-weight:700;color:#111;text-decoration:none;">${site}</a>
-        </td></tr>
-        <tr><td style="padding:32px;">
-          <h1 style="margin:0 0 16px;font-size:20px;color:#111;">${opts.heading}</h1>
-          ${body}
-        </td></tr>
-        <tr><td style="padding:16px 32px;background:#fafafa;border-top:1px solid #eee;font-size:12px;color:#888;line-height:1.6;">
-          ${opts.footerNote ?? footer}<br/>
-          <a href="${url}" style="color:#888;">${url}</a>
-        </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
-}
-
-function button(locale: Locale, url: string, label: string): string {
-  return `<p style="margin:24px 0;"><a href="${url}" style="display:inline-block;background:#111;color:#fff;padding:10px 24px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:600;">${label}</a></p>
-<p style="font-size:12px;color:#999;word-break:break-all;">${locale === "zh" ? "若按钮无法点击，请复制以下链接到浏览器：" : "If the button doesn't work, copy this link into your browser:"}<br/><a href="${url}" style="color:#666;">${url}</a></p>`;
+  return [
+    opts.heading,
+    "",
+    body,
+    "",
+    "--",
+    opts.footerNote ?? footer,
+    url,
+  ].join("\n");
 }
 
 export type MailTemplateKey =
@@ -142,43 +130,91 @@ export function renderBuiltinMail(
   switch (key) {
     case "verifyEmail": {
       const subject = zh_ ? `【${config.app.name}】验证你的邮箱` : `Verify your email · ${config.app.name}`;
-      const body = `<p style="color:#333;line-height:1.7;">${zh_ ? "感谢注册！请点击下方按钮完成邮箱验证，验证后即可登录使用。" : "Thanks for signing up! Click below to verify your email address."}</p>${button(locale, data.url, zh_ ? "验证邮箱" : "Verify email")}`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "邮箱验证" : "Email verification" }), text: data.url };
+      const body = zh_
+        ? "感谢注册！请打开以下链接完成邮箱验证，验证后即可登录使用："
+        : "Thanks for signing up! Open the link below to verify your email address:";
+      return {
+        subject,
+        html: "",
+        text: layout(locale, `${body}\n${data.url}`, { heading: zh_ ? "邮箱验证" : "Email verification" }),
+      };
     }
     case "resetPassword": {
       const subject = zh_ ? `【${config.app.name}】重置你的密码` : `Reset your password · ${config.app.name}`;
-      const body = `<p style="color:#333;line-height:1.7;">${zh_ ? "我们收到了你的重置密码请求。链接 30 分钟内有效。若非本人操作请忽略此邮件。" : "We received a request to reset your password. The link is valid for 30 minutes. Ignore this email if it wasn't you."}</p>${button(locale, data.url, zh_ ? "重置密码" : "Reset password")}`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "重置密码" : "Password reset" }), text: data.url };
+      const body = zh_
+        ? "我们收到了你的重置密码请求，链接 30 分钟内有效。若非本人操作请忽略此邮件："
+        : "We received a request to reset your password. The link is valid for 30 minutes. Ignore this email if it wasn't you:";
+      return {
+        subject,
+        html: "",
+        text: layout(locale, `${body}\n${data.url}`, { heading: zh_ ? "重置密码" : "Password reset" }),
+      };
     }
     case "commentReply": {
       const subject = zh_ ? `${data.actor} 评论了你` : `${data.actor} commented on your post`;
-      const body = `<p style="color:#333;line-height:1.7;"><strong>${data.actor}</strong> ${zh_ ? "在" : "commented on"} «${data.post}» ${zh_ ? "中评论了你：" : ":"}</p><blockquote style="margin:0;padding:12px 16px;border-left:3px solid #ddd;background:#fafafa;color:#555;">${data.excerpt}</blockquote><p style="margin-top:16px;"><a href="${data.url}" style="color:#2563eb;">${zh_ ? "查看评论" : "View comment"}</a></p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "新评论" : "New comment" }), text: data.url };
+      const body = zh_
+        ? `${data.actor} 在 «${data.post}» 中评论了你：\n\n${data.excerpt}\n\n查看评论：${data.url}`
+        : `${data.actor} commented on «${data.post}»:\n\n${data.excerpt}\n\nView comment: ${data.url}`;
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "新评论" : "New comment" }),
+      };
     }
     case "newFollower": {
       const subject = zh_ ? `${data.actor} 关注了你` : `${data.actor} followed you`;
-      const body = `<p style="color:#333;line-height:1.7;"><strong>${data.actor}</strong> ${zh_ ? "关注了你，去看看 TA 的主页吧。" : "followed you. Check out their profile."}</p><p><a href="${data.url}" style="color:#2563eb;">${zh_ ? "查看主页" : "View profile"}</a></p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "新的关注者" : "New follower" }), text: data.url };
+      const body = zh_
+        ? `${data.actor} 关注了你，去看看 TA 的主页吧。\n\n查看主页：${data.url}`
+        : `${data.actor} followed you. Check out their profile.\n\nView profile: ${data.url}`;
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "新的关注者" : "New follower" }),
+      };
     }
     case "newMessage": {
       const subject = zh_ ? `${data.actor} 给你发来了私信` : `${data.actor} sent you a message`;
-      const body = `<p style="color:#333;line-height:1.7;"><strong>${data.actor}</strong>: ${data.excerpt}</p><p><a href="${data.url}" style="color:#2563eb;">${zh_ ? "回复私信" : "Reply"}</a></p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "新私信" : "New message" }), text: data.url };
+      const body = zh_
+        ? `${data.actor}：${data.excerpt}\n\n回复私信：${data.url}`
+        : `${data.actor}: ${data.excerpt}\n\nReply: ${data.url}`;
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "新私信" : "New message" }),
+      };
     }
     case "moderationRejected": {
       const subject = zh_ ? `你的文章 «${data.post}» 未通过审核` : `Your post "${data.post}" was rejected`;
-      const body = `<p style="color:#333;line-height:1.7;">${zh_ ? "很抱歉，你的文章未通过社区审核。原因：" : "Unfortunately your post did not pass community review. Reason:"}</p><blockquote style="margin:0;padding:12px 16px;border-left:3px solid #f87171;background:#fef2f2;color:#7f1d1d;">${data.reason}</blockquote><p style="margin-top:16px;"><a href="${data.url}" style="color:#2563eb;">${zh_ ? "修改后重新提交" : "Edit and resubmit"}</a></p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "审核未通过" : "Review rejected" }), text: data.url };
+      const body = zh_
+        ? `很抱歉，你的文章未通过社区审核。原因：\n${data.reason}\n\n修改后重新提交：${data.url}`
+        : `Unfortunately your post did not pass community review. Reason:\n${data.reason}\n\nEdit and resubmit: ${data.url}`;
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "审核未通过" : "Review rejected" }),
+      };
     }
     case "accountDeleted": {
       const subject = zh_ ? `你的 ${config.app.name} 账户已删除` : `Your ${config.app.name} account has been deleted`;
-      const body = `<p style="color:#333;line-height:1.7;">${zh_ ? "根据你的请求，账户及个人数据已完成删除。感谢曾经的使用。" : "As requested, your account and personal data have been deleted. Thanks for having been with us."}</p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "账户已删除" : "Account deleted" }), text: "" };
+      const body = zh_
+        ? "根据你的请求，账户及个人数据已完成删除。感谢曾经的使用。"
+        : "As requested, your account and personal data have been deleted. Thanks for having been with us.";
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "账户已删除" : "Account deleted" }),
+      };
     }
     case "test": {
       const subject = zh_ ? `【${config.app.name}】SMTP 测试邮件` : `SMTP test · ${config.app.name}`;
-      const body = `<p style="color:#333;">${zh_ ? "这是一封测试邮件，说明 SMTP 配置工作正常。" : "This is a test email — your SMTP configuration works."}</p>`;
-      return { subject, html: layout(locale, body, { heading: zh_ ? "测试邮件" : "Test email" }), text: "OK" };
+      const body = zh_
+        ? "这是一封测试邮件，说明 SMTP 配置工作正常。"
+        : "This is a test email — your SMTP configuration works.";
+      return {
+        subject,
+        html: "",
+        text: layout(locale, body, { heading: zh_ ? "测试邮件" : "Test email" }),
+      };
     }
   }
 }

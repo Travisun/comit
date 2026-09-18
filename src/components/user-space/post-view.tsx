@@ -57,7 +57,6 @@ export async function PostView({
   const isSelf = Boolean(viewer && viewer.id === author.id);
   const date = post.publishedAt ?? post.createdAt;
   const minutes = readingMinutes(post.content);
-  const canComment = Boolean(author.commentsEnabled && viewer);
 
   // 扩展渲染管线：前/后输出、正文改写、meta、打断（gated 时由关注门禁接管）
   const pipeline = gated
@@ -229,8 +228,9 @@ export async function PostView({
         <section className="mt-8" id="comments">
           <Comments
             postId={post.id}
-            disabled={!canComment}
+            closed={!author.commentsEnabled}
             initialCount={post.commentCount}
+            viewer={viewer ? { displayName: viewer.displayName, username: viewer.username, avatarPath: viewer.avatarPath } : null}
           />
         </section>
 

@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { ComponentType } from "react";
-import { subscribeUiRegistry, getUiRegistryVersion } from "./registry";
+import { subscribeUiRegistry, getUiRegistryVersion, getServerUiRegistryVersion, markUiRegistryChanged } from "./registry";
 import { PluginErrorBoundary } from "./error-boundary";
 
 /**
@@ -106,6 +106,8 @@ export function registerUiPlugin(plugin: UiPlugin): void {
     if (!list) slots.set(r.slot, (list = []));
     list.push({ plugin: plugin.name, component: r.component as Registration["component"] });
   }
+  // 通知消费端（SlotRenderer 以版本号门控首帧渲染，见下）
+  markUiRegistryChanged();
 }
 
 export function slotComponents(slot: UiSlotName): Registration[] {
@@ -119,7 +121,11 @@ export function slotComponents(slot: UiSlotName): Registration[] {
  * 卡片与其余扩展。
  */
 export function SlotRenderer<K extends UiSlotName>({ slot, ctx }: { slot: K; ctx: SlotContexts[K] }) {
-  useSyncExternalStore(subscribeUiRegistry, getUiRegistryVersion, getUiRegistryVersion);
+  // 版本门控：0 ⇒ SSR / hydration 首帧。扩展注册是客户端模块侧效（_boot/client），
+  // SSR 进程注册表恒空 —— 若客户端 hydration 首帧直接读真实注册表渲染，
+  // 必与服务端 HTML 失配（Next hydration error）。首帧渲染 null，mount 后补挂。
+  const version = useSyncExternalStore(subscribeUiRegistry, getUiRegistryVersion, getServerUiRegistryVersion);
+  if (version === 0) return null;
   const items = slotComponents(slot);
   if (items.length === 0) return null;
   return (

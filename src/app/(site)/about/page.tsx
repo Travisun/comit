@@ -26,7 +26,7 @@ import { Button } from "@/components/ui/button";
 export const metadata: Metadata = pageMetadata({
   title: "关于",
   description:
-    "comit.sh 品牌故事：从 1956 年 MIT 的 COMIT 语言，到 git commit 的日常仪式——为什么我们相信「为每一次提交，留下主页」。",
+    "comit.sh 品牌故事：从 1956 年 MIT 的 COMIT 语言，到 git commit 的日常仪式——为什么我们相信「为每一个想法，留下主页」。",
   path: "/about",
 });
 

@@ -5,8 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Heart } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
-import { postJson } from "@/lib/client/api";
+import { postJson, isAuthError } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { openLoginDialog } from "@/lib/store/login-dialog";
 
 /** 组件本地乐观状态（缓存承载）；无对应服务端列表键，故不入 queryKeys 工厂 */
 interface LikeState {
@@ -60,6 +61,10 @@ export function LikeButton({
       onSuccess: (r) => {
         // 服务端权威值覆盖乐观值（快速连点时以响应为准）
         queryClient.setQueryData<LikeState>(stateKey, { liked: r.liked, count: r.count });
+      },
+      onError: (err) => {
+        // 游客点赞 → 唤起登录引导（api 返回 401）
+        if (isAuthError(err)) openLoginDialog();
       },
     },
   );

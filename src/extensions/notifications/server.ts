@@ -88,7 +88,7 @@ const mailChannel: NotificationChannel = {
     // generic, admin-customizable "system" mail template.
     if (key.startsWith("system.") || key.startsWith("verification.")) {
       const reason = typeof message.payload?.reason === "string" ? message.payload.reason : undefined;
-      let rendered = { subject: "", html: "" };
+      let rendered = { subject: "", html: "", text: "" };
       try {
         rendered = renderSystemMail(locale, {
           title: locale === "zh" ? message.title.zh : message.title.en,
@@ -103,7 +103,7 @@ const mailChannel: NotificationChannel = {
         console.info(`[notify] mail skipped: "system" template disabled or rendered empty (key=${key})`);
         return;
       }
-      await queue.send("mail.send", { to: user.email, subject: rendered.subject, html: rendered.html });
+      await queue.send("mail.send", { to: user.email, subject: rendered.subject, text: rendered.text, html: rendered.html });
       return;
     }
 
@@ -128,18 +128,19 @@ const mailChannel: NotificationChannel = {
       reason: excerpt,
     };
     let subject = "";
+    let text = "";
     let html = "";
     try {
-      ({ subject, html } = renderTemplate(tpl, locale, data));
+      ({ subject, html, text } = renderTemplate(tpl, locale, data));
     } catch (err) {
       console.error(`[notify] template "${tpl}" render failed; falling back to builtin:`, err);
-      ({ subject, html } = renderMail(tpl, locale, data));
+      ({ subject, html, text } = renderMail(tpl, locale, data));
     }
     if (!subject) {
       console.info(`[notify] mail skipped: template "${tpl}" disabled by override`);
       return;
     }
-    await queue.send("mail.send", { to: user.email, subject, html });
+    await queue.send("mail.send", { to: user.email, subject, text, html });
   },
 };
 

@@ -1,3 +1,4 @@
+import { ProviderIcon } from "@/components/brand/provider-icon";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/primitives";
 import { routes } from "@/core/routes";
@@ -13,6 +14,7 @@ export async function OAuthButtons() {
   const { t } = await getT();
 
   const entries: { provider: string; key: SettingsKey; label: string; href: string }[] = [
+    { provider: "linuxdo", key: "sso.linuxdo", label: t("auth.oauth.linuxdo"), href: routes.oauthStart("linuxdo") },
     { provider: "github", key: "sso.github", label: t("auth.oauth.github"), href: routes.oauthStart("github") },
     { provider: "google", key: "sso.google", label: t("auth.oauth.google"), href: routes.oauthStart("google") },
     { provider: "x", key: "sso.x", label: t("auth.oauth.x"), href: routes.oauthStart("x") },
@@ -36,7 +38,10 @@ export async function OAuthButtons() {
       <div className="flex flex-col gap-2">
         {enabled.map((e) => (
           <Button key={e.provider} variant="outline" asChild className="w-full">
-            <a href={e.href}>{e.label}</a>
+            <a href={e.href}>
+              <ProviderIcon provider={e.provider} />
+              {e.label}
+            </a>
           </Button>
         ))}
       </div>

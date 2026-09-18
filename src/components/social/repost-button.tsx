@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { isAuthError, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { openLoginDialog } from "@/lib/store/login-dialog";
 
 /** 组件本地乐观状态（缓存承载）；无对应服务端列表键，故不入 queryKeys 工厂 */
 interface RepostState {
@@ -76,7 +77,11 @@ export function RepostButton({
         setComment("");
       },
       onError: (err) => {
-        if (isAuthError(err)) setOpen(false);
+        // 游客转发 → 关掉转发框，唤起登录引导（api 返回 401）
+        if (isAuthError(err)) {
+          setOpen(false);
+          openLoginDialog();
+        }
       },
     },
   );

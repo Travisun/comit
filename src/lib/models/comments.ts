@@ -11,7 +11,8 @@ export const commentItemSchema = z.object({
   visibility: z.enum(["public", "private"]).optional(),
   createdAt: z.string(),
   likeCount: z.number(),
-  liked: z.boolean().optional(),
+  /** 游客为 null（未登录无点赞态）—— .optional() 不接受 null，二者都要放行 */
+  liked: z.boolean().nullable().optional(),
   mine: z.boolean().optional(),
   canDelete: z.boolean().optional(),
   user: z.object({

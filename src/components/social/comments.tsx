@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { BadgeCheck, Loader2, Lock, MessageCircle, Pin, Trash2 } from "lucide-react";
+import { BadgeCheck, Loader2, Lock, MessageCircle, Pin } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
@@ -27,7 +27,6 @@ import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
 import { CommentMenu } from "./comment-menu";
 import { patchJsonSafe } from "@/lib/client/api";
-import { openLoginDialog } from "@/lib/store/login-dialog";
 import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
 import { PinnedComposer } from "@/components/social/pinned-composer";
 import { ShortContent } from "@/components/social/short-content";
@@ -44,12 +43,13 @@ function commentsUrl(postId: string, cursor?: string | null) {
 
 export function Comments({
   postId,
-  disabled,
+  closed,
   initialCount,
   viewer,
 }: {
   postId: string;
-  disabled: boolean;
+  /** 作者已关闭评论 — 为 true 时隐藏评论区；游客与「关闭评论」是两回事 */
+  closed: boolean;
   initialCount: number;
   /** 当前观众 brief（composer 头像/署名）；匿名 null */
   viewer?: { displayName: string; username: string; avatarPath: string | null } | null;
@@ -92,12 +92,15 @@ export function Comments({
 
   const viewerId = viewerOverride ?? commentsQ.data?.pages[0]?.viewerId;
   const initialLoaded = commentsQ.data !== undefined;
+  // 身份判定优先用服务端下发的 viewer prop（SSR 首帧即可渲染正确形态，
+  // 避免已登录用户闪现登录占位）；viewer 未传时回退评论 API 的 viewerId
+  const isMember = Boolean(viewer) || viewerOverride !== null || Boolean(viewerId);
 
 
   // comment intent: focus the reply bar once it mounts (retry through the
   // portal mount + viewer resolution)
   useEffect(() => {
-    if (disabled) return;
+    if (closed) return;
     let tries = 0;
     let raf = 0;
     const tick = () => {
@@ -110,7 +113,7 @@ export function Comments({
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [disabled]);
+  }, [closed]);
 
   function startReply(c: CommentItem) {
     setReplyTo(c);
@@ -150,7 +153,7 @@ export function Comments({
     queryKey: queryKeys.commentsCheck(postId),
     queryFn: async () =>
       commentsPageSchema.parse(await apiGet<unknown>(commentsUrl(postId))),
-    enabled: !disabled,
+    enabled: !closed,
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     staleTime: 30_000,
@@ -161,7 +164,7 @@ export function Comments({
     queryKey: queryKeys.commentsPinned(postId),
     queryFn: async () =>
       commentsPageSchema.parse(await apiGet<unknown>(`${commentsUrl(postId)}&list=pinned&limit=5`)),
-    enabled: !disabled,
+    enabled: !closed,
     staleTime: 15_000,
   });
   // 解决方案摘要盒已上移至帖子主内容区（components/social/solutions-box.tsx，
@@ -401,7 +404,7 @@ export function Comments({
                     initialCount={c.likeCount}
                     initialLiked={Boolean(c.liked)}
                   />
-                  {!disabled && viewerId && (
+                  {!closed && isMember && (
                     <button
                       type="button"
                       onClick={() => startReply(c)}
@@ -424,14 +427,15 @@ export function Comments({
       </h2>
 
       {/* composer states — the input itself is the sticky bar at the bottom */}
-      {disabled ? (
+      {closed ? (
         <p className="rounded-lg bg-muted px-3 py-2.5 text-sm text-muted-foreground">
           {t("comments.disabled")}
         </p>
-      ) : viewerId === null ? (
-        <button type="button" onClick={openLoginDialog} className="w-full text-left">
-          <GuestComposerPlaceholder label={t("comments.placeholder")} />
-        </button>
+      ) : !isMember ? (
+        // 游客：评论列表照常展示，composer 位换成登录引导。
+        // GuestComposerPlaceholder 本身就是可点击 button（唤起登录 dialog），
+        // 不可再包一层 button —— 嵌套 button 是非法 HTML，会引发 hydration 错误
+        <GuestComposerPlaceholder label={t("comments.loginPrompt")} />
       ) : null}
 
       {/* 新评论气泡：增量拉取后先提示，点击并入 */}
@@ -487,7 +491,7 @@ export function Comments({
       )}
 
       {/* sticky reply bar — 与主发布器同一组件（comment 变体：隐藏发布特性） */}
-      {!disabled && viewerId && (
+      {!closed && isMember && (
         <PinnedBar>
           <PinnedComposer
             variant="comment"

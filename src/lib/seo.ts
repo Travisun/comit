@@ -12,12 +12,12 @@ export function siteMetadata(): Metadata {
       template: `%s · ${config.app.name}`,
     },
     description:
-      "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，为每一次提交留下主页。",
+      "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，记录你的每一次思考、想法与灵感。",
     openGraph: {
       siteName: config.app.name,
       title: "comit.sh — Commit your ideas.",
       description:
-        "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，为每一次提交留下主页。",
+        "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，记录你的每一次思考、想法与灵感。",
       type: "website",
       locale: "zh_CN",
       alternateLocale: ["en_US"],

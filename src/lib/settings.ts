@@ -18,6 +18,8 @@ export const SETTINGS_DEFAULTS = {
   "site.subdomainLocked": true, // subdomain can only be set once
   "site.registrationOpen": true,
   "site.inviteRequired": false,
+  /** 账号密码登录与注册总开关：关闭后仅允许 OSS 登录/注册，登录页/注册页/登录弹窗隐藏邮箱表单 */
+  "auth.passwordAuth": true,
   "site.force2fa": true,
   "site.maintenance": false as boolean,
   "sso.github": false,

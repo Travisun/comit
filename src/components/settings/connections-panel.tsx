@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Check, Link2, Loader2, Unlink } from "lucide-react";
+import { Check, Loader2, Unlink } from "lucide-react";
+import { ProviderIcon } from "@/components/brand/provider-icon";
 import { Button } from "@/components/ui/button";
 import {
   SettingsPanelList,
@@ -106,7 +107,7 @@ export function ConnectionsPanel() {
         {connections.map((conn) => (
           <SettingsPanelRow
             key={conn.provider}
-            icon={<Link2 className="size-4" />}
+            icon={<ProviderIcon provider={conn.provider} />}
             title={
               <span className="flex items-center gap-2">
                 {PROVIDER_META[conn.provider].label}

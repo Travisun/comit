@@ -9,6 +9,7 @@ import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSession } from "@/lib/auth/session";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
+import { getSetting } from "@/lib/settings";
 import { parseJsonBody } from "../_lib/validate";
 
 export const runtime = "nodejs";
@@ -27,6 +28,10 @@ const schema = z.object({
 export async function POST(req: Request) {
   return withApi(req, async () => {
     await rateLimitBucket("auth.login", clientIp(req));
+    // 后台关闭密码登录（仅 OSS）时拒绝：放在限流后、任何查询前
+    if (!(await getSetting("auth.passwordAuth"))) {
+      throw forbidden("站点已关闭密码登录，请使用第三方登录 / Password sign-in is disabled, use federated sign-in");
+    }
     const body = await parseJsonBody(req, schema);
 
     const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);

@@ -5,7 +5,7 @@ import { LegalDoc, LegalSection } from "../legal-doc";
 export const metadata: Metadata = pageMetadata({
   title: "内容权利与版权声明",
   description:
-    "comit.sh 版权声明：内容归属、平台许可范围、侵权举报流程与转载规范（推荐 CC BY-SA 4.0）。提交的主角始终是你。",
+    "comit.sh 版权声明：内容归属、平台许可范围、侵权举报流程与转载规范（推荐 CC BY-SA 4.0）。创作的主角始终是你。",
   path: "/legal/copyright",
 });
 
@@ -14,7 +14,7 @@ export default function CopyrightPage() {
     <LegalDoc title="内容权利与版权声明" updated="2026-09-18">
       <p>
         本声明说明 comit.sh（下称“本平台”）上内容的版权归属、平台获得许可的范围、侵权举报流程，以及内容转载的推荐规范。
-        comit.sh 为每一次提交留下主页，而提交内容的权利，自始至终属于提交者本人。
+        comit.sh 为每一个想法留下主页，而内容的权利，自始至终属于创作者本人。
       </p>
 
       <LegalSection
@@ -41,7 +41,7 @@ export default function CopyrightPage() {
         </blockquote>
         <p>
           1. 该许可仅用于运营与分发本平台服务（包括页面展示、RSS/Atom 订阅源、归档、公开数据集与研究用途），不意味着内容权属的转移。comit.sh
-          为「提交」而建，但提交者始终是你：许可的存在只为让服务运行，内容的作者身份与所有权不可剥夺。
+          为「记录思考」而建，但创作者始终是你：许可的存在只为让服务运行，内容的作者身份与所有权不可剥夺。
         </p>
         <p>2. 本许可为非独占许可：你保留将同一内容授权给任何第三方的全部权利。</p>
         <p>

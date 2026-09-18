@@ -56,6 +56,10 @@ export async function POST(req: Request) {
     if (!(await getSetting("site.registrationOpen"))) {
       throw forbidden("当前未开放注册 / Registration is currently closed");
     }
+    // 后台关闭密码注册（仅 OSS）时拒绝
+    if (!(await getSetting("auth.passwordAuth"))) {
+      throw forbidden("站点已关闭密码注册，请使用第三方登录 / Password sign-up is disabled, use federated sign-in");
+    }
     if (!isValidPassword(body.password)) {
       throw new AppError(
         "密码至少 8 位，需包含字母和数字 / Password must be 8+ chars with letters and numbers",

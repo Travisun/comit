@@ -3,7 +3,7 @@
  * so a missing key fails the build.
  *
  * 语调基准（brand voice）：工程感、克制、有历史纵深。
- * 主张："Commit your ideas." / 中文："为每一次提交，留下主页。"
+ * 主张："Commit your ideas." / 中文："记录你的每一次思考、想法、灵感。"
  * 品牌语源与文案规范见 docs/brand.md。
  */
 export const zh = {
@@ -27,10 +27,10 @@ export const zh = {
   "nav.theme": "主题",
   "nav.language": "语言",
 
-  "home.hero.title": "记录你的每一次提交",
+  "home.hero.title": "记录你的每一次思考、想法、灵感",
   "home.hero.subtitle":
-    "comit.sh 是为技术极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、学习笔记、研究发布与项目动态，都从这里提交。",
-  "home.hero.cta": "开始你的第一次提交",
+    "comit.sh 是为技术极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、学习笔记、研究发布与项目动态，都从这里开始。",
+  "home.hero.cta": "写下你的第一个想法",
   "home.hero.ctaSecondary": "进入时间线",
   "home.latest": "最新内容",
   "home.trending": "热门",
@@ -40,12 +40,12 @@ export const zh = {
   "feed.compose": "记录此刻…",
   "feed.composePlaceholder": "记录想法，支持 Markdown 语法与图片…",
   "feed.publish": "发布",
-  "feed.empty": "时间线是空的 —— commit something.",
+  "feed.empty": "时间线是空的 —— 写下第一条想法。",
 
   "auth.login.title": "登录",
   "auth.login.subtitle": "欢迎回来，请登录你的账户",
   "auth.register.title": "创建账户",
-  "auth.register.subtitle": "注册后，你的主页从第一次提交开始",
+  "auth.register.subtitle": "注册后，你的主页从第一个想法开始",
   "auth.email": "邮箱",
   "auth.password": "密码",
   "auth.confirmPassword": "确认密码",
@@ -88,6 +88,7 @@ export const zh = {
   "auth.oauth.github": "使用 GitHub 登录",
   "auth.oauth.google": "使用 Google 登录",
   "auth.oauth.x": "使用 X（Twitter）登录",
+  "auth.oauth.linuxdo": "使用 Linux.do 登录",
   "auth.oauth.discourse": "使用 Discourse 账号登录",
   "auth.oauth.cf": "使用 Cloudflare Access 登录",
 
@@ -158,6 +159,7 @@ export const zh = {
   "comments.replyTo": "回复",
   "comments.deleted": "该评论已删除",
   "comments.disabled": "作者已关闭评论",
+  "comments.loginPrompt": "登录后查看评论",
   "comments.loginRequired": "登录后即可参与评论",
 
   "user.followers": "关注者",
@@ -176,7 +178,7 @@ export const zh = {
   "user.github": "GitHub",
   "user.orcid": "ORCID",
   "user.website": "网站",
-  "user.noPosts": "你的第一次 commit，从这里开始。",
+  "user.noPosts": "你的第一条想法，从这里开始。",
 
   "settings.title": "账户设置",
   "settings.tab.profile": "资料",
@@ -353,7 +355,7 @@ export const zh = {
   "legal.updated": "最后更新",
 
   // ---- 品牌语源（四处叙事，/about 与对外文案共用）----
-  "brand.commit.mantra": "提交，是技术世界最古老的仪式。",
+  "brand.commit.mantra": "为每一个想法，留下主页。",
   "brand.commit.line1": "1956 年，MIT 的 COMIT 是最早的字符串处理语言之一。",
   "brand.commit.line2": "今天，commit 是每个工程师的日常仪式。",
   "brand.commit.line3": "comit.sh 把这个仪式，变成你的个人主页。",
@@ -384,7 +386,7 @@ export const zh = {
   "about.audience.hackers.name": "极客",
   "about.audience.hackers.line": "技术学习过程与项目动态——把踩过的坑，变成可检索的记录。",
   "about.audience.designers.name": "设计师",
-  "about.audience.designers.line": "作品背后的思考与过程——设计日志也是一次提交。",
+  "about.audience.designers.line": "作品背后的思考与过程——把设计日志写成可追溯的思考记录。",
   "about.audience.scientists.name": "科学家",
   "about.audience.scientists.line": "科研日志与研究发布——让实验记录有主页、有版本、有读者。",
   "about.audience.students.name": "学子",
@@ -402,22 +404,22 @@ export const zh = {
   "about.things.home.title": "建立你的主页",
   "about.things.home.desc": "一个属于你的地址：头像、简介、文章与动态都在这里安家。它是你在社区的名片，也是所有作品的归档。",
   "about.things.daily.title": "发布每日动态",
-  "about.things.daily.desc": "一句话、一张图、一个灵感——像 git commit 一样随手提交。不必字斟句酌，坚持记录本身就是创作。",
+  "about.things.daily.desc": "一句话、一张图、一个灵感——随手记下，不必字斟句酌，坚持记录本身就是创作。",
   "about.things.feed.title": "查看社区动态",
   "about.things.feed.desc": "关注你喜欢的人，在信息流里遇见认真的写作与有趣的灵魂。社区广场永远为你敞开。",
   "about.spirit.title": "我们相信的社区样子",
   "about.spirit.item1": "认真创作 —— 每一条动态都值得被认真对待",
   "about.spirit.item2": "真诚交流 —— 讨论问题，而不是争论立场",
   "about.spirit.item3": "彼此尊重 —— 尊重每一位创作者与其作品",
-  "about.cta.title": "为下一次提交，留下主页。",
+  "about.cta.title": "为每一个想法，留下主页。",
   "about.cta.register": "创建账户",
   "about.cta.explore": "先逛逛社区",
   "about.cta.terms": "了解服务协议",
 
   // ---- 空态（情怀化，供各页面统一取用）----
   "empty.followers": "伟大的主页都从 0 个粉丝开始。",
-  "empty.timeline": "时间线是空的 —— commit something.",
-  "empty.posts": "你的第一次 commit，从这里开始。",
+  "empty.timeline": "时间线是空的 —— 写下第一条想法。",
+  "empty.posts": "你的第一条想法，从这里开始。",
 } as const;
 
 export type Dict = typeof zh;
@@ -446,8 +448,8 @@ export const en: Record<DictKey, string> = {
 
   "home.hero.title": "Commit your ideas",
   "home.hero.subtitle":
-    "comit.sh is the social home for hackers, designers, scientists and students — research logs, learning notes, releases and project updates, all committed here.",
-  "home.hero.cta": "Make your first commit",
+    "comit.sh is the social home for hackers, designers, scientists and students — research logs, learning notes, releases and project updates, all start here.",
+  "home.hero.cta": "Write your first idea",
   "home.hero.ctaSecondary": "Open the timeline",
   "home.latest": "Latest",
   "home.trending": "Trending",
@@ -457,12 +459,12 @@ export const en: Record<DictKey, string> = {
   "feed.compose": "Log this moment…",
   "feed.composePlaceholder": "Record a thought — Markdown and images supported…",
   "feed.publish": "Publish",
-  "feed.empty": "The timeline is empty — commit something.",
+  "feed.empty": "The timeline is empty — write the first thought.",
 
   "auth.login.title": "Sign in",
   "auth.login.subtitle": "Welcome back",
   "auth.register.title": "Create account",
-  "auth.register.subtitle": "Your profile starts with the first commit",
+  "auth.register.subtitle": "Your profile starts with the first idea",
   "auth.email": "Email",
   "auth.password": "Password",
   "auth.confirmPassword": "Confirm password",
@@ -508,6 +510,7 @@ export const en: Record<DictKey, string> = {
   "auth.oauth.github": "Continue with GitHub",
   "auth.oauth.google": "Continue with Google",
   "auth.oauth.x": "Continue with X (Twitter)",
+  "auth.oauth.linuxdo": "Continue with Linux.do",
   "auth.oauth.discourse": "Continue with Discourse",
   "auth.oauth.cf": "Continue with Cloudflare Access",
 
@@ -579,6 +582,7 @@ export const en: Record<DictKey, string> = {
   "comments.replyTo": "Replying to",
   "comments.deleted": "This comment has been deleted",
   "comments.disabled": "Comments are closed",
+  "comments.loginPrompt": "Sign in to view comments",
   "comments.loginRequired": "Sign in to join the discussion",
 
   "user.followers": "Followers",
@@ -597,7 +601,7 @@ export const en: Record<DictKey, string> = {
   "user.github": "GitHub",
   "user.orcid": "ORCID",
   "user.website": "Website",
-  "user.noPosts": "Your first commit starts here.",
+  "user.noPosts": "Your first idea starts here.",
 
   "settings.title": "Account settings",
   "settings.tab.profile": "Profile",
@@ -684,7 +688,7 @@ export const en: Record<DictKey, string> = {
   "settings.connections.connected": "Connected",
   "settings.connections.unlink": "Disconnect",
 
-  "notify.empty": "No notifications. A quiet moment — a good time to commit.",
+  "notify.empty": "No notifications. A quiet moment — a good time to write.",
   "notify.markAllRead": "Mark all as read",
   "notify.title": "Notifications",
 
@@ -782,7 +786,7 @@ export const en: Record<DictKey, string> = {
   "legal.updated": "Last updated",
 
   // ---- Brand etymology (shared by /about and external copy) ----
-  "brand.commit.mantra": "Committing is the oldest ritual in the technical world.",
+  "brand.commit.mantra": "A home page for every idea.",
   "brand.commit.line1": "In 1956, COMIT at MIT was among the earliest string-processing languages.",
   "brand.commit.line2": "Today, commit is a daily ritual for every engineer.",
   "brand.commit.line3": "comit.sh turns that ritual into your home page.",
@@ -813,7 +817,7 @@ export const en: Record<DictKey, string> = {
   "about.audience.hackers.name": "Hackers",
   "about.audience.hackers.line": "Learning notes and project updates — turn every pit you hit into a searchable record.",
   "about.audience.designers.name": "Designers",
-  "about.audience.designers.line": "The thinking behind the work — a design log is a commit too.",
+  "about.audience.designers.line": "The thinking behind the work — a design log is a record of your thinking.",
   "about.audience.scientists.name": "Scientists",
   "about.audience.scientists.line": "Research logs and releases — lab records with a home, a version history and readers.",
   "about.audience.students.name": "Students",
@@ -832,20 +836,20 @@ export const en: Record<DictKey, string> = {
   "about.things.home.title": "Build your homepage",
   "about.things.home.desc": "An address of your own: avatar, bio, articles and posts all live here. It is your card in the community and the archive of everything you make.",
   "about.things.daily.title": "Post daily updates",
-  "about.things.daily.desc": "A line, a picture, an idea — commit them like git. You don't need perfect prose; keeping the streak is the craft.",
+  "about.things.daily.desc": "A line, a picture, an idea — jot it down as it comes. You don't need perfect prose; keeping the streak is the craft.",
   "about.things.feed.title": "Follow the community",
   "about.things.feed.desc": "Follow people you like and meet honest writing and interesting minds in the feed. The commons is always open.",
   "about.spirit.title": "The community we believe in",
   "about.spirit.item1": "Create earnestly — every update deserves to be taken seriously",
   "about.spirit.item2": "Discuss sincerely — talk about problems, not positions",
   "about.spirit.item3": "Respect each other — every creator and their work",
-  "about.cta.title": "Give your next commit a home.",
+  "about.cta.title": "A home page for every idea.",
   "about.cta.register": "Create account",
   "about.cta.explore": "Explore the community",
   "about.cta.terms": "Read the Terms",
 
   // ---- Empty states (shared) ----
   "empty.followers": "Every great profile starts at 0 followers.",
-  "empty.timeline": "The timeline is empty — commit something.",
-  "empty.posts": "Your first commit starts here.",
+  "empty.timeline": "The timeline is empty — write the first thought.",
+  "empty.posts": "Your first idea starts here.",
 };

@@ -289,7 +289,7 @@ export function BannedProfileView({ user }: { user: User }) {
 export async function UserProfileView({
   user,
   viewer,
-  tab = "posts",
+  tab = "short",
   page = 0,
 }: {
   user: User;
@@ -700,28 +700,34 @@ async function CollectionsTab({
     page * PAGE_SIZE,
   );
   if (collections.length === 0) return <EmptyState text="还没有创建合集" />;
+  // 紧凑型单列面板：一行一合集（名称 + 描述截断 + 篇数右对齐），与主页行式排版同构
   return (
-    <div className="grid gap-3 p-5 sm:grid-cols-2">
-      {collections.map((c) => (
-        <Link
-          key={c.slug}
-          href={routes.collection(user.username, c.slug)}
-          className="group rounded-lg border border-border p-4 transition-colors hover:bg-[var(--hover)]"
-          prefetch={false}
-        >
-          <div className="flex items-center gap-2 text-[15px] font-normal">
-            <FolderOpen className="size-4 text-primary/70" />
-            {c.name}
-          </div>
-          <p className="mt-1.5 line-clamp-2 text-sm text-muted-foreground">{c.description}</p>
-          <div className="num mt-3 text-xs text-muted-foreground">{c.postCount} 篇文章</div>
-        </Link>
-      ))}
-      {nextOffset !== null && (
-        <div className="col-span-full">
-          <Pager username={user.username} tab={tab} page={page} hasMore />
-        </div>
-      )}
+    <div>
+      <ul>
+        {collections.map((c) => (
+          <li key={c.slug} className="border-b border-border last:border-b-0">
+            <Link
+              href={routes.collection(user.username, c.slug)}
+              className="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-[var(--hover)]"
+              prefetch={false}
+            >
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-border/70 bg-[var(--muted)]">
+                <FolderOpen className="size-4 text-primary/70" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-[15px] font-normal">{c.name}</span>
+                {c.description && (
+                  <span className="block truncate text-sm text-muted-foreground">{c.description}</span>
+                )}
+              </span>
+              <span className="num shrink-0 text-xs text-muted-foreground">{c.postCount} 篇</span>
+            </Link>
+          </li>
+        ))}
+        <li>
+          <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
+        </li>
+      </ul>
     </div>
   );
 }

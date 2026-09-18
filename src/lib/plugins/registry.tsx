@@ -72,6 +72,11 @@ function notifyRegistryChanged(): void {
   for (const l of listeners) l();
 }
 
+/** 注册表版本号 — 0 = SSR/hydration 首帧（空表），>0 = 至少发生过一次注册。 */
+export function markUiRegistryChanged(): void {
+  notifyRegistryChanged();
+}
+
 export function subscribeUiRegistry(onChange: () => void): () => void {
   listeners.add(onChange);
   return () => listeners.delete(onChange);
@@ -81,9 +86,19 @@ export function getUiRegistryVersion(): number {
   return gSub.__mbUiRegistryVer ?? 0;
 }
 
+/**
+ * hydration 用 server snapshot — 恒为 0（空注册表）。注册发生在客户端模块
+ * 侧效（_boot/client），SSR 进程里注册表恒空而浏览器端在 hydration 前可能
+ * 已注入：若 hydration 渲染读真实 version，SSR HTML 与首帧必然失配
+ * （Next #1 hydration error）。固定 0 让扩展 UI 统一在 mount 后补挂。
+ */
+export function getServerUiRegistryVersion(): number {
+  return 0;
+}
+
 /** 消费端 hook:注册表变化时触发重渲（useSyncExternalStore 的三件套拆开用）。 */
 export function useUiRegistryVersion(): number {
-  return useSyncExternalStore(subscribeUiRegistry, getUiRegistryVersion, getUiRegistryVersion);
+  return useSyncExternalStore(subscribeUiRegistry, getUiRegistryVersion, getServerUiRegistryVersion);
 }
 
 function sorted<T extends { order?: number }>(items: T[]): T[] {
@@ -136,8 +151,9 @@ export function getInterruptRenderer(code: string): InterruptRenderer | null {
  *  每个 widget 独立错误边界:单个扩展抛错只降级自身,上报后不影响其余
  *  widget 与宿主布局。 */
 export function ExtensionRailWidgets() {
-  useUiRegistryVersion();
-  const widgets = getRailWidgets();
+  const version = useUiRegistryVersion();
+  // version 0 ⇒ hydration 首帧,与 SSR（恒空表）保持一致渲染 null,挂载后补显
+  const widgets = version === 0 ? [] : getRailWidgets();
   if (widgets.length === 0) return null;
   return (
     <>
@@ -155,9 +171,10 @@ export function ExtensionRailWidgets() {
 
 /** 通用打断渲染视图 — 服务端详情页在管线被打断时挂载（客户端组件）。 */
 export function InterruptView({ info }: { info: PostRenderInterrupt }) {
-  useUiRegistryVersion();
+  const version = useUiRegistryVersion();
+  // hydration 首帧（version 0）先渲染服务端同款 fallback，挂载后再换扩展渲染器
   // 注册表查找 — 渲染器是注册期创建的稳定引用，并非 render 期新建组件
-  const Renderer = getInterruptRenderer(info.code);
+  const Renderer = version === 0 ? null : getInterruptRenderer(info.code);
   const fallback = (
     <div className="my-6 rounded-xl border border-border bg-muted/40 p-6 text-center">
       <p className="text-sm font-medium">{info.message ?? "内容暂不可见"}</p>

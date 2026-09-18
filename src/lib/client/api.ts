@@ -55,12 +55,17 @@ export function isAuthError(err: unknown): boolean {
  *  - /api/auth/logout   登出本就不持有有效会话
  *  - /api/auth/register 注册流程按状态码分支
  *  - /api/auth/2fa/*    2FA 质询按状态码分支
+ *  - /api/likes|reposts|follows 互动按钮按 401 引导登录 —— 就地唤起登录
+ *    dialog（见 like/repost/follow-button 的 onError），而非整页跳转
  * 另：当前页面本身在 /auth 下（登录/注册/2FA 页）时不重定向。
  */
 const SESSION_REDIRECT_EXCLUDED = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/auth/register",
+  "/api/likes",
+  "/api/reposts",
+  "/api/follows",
 ] as const;
 
 export function redirectIfSessionExpired(status: number, url: string): void {

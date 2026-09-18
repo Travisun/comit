@@ -56,9 +56,10 @@ export default async function UserProfilePage({ params, searchParams }: Props) {
   if (isBanned(user)) return <BannedProfileView user={user} />;
 
   const viewer = await getCurrentUser();
+  // 默认展示「动态」（短帖+评论活动），与 tab 条顺序一致
   const tab = (TAB_IDS as string[]).includes(tabParam ?? "")
     ? (tabParam as ProfileTab)
-    : "posts";
+    : "short";
   const page = Math.max(0, Number.parseInt(pageParam ?? "0", 10) || 0);
 
   return <UserProfileView user={user} viewer={viewer} tab={tab} page={page} />;

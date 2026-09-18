@@ -178,7 +178,7 @@ export async function ShortPostDetail({
         <section className="mt-6" id="comments">
           <Comments
             postId={post.id}
-            disabled={!author.commentsEnabled}
+            closed={!author.commentsEnabled}
             initialCount={post.commentCount}
             viewer={viewer}
           />

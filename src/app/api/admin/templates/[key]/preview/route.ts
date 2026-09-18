@@ -29,7 +29,7 @@ const bodySchema = z.object({
 /**
  * POST /api/admin/templates/[key]/preview — render a template with sample
  * variable values and the saved override (or the fields passed in the body,
- * so unsaved editor content can be previewed). Returns { subject, html }.
+ * so unsaved editor content can be previewed). Returns { subject, text }.
  */
 export async function POST(req: Request, { params }: { params: Promise<{ key: string }> }) {
   return withPermission(req, "admin.templates", async () => {
@@ -72,6 +72,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ key: st
           )
         : renderTemplate(key, body.locale, data, override);
 
-    return ok({ subject: rendered.subject, html: rendered.html });
+    return ok({ subject: rendered.subject, text: rendered.text });
   });
 }

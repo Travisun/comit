@@ -13,10 +13,12 @@ import { layout, renderBuiltinMail, type MailTemplateKey } from "@/lib/mail";
  *
  *   { [templateKey]: { subjectZh?, subjectEn?, bodyZh?, bodyEn?, enabled } }
  *
- * Override bodies are HTML fragments using `{{variable}}` placeholders and are
- * embedded into the shared branded layout(). Empty override fields fall back
- * to the built-in copy; `enabled: false` disables the template entirely
- * (renderMail returns empty strings and the mail channel skips sending).
+ * Override bodies are PLAIN TEXT fragments using `{{variable}}` placeholders
+ * and are wrapped in the shared plain-text layout(). Empty override fields
+ * fall back to the built-in copy; `enabled: false` disables the template
+ * entirely (renderMail returns empty strings and the mail channel skips
+ * sending). All mails are sent text-only (no HTML part) to stay under
+ * spam filters.
  */
 
 /* ------------------------------------------------------------------ */
@@ -278,14 +280,6 @@ function interpolate(tpl: string, data: Record<string, unknown>): string {
   });
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
 /** Effective data for any template: `siteName` is always available. */
 function withSiteName(data: Record<string, string>): Record<string, string> {
   return { siteName: config.app.name, ...data };
@@ -326,12 +320,12 @@ export function renderTemplate(
   const bodyTpl = zh ? ov?.bodyZh : ov?.bodyEn;
   if (bodyTpl && bodyTpl.trim()) {
     const def = MAIL_TEMPLATES.find((t) => t.key === key);
-    const html = layout(locale, interpolate(bodyTpl, merged), {
+    const text = layout(locale, interpolate(bodyTpl, merged), {
       heading: def ? def.name[locale] : subject,
     });
-    return { subject, html, text: builtin.text };
+    return { subject, html: "", text };
   }
-  return { subject, html: builtin.html, text: builtin.text };
+  return { subject, html: "", text: builtin.text };
 }
 
 /**
@@ -365,31 +359,19 @@ export function renderSystemTemplate(
 
   const bodyTpl = zh ? ov?.bodyZh : ov?.bodyEn;
   if (bodyTpl && bodyTpl.trim()) {
-    return { subject, html: layout(locale, interpolate(bodyTpl, data), { heading: input.title }), text: input.url ?? "" };
+    return { subject, html: "", text: layout(locale, interpolate(bodyTpl, data), { heading: input.title }) };
   }
 
   const parts: string[] = [];
-  if (input.body) {
-    parts.push(`<p style="color:#333;line-height:1.7;">${escapeHtml(input.body)}</p>`);
-  }
-  if (input.reason) {
-    parts.push(
-      `<blockquote style="margin:0;padding:12px 16px;border-left:3px solid #ddd;background:#fafafa;color:#555;">${escapeHtml(input.reason)}</blockquote>`,
-    );
-  }
-  if (input.url) {
-    parts.push(
-      `<p style="margin-top:16px;"><a href="${escapeHtml(input.url)}" style="color:#2563eb;">${zh ? "查看详情" : "View details"}</a></p>`,
-    );
-  }
-  const body =
-    parts.join("") ||
-    `<p style="color:#333;line-height:1.7;">${zh ? "请登录站点查看详情。" : "Sign in to view the details."}</p>`;
-  return {
-    subject,
-    html: layout(locale, body, { heading: input.title }),
-    text: input.url ?? "",
-  };
+  if (input.body) parts.push(input.body);
+  if (input.reason) parts.push(`${zh ? "原因" : "Reason"}：${input.reason}`);
+  if (input.url) parts.push(`${zh ? "查看详情" : "View details"}：${input.url}`);
+  const text = layout(
+    locale,
+    parts.join("\n\n") || (zh ? "请登录站点查看详情。" : "Sign in to view the details."),
+    { heading: input.title },
+  );
+  return { subject, html: "", text };
 }
 
 /** renderSystemTemplate + the enabled check (empty result when disabled). */
