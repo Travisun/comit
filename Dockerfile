@@ -36,6 +36,9 @@ COPY --from=build --chown=app:app /app/drizzle ./drizzle
 COPY --from=build --chown=app:app /app/drizzle.config.ts ./drizzle.config.ts
 COPY --from=build --chown=app:app /app/src/db ./src/db
 COPY --from=build --chown=app:app /app/src/extensions ./src/extensions
+# migrate one-shot（tsx）需要 tsconfig.json 解析 @/* 路径别名（schema.ts →
+# @/extensions/_boot/tables）
+COPY --from=build --chown=app:app /app/tsconfig.json ./tsconfig.json
 COPY --from=build --chown=app:app /app/next.config.ts ./next.config.ts
 USER app
 EXPOSE 3000
