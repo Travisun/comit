@@ -36,6 +36,12 @@ export async function mailConfig(): Promise<MailConfig> {
   return { host, port, secure, user, pass, from, enabled: Boolean(host) };
 }
 
+/** 回环/本机中转判定：这类 hop 无中间人面，postfix 自签证书可跳过校验。 */
+function isLoopbackHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return h === "localhost" || h === "::1" || h.startsWith("127.");
+}
+
 async function getTransport(cfg: MailConfig): Promise<Transporter> {
   const fingerprint = `${cfg.host}:${cfg.port}:${cfg.secure}:${cfg.user}`;
   if (!transport || transportFingerprint !== fingerprint) {
@@ -44,6 +50,9 @@ async function getTransport(cfg: MailConfig): Promise<Transporter> {
       port: cfg.port,
       secure: cfg.secure,
       auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
+      // 本机 MTA 中转常配自签证书的 STARTTLS，loopback 直连不校验；
+      // 远程 SMTP 主机不受影响（保持证书强校验）
+      tls: isLoopbackHost(cfg.host) ? { rejectUnauthorized: false } : undefined,
     });
     transportFingerprint = fingerprint;
   }
