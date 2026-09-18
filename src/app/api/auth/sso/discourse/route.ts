@@ -11,11 +11,11 @@ export const runtime = "nodejs";
 export async function GET() {
   const loginError = absolute(`${routes.login}?error=oauth`);
   try {
-    if (!oauthEnabled("discourse") || !(await getSetting("sso.discourse"))) {
+    if (!(await oauthEnabled("discourse")) || !(await getSetting("sso.discourse"))) {
       return NextResponse.redirect(loginError);
     }
     const nonce = randomToken(16);
-    const res = NextResponse.redirect(discourseSsoStartUrl(nonce, "/api/auth/sso/discourse/callback"));
+    const res = NextResponse.redirect(await discourseSsoStartUrl(nonce, "/api/auth/sso/discourse/callback"));
     res.cookies.set("mb_sso_nonce", nonce, {
       httpOnly: true,
       sameSite: "lax",

@@ -31,7 +31,7 @@ export async function GET(req: Request) {
       PROVIDERS.map(async (provider) => ({
         provider,
         enabled:
-          oauthEnabled(provider) &&
+          (await oauthEnabled(provider)) &&
           Boolean(await getSetting(ssoKey(provider) as "sso.github")),
         linked: linked.has(provider),
       })),

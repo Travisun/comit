@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ provider: 
       return NextResponse.redirect(loginError);
     }
     const p = provider as Provider;
-    if (!oauthEnabled(p) || !(await getSetting(SSO_KEY[p]))) {
+    if (!(await oauthEnabled(p)) || !(await getSetting(SSO_KEY[p]))) {
       return NextResponse.redirect(loginError);
     }
 

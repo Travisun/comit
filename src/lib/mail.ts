@@ -1,20 +1,51 @@
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
 import { config } from "@/core/config";
+import { getSetting } from "@/lib/settings";
 import type { Locale } from "@/lib/i18n";
 import { hasCustomCopy, peekTemplateOverride, renderTemplate } from "@/lib/mail-templates";
 
-/** Low-level SMTP transport (lazy singleton). */
+/**
+ * SMTP transport（lazy 单例，按配置指纹失效重建）。
+ * 配置来源：管理后台设置（settings 表 smtp 键）优先，字段留空回落环境
+ * 变量（config.mail.*）—— 后台改完 ≤10s 生效（settings 进程缓存），
+ * 连接参数变化时自动换新 transporter。
+ */
 let transport: Transporter | null = null;
+let transportFingerprint = "";
 
-function getTransport(): Transporter {
-  if (!transport) {
+export interface MailConfig {
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  pass: string;
+  from: string;
+  enabled: boolean;
+}
+
+/** 合并视图：settings 有值用 settings，逐字段回落 env。 */
+export async function mailConfig(): Promise<MailConfig> {
+  const db = await getSetting("smtp");
+  const host = db.host?.trim() || config.mail.host;
+  const port = db.port ?? config.mail.port;
+  const secure = db.secure ?? config.mail.secure;
+  const user = db.user?.trim() || config.mail.user;
+  const pass = db.pass || config.mail.pass;
+  const from = db.from?.trim() || config.mail.from;
+  return { host, port, secure, user, pass, from, enabled: Boolean(host) };
+}
+
+async function getTransport(cfg: MailConfig): Promise<Transporter> {
+  const fingerprint = `${cfg.host}:${cfg.port}:${cfg.secure}:${cfg.user}`;
+  if (!transport || transportFingerprint !== fingerprint) {
     transport = nodemailer.createTransport({
-      host: config.mail.host,
-      port: config.mail.port,
-      secure: config.mail.secure,
-      auth: config.mail.user ? { user: config.mail.user, pass: config.mail.pass } : undefined,
+      host: cfg.host,
+      port: cfg.port,
+      secure: cfg.secure,
+      auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
     });
+    transportFingerprint = fingerprint;
   }
   return transport;
 }
@@ -26,20 +57,22 @@ export async function sendMail(opts: {
   text?: string;
   headers?: Record<string, string>;
 }): Promise<void> {
-  if (!config.mail.enabled) {
+  const cfg = await mailConfig();
+  if (!cfg.enabled) {
     console.warn(`[mail] SMTP disabled; would send "${opts.subject}" to ${opts.to}`);
     return;
   }
-  await getTransport().sendMail({
-    from: config.mail.from,
+  await (await getTransport(cfg)).sendMail({
+    from: cfg.from,
     ...opts,
   });
 }
 
 export async function verifySmtp(): Promise<boolean> {
-  if (!config.mail.enabled) return false;
+  const cfg = await mailConfig();
+  if (!cfg.enabled) return false;
   try {
-    await getTransport().verify();
+    await (await getTransport(cfg)).verify();
     return true;
   } catch {
     return false;

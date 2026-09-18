@@ -7,7 +7,7 @@ import { siteMetadata } from "@/lib/seo";
 import { getLocale } from "@/lib/i18n/index.server";
 import { getSetting } from "@/lib/settings";
 import { LoginDialog } from "@/components/social/login-dialog";
-import { config } from "@/core/config";
+import { oauthEnabled } from "@/lib/auth/oauth";
 import { I18nProvider } from "@/lib/i18n/client";
 import { DataProvider } from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -32,22 +32,18 @@ async function LoginDialogHost() {
     getSetting("site.inviteRequired"),
   ]);
   const oauthProviders = (
-    [
-      { key: "github", label: "GitHub", on: Boolean(config.oauth.github.clientId) },
-      { key: "google", label: "Google", on: Boolean(config.oauth.google.clientId) },
-      { key: "x", label: "X (Twitter)", on: Boolean(config.oauth.x.clientId) },
-      { key: "linuxdo", label: "Linux.do", on: Boolean(config.oauth.linuxdo.clientId) },
-      {
-        key: "discourse",
-        label: "Discourse",
-        on: Boolean(config.oauth.discourse.url && config.oauth.discourse.secret),
-      },
-      {
-        key: "cfaccess",
-        label: "Cloudflare Access",
-        on: Boolean(config.oauth.cfAccess.team),
-      },
-    ] as const
+    await Promise.all(
+      (
+        [
+          { key: "github", label: "GitHub" },
+          { key: "google", label: "Google" },
+          { key: "x", label: "X (Twitter)" },
+          { key: "linuxdo", label: "Linux.do" },
+          { key: "discourse", label: "Discourse" },
+          { key: "cfaccess", label: "Cloudflare Access" },
+        ] as const
+      ).map(async (p) => ({ ...p, on: await oauthEnabled(p.key) })),
+    )
   )
     .filter((p) => p.on)
     .map((p) => ({ key: p.key, label: p.label }));

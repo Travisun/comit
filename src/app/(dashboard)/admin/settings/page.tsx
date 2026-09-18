@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/settings";
 import { EmptyState, OverrideBadge, PageHeader } from "@/components/admin/bits";
 import { LlmProvidersPanel } from "@/components/admin/llm-providers-panel";
+import { OAuthProvidersSection, SmtpSection } from "@/components/admin/oauth-smtp-panels";
 import { Field, SwitchRow } from "@/components/admin/switch-row";
 import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
@@ -32,7 +33,6 @@ import { RATE_BUCKETS } from "@/lib/rate-limit/bucket-manifest";
 import type { BucketOverrides } from "@/lib/rate-limit/buckets";
 
 type Switches = Record<string, boolean>;
-type OAuthEnv = Record<string, boolean>;
 
 /* ------------------------- rate-limit buckets 区块 ------------------------- */
 
@@ -134,7 +134,11 @@ function AdminSettingsForm({
   onTabChange: (tab: AdminTab) => void;
 }) {
   const { t } = useI18n();
-  const [oauthEnv] = useState<OAuthEnv>(seed.oauthEnv ?? {});
+  // 登录凭证的只读状态（configured 等）— 来自 GET entries（已合并 env 判定）
+  const oauthProviders = (seed.entries["oauth.providers"] ?? {}) as Record<
+    string,
+    { clientId: string; hasSecret: boolean; configured: boolean }
+  >;
   const [name, setName] = useState(String(seed.entries["site.name"] ?? ""));
   const [tagline, setTagline] = useState(String(seed.entries["site.tagline"] ?? ""));
   const [description, setDescription] = useState(String(seed.entries["site.description"] ?? ""));
@@ -311,30 +315,41 @@ function AdminSettingsForm({
       )}
 
       {tab === "login" && (
-        <SettingsSection className="max-w-2xl">
-          <SettingsSectionHeader description="第三方登录与事务邮件。开启 SSO 前需同时配置对应的环境变量密钥（client id / secret）。" />
-          <div>
-            {SSO_KEYS.map((k) => {
-              const configured = oauthEnv[k.key.replace("sso.", "")] ?? false;
-              return (
-                <SwitchRow
-                  key={k.key}
-                  label={`${k.label}（${configured ? "凭证已配置" : "未配置凭证"}）`}
-                  checked={switches[k.key] ?? false}
-                  onCheckedChange={(v) => setSwitches((s) => ({ ...s, [k.key]: v }))}
-                  last={false}
-                />
-              );
-            })}
-            <SwitchRow
-              label="启用邮件发送"
-              description="关闭后验证码/通知邮件将不再发出（需已配置 SMTP）"
-              checked={switches["notify.emailEnabled"] ?? false}
-              onCheckedChange={(v) => setSwitches((s) => ({ ...s, "notify.emailEnabled": v }))}
-              last
-            />
-          </div>
-        </SettingsSection>
+        <div className="space-y-6">
+          <SettingsSection className="max-w-2xl">
+            <SettingsSectionHeader description="第三方登录的启停开关；凭证在下方面板配置（数据库优先，环境变量兜底）。" />
+            <div>
+              {SSO_KEYS.map((k) => {
+                const configured =
+                  oauthProviders[k.key.replace("sso.", "")]?.configured ?? false;
+                return (
+                  <SwitchRow
+                    key={k.key}
+                    label={`${k.label}（${configured ? "凭证已就绪" : "未配置凭证"}）`}
+                    checked={switches[k.key] ?? false}
+                    onCheckedChange={(v) => setSwitches((s) => ({ ...s, [k.key]: v }))}
+                    last={false}
+                  />
+                );
+              })}
+              <SwitchRow
+                label="启用邮件发送"
+                description="关闭后验证码/通知邮件将不再发出（需已配置 SMTP）"
+                checked={switches["notify.emailEnabled"] ?? false}
+                onCheckedChange={(v) => setSwitches((s) => ({ ...s, "notify.emailEnabled": v }))}
+                last
+              />
+            </div>
+            <SettingsFooter hint="开关与凭证分开保存：先在下方保存凭证，再回到这里启用。">
+              <Button onClick={save} disabled={saveMutation.pending}>
+                <Save className="size-4" />
+                {saveMutation.pending ? "保存中…" : "保存开关"}
+              </Button>
+            </SettingsFooter>
+          </SettingsSection>
+          <OAuthProvidersSection seed={seed.entries["oauth.providers"]} />
+          <SmtpSection seed={seed.entries["smtp"]} />
+        </div>
       )}
 
       {tab === "ratelimit" && <RateLimitBucketsSection seedValue={seed.entries["ratelimit.buckets"]} />}

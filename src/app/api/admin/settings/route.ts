@@ -3,8 +3,8 @@ import { withAdmin, ok, jsonBody } from "@/lib/http";
 import { getSettings, setSettings, SETTINGS_DEFAULTS } from "@/lib/settings";
 import { AppError } from "@/core/errors";
 import { parseOrThrow, logAdmin } from "@/app/api/admin/_shared";
-import { config } from "@/core/config";
 import { llmProvidersValueSchema } from "@/lib/llm";
+import { OAUTH_PROVIDER_IDS, oauthCreds } from "@/lib/auth/oauth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,16 +35,43 @@ export async function GET(req: Request) {
           }
         : { providers: [], default: null },
     };
-    // OAuth 凭证仅存在于环境变量 —— 后台可查看配置状态（不可改）
-    const oauthEnv = {
-      github: Boolean(config.oauth.github.clientId),
-      google: Boolean(config.oauth.google.clientId),
-      x: Boolean(config.oauth.x.clientId),
-      linuxdo: Boolean(config.oauth.linuxdo.clientId),
-      discourse: Boolean(config.oauth.discourse.url && config.oauth.discourse.secret),
-      cfaccess: Boolean(config.oauth.cfAccess.team),
+    // OAuth 凭证（DB 优先 / env 兜底）：密钥永不明文出库，只回传 hasSecret；
+    // configured = 合并视图下凭证是否齐备（供登录 tab 的开关标签展示）
+    const oauthRaw = (all["oauth.providers"] ?? {}) as Record<
+      string,
+      { clientId?: string; clientSecret?: string }
+    >;
+    const oauthMasked: Record<string, { clientId: string; hasSecret: boolean; configured: boolean }> = {};
+    for (const prov of OAUTH_PROVIDER_IDS) {
+      const creds = await oauthCreds(prov);
+      oauthMasked[prov] = {
+        clientId: oauthRaw[prov]?.clientId ?? "",
+        hasSecret: Boolean(oauthRaw[prov]?.clientSecret),
+        configured:
+          prov === "linuxdo" || prov === "discourse"
+            ? Boolean(creds.clientId && creds.clientSecret)
+            : Boolean(creds.clientId),
+      };
+    }
+    entries["oauth.providers"] = oauthMasked;
+    // SMTP：pass 永不明文出库，只回传 hasPass
+    const smtpRaw = (all["smtp"] ?? {}) as {
+      host?: string;
+      port?: number;
+      secure?: boolean;
+      user?: string;
+      pass?: string;
+      from?: string;
     };
-    return ok({ entries, oauthEnv });
+    entries["smtp"] = {
+      host: smtpRaw.host ?? "",
+      port: smtpRaw.port ?? 587,
+      secure: smtpRaw.secure ?? false,
+      user: smtpRaw.user ?? "",
+      from: smtpRaw.from ?? "",
+      hasPass: Boolean(smtpRaw.pass),
+    };
+    return ok({ entries });
   });
 }
 
@@ -54,6 +81,29 @@ const bodySchema = z.object({
     { message: "entries 不能为空 / entries required" },
   ),
 });
+
+/** oauth.providers 的精确值校验：provider → { clientId, clientSecret }（文本，长度上限防滥用） */
+const oauthProvidersValueSchema = z.record(
+  z.string().max(32),
+  z
+    .object({
+      clientId: z.string().max(500),
+      clientSecret: z.string().max(500),
+    })
+    .strict(),
+);
+
+/** smtp 的精确值校验 */
+const smtpValueSchema = z
+  .object({
+    host: z.string().max(255),
+    port: z.number().int().min(1).max(65535),
+    secure: z.boolean(),
+    user: z.string().max(255),
+    pass: z.string().max(255),
+    from: z.string().max(255),
+  })
+  .strict();
 
 /**
  * ratelimit.buckets 的精确值校验：桶名 → { limit, windowSec }（其余键维持
@@ -84,6 +134,12 @@ export async function POST(req: Request) {
       if (key === "llm.providers" && !llmProvidersValueSchema.safeParse(value).success) {
         throw new AppError(`设置项的值不合法 / Invalid value for setting: ${key}`, 400, "bad_value");
       }
+      if (key === "oauth.providers" && !oauthProvidersValueSchema.safeParse(value).success) {
+        throw new AppError(`设置项的值不合法 / Invalid value for setting: ${key}`, 400, "bad_value");
+      }
+      if (key === "smtp" && !smtpValueSchema.safeParse(value).success) {
+        throw new AppError(`设置项的值不合法 / Invalid value for setting: ${key}`, 400, "bad_value");
+      }
     }
 
     // llm.providers 密钥保留语义：客户端不回传明文 —— apiKey 为空的提供商
@@ -105,6 +161,29 @@ export async function POST(req: Request) {
             apiKey: p.apiKey || current?.providers?.find((x) => x.id === p.id)?.apiKey || "",
           })),
         };
+        continue;
+      }
+      // oauth.providers 密钥保留语义：clientSecret 为空的提供商沿用库中已存密钥
+      if (key === "oauth.providers") {
+        const incoming = value as Record<string, { clientId?: string; clientSecret?: string }>;
+        const current = (await getSettings())["oauth.providers"] as
+          | Record<string, { clientSecret?: string }>
+          | undefined;
+        const merged: Record<string, { clientId: string; clientSecret: string }> = {};
+        for (const [prov, v] of Object.entries(incoming)) {
+          merged[prov] = {
+            clientId: v?.clientId ?? "",
+            clientSecret: v?.clientSecret || current?.[prov]?.clientSecret || "",
+          };
+        }
+        entriesToPersist[key] = merged;
+        continue;
+      }
+      // smtp 密码保留语义：pass 为空沿用库中已存密码
+      if (key === "smtp") {
+        const incoming = value as { pass?: string };
+        const current = (await getSettings())["smtp"] as { pass?: string } | undefined;
+        entriesToPersist[key] = { ...incoming, pass: incoming.pass || current?.pass || "" };
         continue;
       }
       entriesToPersist[key] = value;

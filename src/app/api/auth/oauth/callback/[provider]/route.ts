@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
       !cookieState ||
       state !== cookieState ||
       !PROVIDERS.has(provider) ||
-      !oauthEnabled(provider)
+      !(await oauthEnabled(provider))
     ) {
       return flowExit(loginError);
     }

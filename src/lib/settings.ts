@@ -61,6 +61,28 @@ export const SETTINGS_DEFAULTS = {
   },
   "notify.emailEnabled": true,
   /**
+   * 社交登录凭证（管理后台「登录」tab 维护）：per-provider { clientId, clientSecret }。
+   * 语义映射：discourse 的 clientId=SSO 地址、clientSecret=HMAC 密钥；cfaccess
+   * 的 clientId=Team 域名、clientSecret=AUD（可选）。字段留空回落环境变量
+   * （config.oauth.*），密钥经 admin settings GET 脱敏 / POST 留空保留。
+   */
+  "oauth.providers": {} as Record<
+    string,
+    { clientId?: string; clientSecret?: string }
+  >,
+  /**
+   * SMTP 邮件发送配置（管理后台维护）：字段留空回落环境变量（config.mail.*）；
+   * pass 经 GET 脱敏 / POST 留空保留。transport 按配置指纹失效重建。
+   */
+  "smtp": {} as {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    user?: string;
+    pass?: string;
+    from?: string;
+  },
+  /**
    * 限流桶覆写（见 @/lib/rate-limit/buckets 的 RATE_BUCKETS）：键为桶名
    * （BucketName），未列出的桶用代码内默认值；admin 路由对该键做精确校验
    */

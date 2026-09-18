@@ -17,7 +17,7 @@ export const runtime = "nodejs";
 export async function GET(req: NextRequest) {
   const loginError = absolute(`${routes.login}?error=oauth`);
   try {
-    if (!oauthEnabled("cfaccess") || !(await getSetting("sso.cfaccess"))) {
+    if (!(await oauthEnabled("cfaccess")) || !(await getSetting("sso.cfaccess"))) {
       return NextResponse.redirect(loginError);
     }
     const jwt =

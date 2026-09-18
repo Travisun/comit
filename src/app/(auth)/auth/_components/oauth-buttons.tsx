@@ -22,7 +22,7 @@ export async function OAuthButtons() {
 
   const enabled = [];
   for (const e of entries) {
-    if (oauthEnabled(e.provider) && (await getSetting(e.key))) enabled.push(e);
+    if ((await oauthEnabled(e.provider)) && (await getSetting(e.key))) enabled.push(e);
   }
   if (enabled.length === 0) return null;
 
