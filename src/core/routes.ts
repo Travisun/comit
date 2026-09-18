@@ -47,6 +47,8 @@ export const TPL = {
 export const routes = {
   // public
   home: "/",
+  /** 热门榜（今日/本周/本月，?range= 切换时间窗） */
+  hot: "/hot",
   /** 关注流（登录用户关注作者的最新动态） */
   following: "/following",
   feed: "/feed",

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Copy, KeyRound, Loader2, Plus, Plug, SquareArrowOutUpRight, Trash2 } from "lucide-react";
+import { Check, Copy, KeyRound, Loader2, Plus, Plug, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { Badge } from "@/components/ui/primitives";
+import { Badge, Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/primitives";
 import {
   Dialog,
   DialogContent,
@@ -19,7 +19,7 @@ import { SettingsPanelList, SettingsSectionHeader } from "@/components/ui/settin
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
-import { cn, formatDate } from "@/lib/utils";
+import { cn, formatDate, subscribeNoop } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { TokenView } from "./types";
 
@@ -33,25 +33,89 @@ const SCOPE_LABELS: Record<string, string> = {
   "profile:read": "资料读取 / Read profile",
 };
 
-/** MCP 接入：端点地址 + 复制 / 打开。 */
+/** 带一键复制的配置代码块。 */
+function Snippet({ code, onCopy, copiedLabel, copyLabel }: {
+  code: string;
+  onCopy: () => void;
+  copiedLabel: string;
+  copyLabel: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="relative">
+      <pre className="overflow-x-auto rounded-lg bg-muted p-3 pr-12 font-mono text-xs leading-relaxed text-foreground">
+        {code}
+      </pre>
+      <Button
+        variant="outline"
+        size="icon"
+        className="absolute top-2 right-2"
+        title={copyLabel}
+        onClick={() => {
+          onCopy();
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        }}
+      >
+        {copied ? <Check className="text-emerald-600" /> : <Copy />}
+      </Button>
+      <span className="sr-only">{copiedLabel}</span>
+    </div>
+  );
+}
+
+/**
+ * MCP 接入面板：自适应端点 + 分客户端配置指南。
+ * 端点主机名以「当前浏览器地址」为准（SSR 首帧用服务端 APP_URL 兜底避免
+ * 水合抖动，挂载后切换为 window.location.origin）—— 反向代理域名、内网 IP、
+ * 非标端口访问时，用户复制到的永远是当下可达的地址。
+ */
 export function McpPanel({ appUrl }: { appUrl: string }) {
   const { t, locale } = useI18n();
   const zh = locale === "zh";
-  const mcpEndpoint = `${appUrl}/api/mcp`;
+  // 端点主机名以「当前浏览器地址」为准：SSR/水合首帧用服务端 APP_URL，
+  // 客户端侧 useSyncExternalStore 切换为 window.location.origin —— 反向代理
+  // 域名、内网 IP、非标端口访问时，展示/复制的永远是当下可达的地址。
+  const origin = useSyncExternalStore(subscribeNoop, () => window.location.origin, () => appUrl);
+  const mcpEndpoint = `${origin}/api/mcp`;
+
+  const copy = async (text: string) => {
+    if (await copyText(text)) toast.success(t("common.copied"));
+  };
+
+  const tokenPlaceholder = zh ? "mbt_你的令牌" : "mbt_YOUR_TOKEN";
+  const cursorConfig = JSON.stringify(
+    {
+      mcpServers: {
+        myblogs: {
+          url: mcpEndpoint,
+          headers: { Authorization: `Bearer ${tokenPlaceholder}` },
+        },
+      },
+    },
+    null,
+    2,
+  );
+  const genericConfig = cursorConfig;
+  const claudeCmd = `claude mcp add --transport http myblogs ${mcpEndpoint} --header "Authorization: Bearer ${tokenPlaceholder}"`;
 
   return (
     <div className="space-y-4">
       <SettingsSectionHeader description={t("settings.tokens.desc")} />
+
+      {/* 第 1 步：端点（自适应当前浏览器地址） */}
       <SettingsPanelList>
         <div className="px-4 py-3.5">
           <div className="flex items-start gap-2.5">
             <Plug className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0">
-              <p className="text-sm text-foreground">{zh ? "MCP 端点" : "MCP endpoint"}</p>
+              <p className="text-sm text-foreground">
+                {zh ? "第 1 步 · MCP 端点" : "Step 1 · MCP endpoint"}
+              </p>
               <p className="mt-0.5 text-xs text-muted-foreground">
                 {zh
-                  ? "复制到支持 MCP 的客户端（如 Claude、Cursor）即可接入。"
-                  : "Paste into any MCP-capable client (Claude, Cursor, …)."}
+                  ? "已自动适配当前浏览器访问的地址（协议/域名/端口）。通过自定义域名或内网访问时，无需手动改写。"
+                  : "Automatically matches the address in your browser (protocol / host / port) — no manual rewriting needed behind proxies or on LAN."}
               </p>
             </div>
           </div>
@@ -75,6 +139,80 @@ export function McpPanel({ appUrl }: { appUrl: string }) {
             >
               <SquareArrowOutUpRight />
             </Button>
+          </div>
+        </div>
+      </SettingsPanelList>
+
+      {/* 第 2 步：创建令牌 */}
+      <SettingsPanelList>
+        <div className="flex items-start gap-2.5 px-4 py-3.5">
+          <KeyRound className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm text-foreground">
+              {zh ? "第 2 步 · 创建 API 令牌" : "Step 2 · Create an API token"}
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {zh
+                ? "在下方「API 令牌」区域创建一个令牌并复制（令牌仅显示一次）。建议按需勾选权限：只读接入勾读取类，需要 AI 帮你发文再勾 posts:write。"
+                : "Create a token in the “API tokens” section below (shown only once). Grant scopes on demand: read-only scopes for browsing, plus posts:write only if the agent should publish for you."}
+            </p>
+          </div>
+        </div>
+      </SettingsPanelList>
+
+      {/* 第 3 步：选择客户端复制配置 */}
+      <SettingsPanelList>
+        <div className="px-4 py-3.5">
+          <div className="flex items-start gap-2.5">
+            <SquareArrowOutUpRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <div className="min-w-0">
+              <p className="text-sm text-foreground">
+                {zh ? "第 3 步 · 在客户端中配置" : "Step 3 · Configure your client"}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {zh
+                  ? "选择你使用的客户端，复制配置并粘贴；把 mbt_占位令牌 替换为第 2 步创建的真实令牌。"
+                  : "Pick your client, paste the snippet, and replace the mbt_ placeholder with the real token from step 2."}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 pl-[26px]">
+            <Tabs defaultValue="claude">
+              <TabsList>
+                <TabsTrigger value="claude">Claude</TabsTrigger>
+                <TabsTrigger value="cursor">Cursor</TabsTrigger>
+                <TabsTrigger value="generic">{zh ? "其他客户端" : "Other clients"}</TabsTrigger>
+              </TabsList>
+              <TabsContent value="claude" className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {zh
+                    ? "终端执行（Claude Code / Claude Desktop 均可）："
+                    : "Run in a terminal (Claude Code / Claude Desktop):"}
+                </p>
+                <Snippet code={claudeCmd} onCopy={() => void copy(claudeCmd)} copyLabel={t("common.copy")} copiedLabel={t("common.copied")} />
+                <p className="text-xs text-muted-foreground">
+                  {zh
+                    ? "Claude Desktop 也可在 设置 → 连接器 → 添加自定义连接器 中粘贴端点，并选择「自定义鉴权」填入 Bearer 令牌。"
+                    : "In Claude Desktop you can also add it under Settings → Connectors → Add custom connector, pasting the endpoint and a Bearer token."}
+                </p>
+              </TabsContent>
+              <TabsContent value="cursor" className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {zh
+                    ? "粘贴到 Cursor 的 MCP 设置（~/.cursor/mcp.json 或 设置 → MCP）："
+                    : "Paste into Cursor's MCP settings (~/.cursor/mcp.json or Settings → MCP):"}
+                </p>
+                <Snippet code={cursorConfig} onCopy={() => void copy(cursorConfig)} copyLabel={t("common.copy")} copiedLabel={t("common.copied")} />
+              </TabsContent>
+              <TabsContent value="generic" className="mt-3 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {zh
+                    ? "任何支持 MCP Streamable HTTP 的客户端通用配置："
+                    : "Generic config for any MCP client with Streamable HTTP support:"}
+                </p>
+                <Snippet code={genericConfig} onCopy={() => void copy(genericConfig)} copyLabel={t("common.copy")} copiedLabel={t("common.copied")} />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
       </SettingsPanelList>

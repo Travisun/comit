@@ -6,6 +6,7 @@ import { useUiRegistryVersion } from "@/lib/plugins/registry";
 import type { ReactNode } from "react";
 import {
   Compass,
+  Flame,
   Home,
   Mail,
   Settings,
@@ -62,6 +63,8 @@ export function LeftNav({
 
   const items = [
     { href: routes.home, label: "最新", icon: <Home className="size-[18px]" />, exact: true, badge: unread.latest },
+    // 热门（第二项）：今日/本周/本月榜单，游客可看
+    { href: routes.hot, label: "热门", icon: <Flame className="size-[18px]" /> },
     ...(user
       ? [{ href: routes.following, label: "关注", icon: <Users className="size-[18px]" />, badge: unread.following }]
       : []),

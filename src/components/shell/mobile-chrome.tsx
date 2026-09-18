@@ -6,6 +6,7 @@ import {
   Bell,
   Compass,
   Feather,
+  Flame,
   Home,
   User as UserIcon,
   Users,
@@ -63,6 +64,8 @@ export function MobileTabBar({ user, unread }: { user: ShellUser | null; unread:
 
   const tabs = [
     { href: routes.home, label: "最新", icon: <NavIcon badge={unread.latest}><Home className="size-[18px]" /></NavIcon>, exact: true },
+    // 热门（第二项，与桌面左侧菜单一致）：今日/本周/本月榜单
+    { href: routes.hot, label: "热门", icon: <Flame className="size-[18px]" /> },
     ...(user
       ? [
           { href: routes.following, label: "关注", icon: <NavIcon badge={unread.following}><Users className="size-[18px]" /></NavIcon> },

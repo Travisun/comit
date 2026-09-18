@@ -137,6 +137,7 @@
 | GET/POST /api/export | 登录 | 导出任务列表 / 发起（queue: export.build） |
 | GET /api/export/[id] · /download | 登录 | 任务状态 / 下载 ZIP |
 | GET /api/feed | 公开 | 信息流分页（explore 用） |
+| GET /api/hot?range=day\|week\|month | 公开 | 热门榜分页（时间窗互动加权 + 新鲜度重力衰减） |
 | GET /api/feed.xml、/u/[username]/feed.xml、/sub/[subdomain]/feed.xml | 公开 | RSS（个人可关 rssEnabled） |
 | POST /api/markdown/preview | 登录 | Markdown 预览渲染（同一管线，防 XSS） |
 | GET /api/health | 公开 | 健康探针（无鉴权、无 DB） |
@@ -160,20 +161,20 @@
 
 端点：`/api/mcp`（MCP Streamable HTTP，**stateless**——每 POST 一条 JSON-RPC 消息，GET 返回服务信息页）。认证必须 Bearer 令牌，无会话回退。服务名 `myblogs-mcp@1.0.0`。
 
-工具（12 个，均作用于**令牌属主**账号，scope 不符返回 403）：
+工具（12 个，均作用于**令牌属主**账号，scope 不符返回 403；令牌属主被封禁/注销后令牌即时失效，解封自动恢复）：
 
 | 工具 | Scope | 说明 |
 | --- | --- | --- |
 | `list_my_posts` | posts:read | 自己的文章+动态，最新优先 |
-| `get_post` | posts:read | 按 id 取全文 markdown |
+| `get_post` | posts:read | 按 id 取全文 markdown（作者任意状态；他人仅已发布且对其可见的内容） |
 | `create_article` | posts:write | 新建文章并进入审核流水线 |
 | `update_post` | posts:write | 更新 title/content/summary |
-| `delete_post` | posts:write | 永久删除自己的文章 |
-| `search_posts` | posts:read | 全站已发布内容关键词搜索（GIN 全文索引） |
+| `delete_post` | posts:write | 软删自己的帖子进回收站（web UI 可恢复） |
+| `search_posts` | feed:read | 全站已发布公开内容关键词搜索 |
 | `get_feed` | feed:read | 社区信息流（最近公开已发布） |
 | `list_my_media` | media:read | 自己的媒体库 |
-| `delete_media` | media:write | 删除媒体文件 |
-| `list_post_comments` | comments:read | 某文章的评论 |
+| `delete_media` | media:write | 删除媒体（库行 + 底层存储对象） |
+| `list_post_comments` | comments:read | 某文章的评论（仅调用方可见的帖子） |
 | `get_profile` | profile:read | 用户公开资料 |
 | `get_stats` | profile:read | 用户内容统计 |
 

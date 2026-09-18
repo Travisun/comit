@@ -30,6 +30,7 @@ import {
   type User,
 } from "@/db/schema";
 import { confiscateBannedUser } from "@/lib/banned";
+import { escapeLikePattern } from "@/lib/utils";
 import type {
   ArchiveGroup,
   AuthorCardData,
@@ -361,6 +362,153 @@ export async function getUserHotPosts(userId: string, limit = 5): Promise<FeedIt
     .orderBy(desc(sql`(${posts.views} + ${posts.likeCount} * 3)`))
     .limit(limit);
   return rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
+}
+
+/* ------------------------------- trending --------------------------------- */
+
+/** 热门榜时间窗：今日 24h / 本周 7d / 本月 30d（滚动窗口）。 */
+export type HotRange = "day" | "week" | "month";
+
+const HOT_RANGE_MS: Record<HotRange, number> = {
+  day: DAY,
+  week: 7 * DAY,
+  month: 30 * DAY,
+};
+
+/**
+ * 新鲜度重力：分母 (发布小时数 + 2)^gravity。窗口越短 gravity 越大 ——
+ * 日榜只奖励「刚发生」的互动，月榜则让整个窗口内的爆款都能浮上来。
+ * （Hacker News 式衰减；+2 抗发布零点的除零奇点。）
+ */
+const HOT_GRAVITY: Record<HotRange, number> = { day: 1.4, week: 1.0, month: 0.6 };
+
+/**
+ * 榜单 ID 池长度 + 缓存：排名计算一次（每 range 一次聚合扫描），30s 内的
+ * 分页/并发请求直接切片，避免每次翻页都全表聚合。站点量级下 200 条足够
+ * 覆盖整月榜的前几页。
+ */
+const HOT_POOL_SIZE = 200;
+const HOT_CACHE_TTL_MS = 30_000;
+const hotPoolCache = new Map<HotRange, { at: number; ids: string[] }>();
+
+/**
+ * 热门评分（时间窗内互动加权，全站内容社交模型定制）：
+ *
+ *   score = (转发×6 + 点赞×4 + 评论×3 + 收藏×2 + 浏览×0.2 + 1)
+ *           / (发布小时数 + 2) ^ gravity
+ *
+ * 设计依据：
+ *  - 互动计数取明细表（likes/comments/reposts/bookmarks.created_at）在窗口
+ *    内的发生量，而非 posts 表的全期累计列 —— 昨天发布、今天被顶起的帖子
+ *    在「今日榜」应排前面；views 无明细表，以低权重（0.2）用全期列参与。
+ *  - 权重按社交传导强度排序：转发（公开展示到关注者时间线）> 点赞（公开、
+ *    低成本）> 评论（公开、高成本）> 收藏（私有信号，仅体现内容价值）。
+ *    +1 平滑零互动新帖，让纯新帖也有出场机会（再被 gravity 压下去）。
+ */
+async function hotPostIds(range: HotRange): Promise<string[]> {
+  const cached = hotPoolCache.get(range);
+  if (cached && Date.now() - cached.at < HOT_CACHE_TTL_MS) return cached.ids;
+
+  const since = new Date(Date.now() - HOT_RANGE_MS[range]);
+  const result = await db.execute(sql`
+    WITH l AS (
+      SELECT ${likes.targetId} AS post_id, count(*)::int AS n
+      FROM ${likes}
+      WHERE ${likes.targetType} = 'post' AND ${likes.createdAt} >= ${since}
+      GROUP BY ${likes.targetId}
+    ),
+    c AS (
+      SELECT ${comments.postId} AS post_id, count(*)::int AS n
+      FROM ${comments}
+      WHERE ${comments.status} = 'visible' AND ${comments.createdAt} >= ${since}
+      GROUP BY ${comments.postId}
+    ),
+    r AS (
+      SELECT ${reposts.postId} AS post_id, count(*)::int AS n
+      FROM ${reposts}
+      WHERE ${reposts.createdAt} >= ${since}
+      GROUP BY ${reposts.postId}
+    ),
+    b AS (
+      SELECT ${bookmarks.postId} AS post_id, count(*)::int AS n
+      FROM ${bookmarks}
+      WHERE ${bookmarks.createdAt} >= ${since}
+      GROUP BY ${bookmarks.postId}
+    )
+    SELECT p.id AS id
+    FROM ${posts} p
+    LEFT JOIN l ON l.post_id = p.id
+    LEFT JOIN c ON c.post_id = p.id
+    LEFT JOIN r ON r.post_id = p.id
+    LEFT JOIN b ON b.post_id = p.id
+    WHERE p.status = 'published'
+      AND p.visibility = 'public'
+      AND p.published_at >= ${since}
+    ORDER BY (
+      (coalesce(l.n, 0) * 4 + coalesce(c.n, 0) * 3 + coalesce(r.n, 0) * 6
+        + coalesce(b.n, 0) * 2 + p.views * 0.2 + 1)
+      / power(greatest(extract(epoch FROM (now() - p.published_at)) / 3600.0, 0) + 2,
+              ${HOT_GRAVITY[range]})
+    ) DESC, p.published_at DESC
+    LIMIT ${HOT_POOL_SIZE}
+  `);
+  const ids = (result.rows as { id: string }[]).map((r) => r.id);
+  hotPoolCache.set(range, { at: Date.now(), ids });
+  return ids;
+}
+
+/**
+ * 热门榜（日/周/月）分页查询 — 供 /hot 页面与 /api/hot 使用。
+ * 排名在 ID 池阶段完成，这里按 offset 切片后回填完整的 Feed 行
+ * （作者信息、投票标记、viewer 收藏态），行为与 getPublishedPosts 对齐。
+ */
+export async function getTrendingPosts(opts: {
+  range: HotRange;
+  limit?: number;
+  offset?: number;
+  viewerId?: string | null;
+}): Promise<{ items: FeedItem[]; nextOffset: number | null }> {
+  const limit = Math.min(Math.max(opts.limit ?? 10, 1), 50);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const ids = await hotPostIds(opts.range);
+  const pageIds = ids.slice(offset, offset + limit);
+  if (pageIds.length === 0) return { items: [], nextOffset: null };
+
+  const baseQuery = db
+    .select({
+      post: posts,
+      author: {
+        username: users.username,
+        displayName: users.displayName,
+        avatarPath: users.avatarPath,
+        status: users.status,
+        bannedUntil: users.bannedUntil,
+      },
+      pollId: polls.id,
+      bookmarked: opts.viewerId
+        ? sql<boolean>`(${bookmarks.userId} is not null)`
+        : sql<boolean>`false`,
+    })
+    .from(posts)
+    .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(polls, eq(polls.postId, posts.id));
+  const rows = await (opts.viewerId
+    ? baseQuery.leftJoin(
+        bookmarks,
+        and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
+      )
+    : baseQuery
+  )
+    .where(inArray(posts.id, pageIds));
+
+  const byId = new Map<string, FeedItem>();
+  for (const r of rows) {
+    byId.set(r.post.id, { ...r, author: confiscateBannedUser(r.author) });
+  }
+  const items = pageIds
+    .map((id) => byId.get(id))
+    .filter((x): x is FeedItem => x !== undefined);
+  return { items, nextOffset: offset + limit < ids.length ? offset + limit : null };
 }
 
 /* -------------------------------- topics --------------------------------- */
@@ -973,9 +1121,7 @@ export async function listFollowing(
 export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedItem[]> {
   const needle = q.trim().slice(0, 80);
   if (!needle) return [];
-  // 转义 LIKE 通配符：q="%" 会退化为全表 ilike 顺序扫描（低成本放大）
-  const escaped = needle.replace(/[\\%_]/g, "\\$&");
-  const like = `%${escaped}%`;
+  const like = `%${escapeLikePattern(needle)}%`;
   const rows = await db
     .select({
       post: posts,

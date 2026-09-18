@@ -8,6 +8,8 @@ export const queryKeys = {
   feed: (scope?: "following") => ["feed", scope ?? "all"] as const,
   /** 跨 scope 失效全部时间线（发帖/删帖后用，invalidate 按前缀匹配） */
   feedPrefix: () => ["feed"] as const,
+  /** 热门榜无限流（range: "day" | "week" | "month"） */
+  hot: (range: string) => ["hot", range] as const,
   /** 新帖横幅的轻量探测（前缀可连带全部 scope） */
   feedCheck: (scope?: "following") => ["feed-check", scope ?? "all"] as const,
   feedCheckPrefix: () => ["feed-check"] as const,
