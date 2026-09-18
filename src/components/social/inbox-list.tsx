@@ -106,7 +106,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
     router.push(`/messages/${uid}`);
   }
 
-  const rowCls = "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--hover)]";
+  const rowCls = "flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-[var(--hover)]";
 
   /* -------------------------------- render ------------------------------- */
 
@@ -256,7 +256,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
             ))}
 
             {dmRows.length === 0 && (
-              <li className="px-4 py-6 text-center text-xs leading-relaxed text-muted-foreground">
+              <li className="px-3 py-6 text-center text-xs leading-relaxed text-muted-foreground">
                 {zh ? "还没有私信会话。互相关注后即可私信。" : "No DM conversations yet. Mutual follows can DM."}
               </li>
             )}
