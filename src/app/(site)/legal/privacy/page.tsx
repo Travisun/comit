@@ -3,12 +3,14 @@ import { routes } from "@/core/routes";
 import { pageMetadata } from "@/lib/seo";
 import { LegalDoc, LegalSection } from "../legal-doc";
 
-export const metadata: Metadata = pageMetadata({
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
   title: "隐私政策",
   description:
     "comit.sh 隐私政策：我们收集哪些数据、如何使用、你的 GDPR 权利（访问、更正、删除、可携带）以及第三方处理说明。你的主页属于你，你的数据同理。",
   path: routes.legal.privacy,
 });
+}
 
 export default function PrivacyPage() {
   return (

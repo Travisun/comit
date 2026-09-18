@@ -11,6 +11,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { mcpTools, bootPlugins } from "@/extensions/_boot/server";
+import { config } from "@/core/config";
 
 /**
  * MCP over Streamable HTTP (stateless mode), hand-rolled on the SDK:
@@ -32,11 +33,10 @@ export async function ensureMcpBootstrapped(): Promise<void> {
   if (mcpTools.size === 0) await bootPlugins();
 }
 
-function createMcpServer(auth: McpAuthContext): Server {
+function createMcpServer(auth: McpAuthContext, brandName?: string): Server {
   const server = new Server(MCP_SERVER_INFO, {
     capabilities: { tools: {} },
-    instructions:
-      "comit.sh personal blog API. Use tools/list to discover tools; every tool call is scoped by the API token's permissions.",
+    instructions: `${brandName ?? config.app.name} content API. Use tools/list to discover tools; every tool call is scoped by the API token's permissions.`,
   });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -108,8 +108,12 @@ function sleep(ms: number) {
 }
 
 /** Push one JSON-RPC request through a fresh in-memory server pair and collect the single response. */
-async function processRequest(auth: McpAuthContext, request: JSONRPCRequest): Promise<JSONRPCMessage> {
-  const server = createMcpServer(auth);
+async function processRequest(
+  auth: McpAuthContext,
+  request: JSONRPCRequest,
+  brandName?: string,
+): Promise<JSONRPCMessage> {
+  const server = createMcpServer(auth, brandName);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
   const responsePromise = new Promise<JSONRPCMessage>((resolve) => {
@@ -144,7 +148,11 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
  *  - the JSON-RPC response for requests
  *  - `400` JSON-RPC protocol error for malformed payloads
  */
-export async function handleMcpRpc(auth: McpAuthContext, body: unknown): Promise<Response> {
+export async function handleMcpRpc(
+  auth: McpAuthContext,
+  body: unknown,
+  opts: { brandName?: string } = {},
+): Promise<Response> {
   await ensureMcpBootstrapped();
 
   const messages: unknown[] = Array.isArray(body) ? body : [body];
@@ -166,7 +174,7 @@ export async function handleMcpRpc(auth: McpAuthContext, body: unknown): Promise
     if (!isJSONRPCRequest(raw)) {
       return mcpErrorResponse(400, null, -32600, "Invalid Request");
     }
-    responses.push(await processRequest(auth, raw));
+    responses.push(await processRequest(auth, raw, opts.brandName));
   }
 
   if (responses.length === 0) return new Response(null, { status: 202 });

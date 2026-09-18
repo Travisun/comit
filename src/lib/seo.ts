@@ -1,28 +1,73 @@
 import type { Metadata } from "next";
 import { config } from "@/core/config";
+import { getSiteBrand, type SiteBrand } from "@/lib/settings";
 import type { User, Post } from "@/db/schema";
 
 /** SEO / GEO metadata helpers — one place for titles, canonicals, OG, robots. */
 
-export function siteMetadata(): Metadata {
+/** 默认标题：`名称 — 副标题首段`（副标题按破折号取首段，长副标题不进 <title>）。 */
+function defaultTitle(brand: SiteBrand): string {
+  const head = brand.tagline.split(/[—–]/)[0].trim();
+  return head ? `${brand.name} — ${head}` : brand.name;
+}
+
+/** 分享图解析：完整 http(s) URL 原样；否则按站内媒体相对路径拼绝对地址。 */
+function ogImageUrl(value: string): string | undefined {
+  const v = value.trim();
+  if (!v) return undefined;
+  if (/^https?:\/\//i.test(v)) return v;
+  return `${config.app.url}/api/media/file/${v.replace(/^\/+/, "")}`;
+}
+
+/** twitter:site 句柄归一：无 @ 前缀时补上；空值不下发。 */
+function twitterSite(handle: string): string | undefined {
+  const v = handle.trim();
+  if (!v) return undefined;
+  return v.startsWith("@") ? v : `@${v}`;
+}
+
+/** keywords 设置解析：中英文逗号/分号分隔。 */
+function keywordList(raw: string): string[] {
+  return raw
+    .split(/[,，;；]/)
+    .map((k) => k.trim())
+    .filter(Boolean)
+    .slice(0, 20);
+}
+
+/**
+ * 全站根 metadata —— 全部取自 admin 可调的站点设置（getSiteBrand，双层缓存）。
+ * 由根 layout 的 generateMetadata 每请求求值，后台改名/改描述即时生效
+ * （settings 10s TTL 内收敛）。
+ */
+export async function siteMetadata(): Promise<Metadata> {
+  const brand = await getSiteBrand();
+  const title = defaultTitle(brand);
+  const description = brand.description;
+  const images = ogImageUrl(brand.ogImage);
+  const site = twitterSite(brand.twitter);
+  const robots = brand.noindex
+    ? { index: false, follow: false }
+    : { index: true, follow: true };
+
   return {
     metadataBase: new URL(config.app.url),
     title: {
-      default: "comit.sh — Commit your ideas.",
-      template: `%s · ${config.app.name}`,
+      default: title,
+      template: `%s · ${brand.name}`,
     },
-    description:
-      "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，记录你的每一次思考、想法与灵感。",
+    description,
+    keywords: keywordList(brand.keywords),
     openGraph: {
-      siteName: config.app.name,
-      title: "comit.sh — Commit your ideas.",
-      description:
-        "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态，记录你的每一次思考、想法与灵感。",
+      siteName: brand.name,
+      title,
+      description,
       type: "website",
       locale: "zh_CN",
       alternateLocale: ["en_US"],
+      images: images ? [{ url: images }] : undefined,
     },
-    robots: { index: true, follow: true },
+    robots,
     alternates: {
       canonical: "/",
       types: {
@@ -33,8 +78,8 @@ export function siteMetadata(): Metadata {
 
     /** PWA */
     manifest: "/manifest.webmanifest",
-    applicationName: config.app.name,
-    appleWebApp: { capable: true, title: config.app.name, statusBarStyle: "default" },
+    applicationName: brand.name,
+    appleWebApp: { capable: true, title: brand.name, statusBarStyle: "default" },
 
     /** icons — self-hosted set from /icons (16 → 512 + SVG + maskable) */
     icons: {
@@ -52,15 +97,20 @@ export function siteMetadata(): Metadata {
 
     /** social cards */
     twitter: {
-      card: "summary",
-      title: "comit.sh — Commit your ideas.",
-      description:
-        "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态。",
+      card: images ? "summary_large_image" : "summary",
+      site,
+      title,
+      description,
+      images: images ? [images] : undefined,
     },
   };
 }
 
-export function pageMetadata(opts: {
+/**
+ * 子页 metadata 工厂 —— async：读取全站 noindex 开关（私有实例时子页的
+ * 显式 robots 也要跟随，root 的 robots 不会自动覆盖显式设置的子页）。
+ */
+export async function pageMetadata(opts: {
   title: string;
   description?: string;
   path: string;
@@ -70,13 +120,15 @@ export function pageMetadata(opts: {
   publishedTime?: Date;
   authors?: string[];
   tags?: string[];
-}): Metadata {
+}): Promise<Metadata> {
+  const brand = await getSiteBrand();
+  const siteNoindex = brand.noindex || opts.noindex;
   const url = `${config.app.url}${opts.path}`;
   return {
     title: opts.title,
     description: opts.description,
     alternates: { canonical: opts.path },
-    robots: opts.noindex ? { index: false, follow: false } : { index: true, follow: true },
+    robots: siteNoindex ? { index: false, follow: false } : { index: true, follow: true },
     openGraph: {
       title: opts.title,
       description: opts.description,

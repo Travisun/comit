@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { conversations, messages, notifications } from "@/db/schema";
 import { getAuth } from "@/lib/auth/session";
 import { getLocale } from "@/lib/i18n/index.server";
-import { getSetting } from "@/lib/settings";
+import { getSiteBrand, type SiteBrand } from "@/lib/settings";
 import { SiteShell, type ShellUser } from "@/components/site-shell";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteRailSection } from "./_rail/rail-section";
@@ -14,16 +14,30 @@ import { SiteRailSection } from "./_rail/rail-section";
  * mobile top bar + bottom tab bar. Dashboard-style routes (write / settings /
  * admin) live in the other route group and render full-screen without this.
  *
- * TTFB：主链只 await locale / 站点名 / 会话与导航未读数；右栏 rail
+ * TTFB：主链只 await locale / 站点品牌快照 / 会话与导航未读数；右栏 rail
  * （topics/authors/stats + 本人计数，5 组查询）拆到 <SiteRailSection> 的
  * Suspense 边界里流式注入，骨架先行，不再阻塞整树首字节。
  */
+
+/** DB 未就绪时的品牌兜底（与 settings 默认值同形） */
+const FALLBACK_BRAND: SiteBrand = {
+  name: "comit.sh",
+  tagline: "",
+  description: "",
+  keywords: "",
+  ogImage: "",
+  twitter: "",
+  copyright: "",
+  beian: "",
+  noindex: false,
+};
+
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
-  let siteName = "comit.sh";
+  let brand = FALLBACK_BRAND;
   let user: ShellUser | null = null;
   try {
-    siteName = await getSetting("site.name");
+    brand = await getSiteBrand();
     const auth = await getAuth();
     if (auth && !auth.pending2fa && auth.user.emailVerifiedAt) {
       const uid = auth.user.id;
@@ -62,9 +76,16 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <SiteShell
       user={user}
       locale={locale}
-      siteName={siteName}
-      rail={<SiteRailSection user={user} siteName={siteName} />}
-      footer={<SiteFooter locale={locale} />}
+      siteName={brand.name}
+      rail={
+        <SiteRailSection
+          user={user}
+          siteName={brand.name}
+          copyright={brand.copyright}
+          beian={brand.beian}
+        />
+      }
+      footer={<SiteFooter locale={locale} brand={brand} />}
     >
       {children}
     </SiteShell>

@@ -14,6 +14,8 @@ import type { CommunityStats } from "@/components/user-space/queries";
  */
 export function SiteRail({
   siteName,
+  copyright,
+  beian,
   topics,
   authors,
   stats,
@@ -21,6 +23,10 @@ export function SiteRail({
   myStats,
 }: {
   siteName: string;
+  /** 页脚版权行（admin 设置 site.copyright，留空用默认 `© 年份 站点名`） */
+  copyright?: string;
+  /** ICP 备案号（admin 设置 site.beian，留空不显示） */
+  beian?: string;
   topics: TopicRef[];
   authors: AuthorCardData[];
   stats: CommunityStats | null;
@@ -42,7 +48,7 @@ export function SiteRail({
           <input
             type="search"
             name="q"
-            placeholder="搜索 comit.sh"
+            placeholder={`搜索 ${siteName}`}
             aria-label="搜索"
             className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
@@ -217,12 +223,22 @@ export function SiteRail({
           隐私政策
         </Link>
         <Link href="/about" className="hover:underline" prefetch={false}>
-          关于 comit.sh
+          关于 {siteName}
         </Link>
         <Link href={routes.globalRss} className="inline-flex items-center gap-1 hover:underline" prefetch={false}>
           <Rss className="size-3" /> RSS
         </Link>
-        <span>© {new Date().getFullYear()} {siteName}</span>
+        <span>{copyright?.trim() || `© ${new Date().getFullYear()} ${siteName}`}</span>
+        {beian?.trim() && (
+          <a
+            href="https://beian.miit.gov.cn/"
+            target="_blank"
+            rel="noreferrer nofollow"
+            className="hover:underline"
+          >
+            {beian.trim()}
+          </a>
+        )}
       </footer>
 
       {/* 扩展注册的 rail widget */}

@@ -1,19 +1,19 @@
 import type { MetadataRoute } from "next";
-import { config } from "@/core/config";
+import { getSiteBrand } from "@/lib/settings";
 import { getLocale } from "@/lib/i18n";
 
 /** PWA web app manifest — served at /manifest.webmanifest via metadata.manifest. */
-// lang 随站点 locale cookie 变化 → 请求时动态生成
+// lang 随站点 locale cookie 变化、name/description 随 admin 站点设置变化 → 请求时动态生成
 export const dynamic = "force-dynamic";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   // 与 layout 的 <html lang> 同源（mb_locale cookie，取不到默认 zh）
-  const locale = await getLocale();
+  const [locale, brand] = await Promise.all([getLocale(), getSiteBrand()]);
+  const head = brand.tagline.split(/[—–]/)[0].trim();
   return {
-    name: `${config.app.name} — Commit your ideas.`,
-    short_name: config.app.name,
-    description:
-      "为极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、研究发布与项目动态。",
+    name: head ? `${brand.name} — ${head}` : brand.name,
+    short_name: brand.name,
+    description: brand.description,
     id: "/",
     start_url: "/",
     scope: "/",

@@ -11,6 +11,22 @@ export const dynamic = "force-dynamic";
 
 const KNOWN_KEYS = new Set(Object.keys(SETTINGS_DEFAULTS));
 
+/**
+ * 简单文本键的长度上限：site.* 文本此前无校验直接透传落库，超长值会进
+ * <title>/meta/footer。这里按各消费场景给上限；布尔键不在此列。
+ */
+const SITE_TEXT_LIMITS: Record<string, number> = {
+  "site.name": 60,
+  "site.tagline": 200,
+  "site.description": 500,
+  "site.keywords": 500,
+  "site.ogImage": 2048,
+  "site.twitter": 30,
+  "site.copyright": 200,
+  "site.beian": 100,
+  "site.singleUser": 63,
+};
+
 /** GET /api/admin/settings — all settings; the LLM apiKey is reduced to a hasKey flag. */
 export async function GET(req: Request) {
   return withAdmin(req, async () => {
@@ -127,6 +143,17 @@ export async function POST(req: Request) {
     for (const [key, value] of Object.entries(body.entries)) {
       if (!KNOWN_KEYS.has(key)) {
         throw new AppError(`未知的设置项 / Unknown setting key: ${key}`, 400, "bad_key");
+      }
+      const textLimit = SITE_TEXT_LIMITS[key];
+      if (textLimit !== undefined) {
+        if (typeof value !== "string" || value.length > textLimit) {
+          throw new AppError(
+            `设置项的值不合法 / Invalid value for setting: ${key}（需为 ≤${textLimit} 字符的文本）`,
+            400,
+            "bad_value",
+          );
+        }
+        continue;
       }
       if (key === "ratelimit.buckets" && !bucketsValueSchema.safeParse(value).success) {
         throw new AppError(`设置项的值不合法 / Invalid value for setting: ${key}`, 400, "bad_value");

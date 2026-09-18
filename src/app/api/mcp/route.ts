@@ -10,6 +10,7 @@ import { mcpTools } from "@/extensions/_boot/server";
 import { AppError } from "@/core/errors";
 import { assertNotUnderMaintenance } from "@/lib/maintenance";
 import { MCP_MUTATING_TOOLS } from "@/extensions/mcp/server";
+import { getSetting } from "@/lib/settings";
 
 /**
  * MCP endpoint (/api/mcp) — Model Context Protocol over Streamable HTTP.
@@ -108,5 +109,7 @@ export async function POST(req: Request) {
     }
   }
 
-  return handleMcpRpc({ userId: resolved.userId, tokenScopes: resolved.scopes }, body);
+  // 站点名进 server instructions（getSettings 双层缓存，无额外查询放大）
+  const brandName = await getSetting("site.name");
+  return handleMcpRpc({ userId: resolved.userId, tokenScopes: resolved.scopes }, body, { brandName });
 }

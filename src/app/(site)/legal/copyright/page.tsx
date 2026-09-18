@@ -2,12 +2,14 @@ import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 import { LegalDoc, LegalSection } from "../legal-doc";
 
-export const metadata: Metadata = pageMetadata({
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
   title: "内容权利与版权声明",
   description:
     "comit.sh 版权声明：内容归属、平台许可范围、侵权举报流程与转载规范（推荐 CC BY-SA 4.0）。创作的主角始终是你。",
   path: "/legal/copyright",
 });
+}
 
 export default function CopyrightPage() {
   return (

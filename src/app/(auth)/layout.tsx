@@ -1,4 +1,5 @@
 import { getT } from "@/lib/i18n";
+import { getSetting } from "@/lib/settings";
 
 /**
  * Auth route group layout — 产品级分屏裸页：
@@ -8,10 +9,10 @@ import { getT } from "@/lib/i18n";
  *
  * 依赖核查（无需重复提供）：全局 providers 挂在根 layout（I18nProvider /
  * DataProvider / Theme 等），auth 表单的 useI18n 直接可用；本布局仅取
- * 文案（getT），不查询任何业务数据。
+ * 文案（getT）与站点名（getSetting，双层缓存），不查询其他业务数据。
  */
 export default async function AuthLayout({ children }: { children: React.ReactNode }) {
-  const { t } = await getT();
+  const [{ t }, siteName] = await Promise.all([getT(), getSetting("site.name")]);
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
@@ -39,7 +40,7 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
               <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" strokeWidth="1.6" />
               <circle cx="8" cy="8" r="2.2" fill="currentColor" />
             </svg>
-            comit.sh
+            {siteName}
           </p>
         </div>
 

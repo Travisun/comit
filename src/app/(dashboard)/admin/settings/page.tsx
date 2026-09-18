@@ -148,6 +148,12 @@ function AdminSettingsForm({
   const [name, setName] = useState(String(seed.entries["site.name"] ?? ""));
   const [tagline, setTagline] = useState(String(seed.entries["site.tagline"] ?? ""));
   const [description, setDescription] = useState(String(seed.entries["site.description"] ?? ""));
+  const [keywords, setKeywords] = useState(String(seed.entries["site.keywords"] ?? ""));
+  const [ogImage, setOgImage] = useState(String(seed.entries["site.ogImage"] ?? ""));
+  const [twitter, setTwitter] = useState(String(seed.entries["site.twitter"] ?? ""));
+  const [copyright, setCopyright] = useState(String(seed.entries["site.copyright"] ?? ""));
+  const [beian, setBeian] = useState(String(seed.entries["site.beian"] ?? ""));
+  const [noindex, setNoindex] = useState(Boolean(seed.entries["site.noindex"]));
   const [mode, setMode] = useState<"multi" | "single">(
     seed.entries["site.mode"] === "single" ? "single" : "multi",
   );
@@ -194,6 +200,12 @@ function AdminSettingsForm({
         "site.name": name.trim(),
         "site.tagline": tagline.trim(),
         "site.description": description.trim(),
+        "site.keywords": keywords.trim(),
+        "site.ogImage": ogImage.trim(),
+        "site.twitter": twitter.trim().replace(/^@+/, ""),
+        "site.copyright": copyright.trim(),
+        "site.beian": beian.trim(),
+        "site.noindex": noindex,
         "site.mode": mode,
         "site.singleUser": singleUser.trim(),
         ...Object.fromEntries(FEATURE_KEYS.map((k) => [k.key, switches[k.key] ?? false])),
@@ -231,20 +243,79 @@ function AdminSettingsForm({
       />
 
       {tab === "general" && (
-        <SettingsSection className="max-w-2xl">
-          <SettingsSectionHeader description="站点对外展示的基本信息" />
-          <div className="grid gap-4">
-            <Field label="站点名称">
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="comit.sh" />
-            </Field>
-            <Field label="副标题">
-              <Input value={tagline} onChange={(e) => setTagline(e.target.value)} />
-            </Field>
-            <Field label="站点描述">
-              <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
-            </Field>
-          </div>
-        </SettingsSection>
+        <>
+          <SettingsSection className="max-w-2xl">
+            <SettingsSectionHeader
+              title="品牌信息"
+              description="站点对外展示的基本信息 —— 全站标题、登录页、页脚、RSS、PWA 即时生效"
+            />
+            <div className="grid gap-4">
+              <Field label="站点名称">
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="comit.sh" maxLength={60} />
+              </Field>
+              <Field label="副标题" hint="展示于浏览器标题与 PWA 名称（按破折号取首段）">
+                <Input value={tagline} onChange={(e) => setTagline(e.target.value)} maxLength={200} />
+              </Field>
+              <Field label="站点描述" hint="SEO description 与站点简介（RSS / manifest 共用）">
+                <Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} maxLength={500} />
+              </Field>
+            </div>
+          </SettingsSection>
+
+          <SettingsSection className="max-w-2xl">
+            <SettingsSectionHeader
+              title="SEO"
+              description="搜索引擎与社交分享（OG / Twitter Card）元信息"
+            />
+            <div className="grid gap-4">
+              <Field label="关键词" hint="英文/中文逗号分隔，最多 20 个；留空不下发">
+                <Input
+                  value={keywords}
+                  onChange={(e) => setKeywords(e.target.value)}
+                  placeholder="科研日志, 技术博客, 个人品牌"
+                  maxLength={500}
+                />
+              </Field>
+              <Field label="默认分享图（OG Image）" hint="站内媒体相对路径或完整 https URL；分享到社交平台时的大图">
+                <Input
+                  value={ogImage}
+                  onChange={(e) => setOgImage(e.target.value)}
+                  placeholder="media/og-cover.webp 或 https://…"
+                  maxLength={2048}
+                />
+              </Field>
+              <Field label="Twitter 句柄" hint="twitter:site，带或不带 @ 均可；留空不下发">
+                <Input value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="@yourteam" maxLength={30} />
+              </Field>
+              <SwitchRow
+                label="全站禁止搜索引擎收录"
+                description="私有实例用：robots.txt 全站 Disallow + 页面 noindex"
+                checked={noindex}
+                onCheckedChange={setNoindex}
+              />
+            </div>
+          </SettingsSection>
+
+          <SettingsSection className="max-w-2xl">
+            <SettingsSectionHeader
+              title="版权与合规"
+              description="页脚版权行与备案信息（桌面右栏与移动端页脚同步）"
+            />
+            <div className="grid gap-4">
+              <Field label="版权信息" hint="留空使用默认「© 年份 站点名称」">
+                <Input
+                  value={copyright}
+                  onChange={(e) => setCopyright(e.target.value)}
+                  placeholder={`© ${new Date().getFullYear()} ${name.trim() || "comit.sh"}`}
+                  maxLength={200}
+                />
+              </Field>
+              <Field label="ICP 备案号" hint="显示在页脚并链接工信部备案系统；留空不显示">
+                <Input value={beian} onChange={(e) => setBeian(e.target.value)} placeholder="京ICP备XXXXXXXX号" maxLength={100} />
+              </Field>
+            </div>
+          </SettingsSection>
+        </>
       )}
 
       {tab === "mode" && (

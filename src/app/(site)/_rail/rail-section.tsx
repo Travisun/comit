@@ -39,7 +39,17 @@ function RailSkeleton() {
   );
 }
 
-async function RailContent({ user, siteName }: { user: ShellUser | null; siteName: string }) {
+async function RailContent({
+  user,
+  siteName,
+  copyright,
+  beian,
+}: {
+  user: ShellUser | null;
+  siteName: string;
+  copyright?: string;
+  beian?: string;
+}) {
   // rail 三查询（topics / authors / community stats）— best-effort
   const topics = await getTrendingTopics(7).catch(() => []);
   const authors = await getActiveAuthors(3).catch(() => []);
@@ -66,6 +76,8 @@ async function RailContent({ user, siteName }: { user: ShellUser | null; siteNam
   return (
     <SiteRail
       siteName={siteName}
+      copyright={copyright}
+      beian={beian}
       topics={topics}
       authors={authors}
       stats={stats}
@@ -80,10 +92,20 @@ async function RailContent({ user, siteName }: { user: ShellUser | null; siteNam
 }
 
 /** layout 里以 rail prop 传入 SiteShell（ReactNode），Suspense 边界随流注入。 */
-export function SiteRailSection({ user, siteName }: { user: ShellUser | null; siteName: string }) {
+export function SiteRailSection({
+  user,
+  siteName,
+  copyright,
+  beian,
+}: {
+  user: ShellUser | null;
+  siteName: string;
+  copyright?: string;
+  beian?: string;
+}) {
   return (
     <Suspense fallback={<RailSkeleton />}>
-      <RailContent user={user} siteName={siteName} />
+      <RailContent user={user} siteName={siteName} copyright={copyright} beian={beian} />
     </Suspense>
   );
 }

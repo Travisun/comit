@@ -10,6 +10,18 @@ export const SETTINGS_DEFAULTS = {
   "site.name": "comit.sh",
   "site.tagline": "Commit your ideas. — 为极客、设计师与科学家打造的个人品牌社区",
   "site.description": "comit.sh — 记录科研日志、技术学习、研究发布与项目动态的个人品牌社交网络。",
+  /** SEO 关键词（逗号/中文逗号分隔），进 <meta name=keywords> 与根 OG 页 */
+  "site.keywords": "" as string,
+  /** 默认分享图（OG / twitter:card 大图）：站内媒体相对路径或完整 https URL */
+  "site.ogImage": "" as string,
+  /** twitter:site 句柄（@xxx），空则不下发 */
+  "site.twitter": "" as string,
+  /** 页脚版权行：留空用默认 `© {年份} {site.name}` */
+  "site.copyright": "" as string,
+  /** ICP 备案号（页脚展示并链接工信部），空则不显示 */
+  "site.beian": "" as string,
+  /** 全站 noindex（私有实例）：robots.txt 全站 Disallow + metadata noindex */
+  "site.noindex": false as boolean,
   /** multi-user community mode vs single-user personal blog mode */
   "site.mode": "multi" as "multi" | "single",
   /** single-user mode: the username whose blog IS the site */
@@ -137,3 +149,34 @@ export async function setSettings(entries: Record<string, unknown>): Promise<voi
 /** typed helpers */
 export const isMultiUserMode = async () => (await getSetting("site.mode")) === "multi";
 export const subdomainsEnabled = async () => Boolean(await getSetting("site.subdomains"));
+
+/* ------------------------------ 站点品牌快照 ------------------------------ */
+
+/** 站点对外品牌/SEO 信息集合 —— footer、metadata、manifest 等共用一次读取
+ * （getSettings 自带 React cache + 10s TTL，同请求多处调用无查询放大）。 */
+export interface SiteBrand {
+  name: string;
+  tagline: string;
+  description: string;
+  keywords: string;
+  ogImage: string;
+  twitter: string;
+  copyright: string;
+  beian: string;
+  noindex: boolean;
+}
+
+export async function getSiteBrand(): Promise<SiteBrand> {
+  const s = await getSettings();
+  return {
+    name: String(s["site.name"] ?? "comit.sh"),
+    tagline: String(s["site.tagline"] ?? ""),
+    description: String(s["site.description"] ?? ""),
+    keywords: String(s["site.keywords"] ?? ""),
+    ogImage: String(s["site.ogImage"] ?? ""),
+    twitter: String(s["site.twitter"] ?? ""),
+    copyright: String(s["site.copyright"] ?? ""),
+    beian: String(s["site.beian"] ?? ""),
+    noindex: Boolean(s["site.noindex"]),
+  };
+}

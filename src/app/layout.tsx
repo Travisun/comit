@@ -15,7 +15,13 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/primitives";
 import { Toaster } from "@/components/ui/toaster";
 
-export const metadata: Metadata = siteMetadata();
+/**
+ * 全站 metadata 动态生成：站点名/描述/关键词/OG 图/robots 全部来自 admin
+ * 站点设置（getSiteBrand，双层缓存）——后台改名即全站 <head> 生效。
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  return siteMetadata();
+}
 
 export const viewport: Viewport = {
   width: "device-width",

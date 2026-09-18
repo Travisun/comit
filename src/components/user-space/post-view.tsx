@@ -6,6 +6,7 @@ import { routes } from "@/core/routes";
 import { formatDate, readingMinutes } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
+import { getSetting } from "@/lib/settings";
 import { LikeButton } from "@/components/social/like-button";
 import { BookmarkButton } from "@/components/social/bookmark-button";
 import { RepostButton } from "@/components/social/repost-button";
@@ -241,7 +242,7 @@ export async function PostView({
 
         {viaSubdomain && (
           <p className="mt-10 text-center text-xs text-muted-foreground">
-            由 {config.app.name} 驱动 · {routes.post(post.publicId)}
+            由 {await getSetting("site.name")} 驱动 · {routes.post(post.publicId)}
           </p>
         )}
       </article>

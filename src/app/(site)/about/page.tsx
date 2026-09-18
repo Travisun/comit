@@ -21,14 +21,17 @@ import {
 import { routes } from "@/core/routes";
 import { pageMetadata } from "@/lib/seo";
 import { getT } from "@/lib/i18n";
+import { getSetting } from "@/lib/settings";
 import { Button } from "@/components/ui/button";
 
-export const metadata: Metadata = pageMetadata({
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
   title: "关于",
   description:
     "comit.sh 品牌故事：从 1956 年 MIT 的 COMIT 语言，到 git commit 的日常仪式——为什么我们相信「为每一个想法，留下主页」。",
   path: "/about",
 });
+}
 
 /**
  * /about — 品牌故事页。X 式单列排版（max-w-2xl），
@@ -70,14 +73,14 @@ const SPIRIT = [
 ] as const;
 
 export default async function AboutPage() {
-  const { t } = await getT();
+  const [{ t }, siteName] = await Promise.all([getT(), getSetting("site.name")]);
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12 md:py-16">
       {/* ------------------------------ Hero ------------------------------ */}
       <header>
         <p className="inline-flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
-          <GitCommitHorizontal className="size-3.5 text-primary" /> comit.sh
+          <GitCommitHorizontal className="size-3.5 text-primary" /> {siteName}
         </p>
         <h1 className="mt-4 text-balance text-3xl font-black leading-tight tracking-tight md:text-4xl">
           {t("about.hero.title")}

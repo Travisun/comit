@@ -3,12 +3,14 @@ import { routes } from "@/core/routes";
 import { pageMetadata } from "@/lib/seo";
 import { LegalDoc, LegalSection } from "../legal-doc";
 
-export const metadata: Metadata = pageMetadata({
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata({
   title: "服务协议",
   description:
     "comit.sh 服务协议：账户与注册、内容权利与平台许可、行为规范、子域名规则与责任限制——为每一个想法，留下主页。",
   path: routes.legal.terms,
 });
+}
 
 export default function TermsPage() {
   return (
