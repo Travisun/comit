@@ -112,13 +112,9 @@ export function LoginDialog({
       aria-label="登录"
       hidden={!open}
     >
-      {/* 高透明遮罩：内容依旧可见，仅轻微压暗聚焦弹窗 */}
-      <button
-        type="button"
-        aria-label="关闭"
-        onClick={closeDialog}
-        className="absolute inset-0 bg-black/20 backdrop-blur-[2px]"
-      />
+      {/* 高透明遮罩：内容依旧可见，仅轻微压暗聚焦弹窗。点击不关闭 —— 避免
+          误触丢失登录意愿，关闭只走卡片右上角 ✕ 与底部「关闭」文字 */}
+      <div aria-hidden className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" />
       <div
         className={cn(
           "relative w-full max-w-sm rounded-2xl border border-border/80 bg-card/95 p-6 shadow-[0_12px_48px_rgba(42,47,69,0.25)] backdrop-blur-md transition-transform",
@@ -245,6 +241,13 @@ export function LoginDialog({
           </p>
         </div>
         )}
+        <button
+          type="button"
+          onClick={closeDialog}
+          className="mt-4 w-full text-center text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
+        >
+          关闭
+        </button>
       </div>
     </div>
   );

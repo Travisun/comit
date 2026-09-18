@@ -51,7 +51,14 @@ export type { ViewerInteractions };
  * author info. Pagination returns `nextOffset` (null when exhausted).
  */
 
-export type FeedItem = { post: Post; author: UserBrief; /** 非空 ⇒ 该帖附带投票 */ pollId?: string | null };
+export type FeedItem = {
+  post: Post;
+  author: UserBrief;
+  /** 非空 ⇒ 该帖附带投票 */
+  pollId?: string | null;
+  /** viewer 已收藏（仅 getPublishedPosts 传 viewerId 时下发） */
+  bookmarked?: boolean;
+};
 
 const DAY = 86_400_000;
 
@@ -85,6 +92,7 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
       sourceUrl: item.post.sourceUrl,
       sourceName: item.post.sourceName,
       hasPoll: Boolean(item.pollId),
+      bookmarked: Boolean(item.bookmarked),
     },
     author: item.author,
   };
@@ -102,6 +110,8 @@ export interface PublishedPostsQuery {
   type?: "article" | "short";
   /** 关注流：限定为该 viewer 关注的作者 */
   followingOf?: string;
+  /** 传入 ⇒ 每行附带 viewer 的收藏状态（bookmarked），供行内收藏按钮渲染 */
+  viewerId?: string | null;
   limit?: number;
   offset?: number;
 }
@@ -143,7 +153,8 @@ export async function getPublishedPosts(
     );
   }
 
-  const rows = await db
+  // 传入 viewerId 时 LEFT JOIN 收藏表：行内附带 viewer 的收藏态（收藏按钮初始状态）
+  const baseQuery = db
     .select({
       post: posts,
       author: {
@@ -154,10 +165,20 @@ export async function getPublishedPosts(
         bannedUntil: users.bannedUntil,
       },
       pollId: polls.id,
+      bookmarked: opts.viewerId
+        ? sql<boolean>`(${bookmarks.userId} is not null)`
+        : sql<boolean>`false`,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .leftJoin(polls, eq(polls.postId, posts.id))
+    .leftJoin(polls, eq(polls.postId, posts.id));
+  const rows = await (opts.viewerId
+    ? baseQuery.leftJoin(
+        bookmarks,
+        and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
+      )
+    : baseQuery
+  )
     .where(and(...conds))
     .orderBy(desc(posts.publishedAt))
     .limit(limit + 1)
@@ -667,8 +688,8 @@ export async function getViewerInteractions(
   postId: string,
   viewerId: string | null | undefined,
 ): Promise<ViewerInteractions> {
-  if (!viewerId) return { liked: false, reposted: false };
-  const [l, r] = await Promise.all([
+  if (!viewerId) return { liked: false, reposted: false, bookmarked: false };
+  const [l, r, b] = await Promise.all([
     db
       .select({ x: likes.userId })
       .from(likes)
@@ -679,8 +700,13 @@ export async function getViewerInteractions(
       .from(reposts)
       .where(and(eq(reposts.userId, viewerId), eq(reposts.postId, postId)))
       .limit(1),
+    db
+      .select({ x: bookmarks.userId })
+      .from(bookmarks)
+      .where(and(eq(bookmarks.userId, viewerId), eq(bookmarks.postId, postId)))
+      .limit(1),
   ]);
-  return { liked: l.length > 0, reposted: r.length > 0 };
+  return { liked: l.length > 0, reposted: r.length > 0, bookmarked: b.length > 0 };
 }
 
 /** visibility gate — private 仅作者自见；followers-only 需关注（或为作者）。 */

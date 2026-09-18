@@ -7,6 +7,7 @@ import { formatDate, readingMinutes } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
+import { BookmarkButton } from "@/components/social/bookmark-button";
 import { RepostButton } from "@/components/social/repost-button";
 import { Comments } from "@/components/social/comments";
 import { SolutionsBox } from "@/components/social/solutions-box";
@@ -195,8 +196,11 @@ export async function PostView({
           </span>
           <RepostButton
             postId={post.id}
+            publicId={post.publicId}
+            originalTitle={post.title ?? "无题"}
             initialCount={post.repostCount}
             initialReposted={interactions.reposted}
+            signedIn={Boolean(viewer)}
           />
           <LikeButton
             targetType="post"
@@ -209,6 +213,7 @@ export async function PostView({
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>
           </span>
+          <BookmarkButton postId={post.id} initialBookmarked={interactions.bookmarked} />
           {viewer && <ReportDialog targetType="post" targetId={post.id} />}
         </div>
 

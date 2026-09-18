@@ -70,8 +70,9 @@ export interface ViewerFollowState {
   blockedBy: boolean;
 }
 
-/** viewer's like/repost state on a post */
+/** viewer's like/repost/bookmark state on a post */
 export interface ViewerInteractions {
   liked: boolean;
   reposted: boolean;
+  bookmarked: boolean;
 }

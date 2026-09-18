@@ -17,9 +17,10 @@ export async function GET(req: NextRequest) {
     const raw = Number(new URL(req.url).searchParams.get("cursor") ?? "0");
     const cursor = Number.isFinite(raw) ? Math.max(0, Math.floor(raw)) : 0;
 
-    // scope=following → 只看关注作者的流（需登录）；scope=latest 公共流匿名照常可看
+    // scope=following → 只看关注作者的流（需登录）；scope=latest 公共流匿名照常可看。
+    // viewer 恒解析：登录用户的行内收藏按钮需要 bookmarked 初始状态
     const scope = new URL(req.url).searchParams.get("scope");
-    const viewer = scope === "following" ? await getCurrentUser().catch(() => null) : null;
+    const viewer = await getCurrentUser().catch(() => null);
 
     // 匿名请求 following 流：与注释语义一致，返回空流而不是回落公共流
     if (scope === "following" && !viewer) {
@@ -32,7 +33,8 @@ export async function GET(req: NextRequest) {
     const { items, nextOffset } = await getPublishedPosts({
       limit: PAGE_SIZE,
       offset: cursor,
-      ...(viewer ? { followingOf: viewer.id } : {}),
+      viewerId: viewer?.id,
+      ...(scope === "following" && viewer ? { followingOf: viewer.id } : {}),
     });
 
     return NextResponse.json(

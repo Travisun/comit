@@ -13,6 +13,8 @@ export const queryKeys = {
   feedCheckPrefix: () => ["feed-check"] as const,
   /** 单帖投票视图 */
   poll: (postId: string) => ["poll", postId] as const,
+  /** 单帖收藏状态（行菜单打开时拉取；["bookmark", id] 亦为收藏按钮乐观键） */
+  bookmark: (postId: string) => ["bookmark", postId] as const,
   /** 本地未读计数（seen 时间戳作为键的一部分 → 推进 seen 自动换新） */
   unread: (seen: { latest: number; following: number; messages: number }) =>
     ["unread", seen] as const,

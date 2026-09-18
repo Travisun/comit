@@ -47,7 +47,7 @@ export default async function HomePage({
     // fall through to community home when the configured user is missing
   }
 
-  const feed = await getPublishedPosts({ limit: 10 });
+  const feed = await getPublishedPosts({ limit: 10, viewerId: viewer?.id });
   return (
     <div className="min-h-dvh w-full pt-[10px]">
       <TimelineHeader title={locale === "zh" ? "最新" : "Latest"} paddingClass="px-5" />

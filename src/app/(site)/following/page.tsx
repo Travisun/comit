@@ -26,7 +26,7 @@ export default async function FollowingPage() {
 
   const [{ locale }, feed] = await Promise.all([
     getT(),
-    getPublishedPosts({ limit: 10, followingOf: viewer.id }),
+    getPublishedPosts({ limit: 10, followingOf: viewer.id, viewerId: viewer.id }),
   ]);
 
   return (

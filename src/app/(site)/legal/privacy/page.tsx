@@ -22,7 +22,7 @@ export default function PrivacyPage() {
         title="一、我们收集的数据"
       >
         <p>1. <strong>账户资料</strong>：邮箱、用户名、昵称、一句话简介、头像与主页封面，以及你可选填的 GitHub、ORCID、个人网站。</p>
-        <p>2. <strong>内容数据</strong>：你发布的文章、短动态、评论、话题、合集，以及点赞、关注、转推等社交行为记录。</p>
+        <p>2. <strong>内容数据</strong>：你发布的文章、短动态、评论、话题、合集，以及点赞、关注、转发等社交行为记录。</p>
         <p>3. <strong>媒体文件</strong>：你上传的图片（自动转换为 WebP 存储）。</p>
         <p>4. <strong>日志数据</strong>：会话记录、IP 地址、User-Agent、登录时间等安全日志，用于账户安全与滥用防护。</p>
         <p>5. <strong>偏好数据</strong>：主题、语言、通知偏好等界面设置。</p>

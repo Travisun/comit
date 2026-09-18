@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { likes, posts, reposts, users } from "@/db/schema";
+import { bookmarks, likes, posts, reposts, users } from "@/db/schema";
 import { notFound } from "next/navigation";
 import { getT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
@@ -9,6 +9,7 @@ import { DetailAuthorBar } from "@/components/user-space/detail-author-bar";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
+import { BookmarkButton } from "@/components/social/bookmark-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
 import { SolutionsBox } from "@/components/social/solutions-box";
@@ -63,8 +64,9 @@ export async function ShortPostDetail({
 
   let liked = false;
   let reposted = false;
+  let bookmarked = false;
   if (viewer) {
-    const [likeRow, repostRow] = await Promise.all([
+    const [likeRow, repostRow, bookmarkRow] = await Promise.all([
       db
         .select({ userId: likes.userId })
         .from(likes)
@@ -81,9 +83,15 @@ export async function ShortPostDetail({
         .from(reposts)
         .where(and(eq(reposts.userId, viewer.id), eq(reposts.postId, post.id)))
         .limit(1),
+      db
+        .select({ id: bookmarks.id })
+        .from(bookmarks)
+        .where(and(eq(bookmarks.userId, viewer.id), eq(bookmarks.postId, post.id)))
+        .limit(1),
     ]);
     liked = likeRow.length > 0;
     reposted = repostRow.length > 0;
+    bookmarked = bookmarkRow.length > 0;
   }
 
   const poll = await getPollView(post.id, viewer?.id ?? null);
@@ -160,9 +168,13 @@ export async function ShortPostDetail({
           />
           <RepostButton
             postId={post.id}
+            publicId={post.publicId}
+            originalTitle={post.title ?? post.summary?.slice(0, 40) ?? "一条动态"}
             initialCount={post.repostCount}
             initialReposted={reposted}
+            signedIn={Boolean(viewer)}
           />
+          <BookmarkButton postId={post.id} initialBookmarked={bookmarked} />
           {!interrupted && (
             <PostActionsSlot postId={post.id} postType={post.type} publicId={post.publicId} />
           )}

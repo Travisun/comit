@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Repeat2 } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, Repeat2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,86 +16,101 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { isAuthError, postJson } from "@/lib/client/api";
-import { useApiMutation } from "@/lib/query/mutation";
+import { ApiError, postJson } from "@/lib/client/api";
 import { openLoginDialog } from "@/lib/store/login-dialog";
+import { appToast } from "@/lib/client/toast";
 
-/** 组件本地乐观状态（缓存承载）；无对应服务端列表键，故不入 queryKeys 工厂 */
-interface RepostState {
-  reposted: boolean;
-  count: number;
-}
-
+/**
+ * 转发（quote-forward）— 点击后在原文留一条评论，并发布一条引用原动态：
+ * 内容 = 用户评论 + 「转发自《标题》+ 地址」引用块；转发计数照常 +1，
+ * 原文作者经评论通知与 post:reposted 事件收到通知。
+ *
+ * 状态修复：转发是否成功以服务端响应为准（旧的乐观翻转让按钮在请求发出
+ * 前就显示「已转发」，请求失败时状态与事实脱节）。
+ */
 export function RepostButton({
   postId,
+  publicId,
+  originalTitle,
   initialCount,
   initialReposted,
+  signedIn = true,
   className,
 }: {
   postId: string;
+  /** 原文 permalink（/post/{publicId}），引用块链接用 */
+  publicId: string;
+  /** 原文标题（短动态为摘要截断），引用块文案用 */
+  originalTitle: string;
   initialCount: number;
   initialReposted: boolean;
-  /** optional extra styling (contract superset) */
+  /** 游客点击直接唤起登录 dialog */
+  signedIn?: boolean;
   className?: string;
 }) {
   const { t } = useI18n();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [reposted, setReposted] = useState(initialReposted);
+  const [count, setCount] = useState(initialCount);
 
-  // 转发状态放查询缓存：optimistic 先翻转、失败自动回滚快照。
-  const stateKey = useMemo(() => ["repost", postId] as const, [postId]);
-  const { data } = useQuery({
-    queryKey: stateKey,
-    queryFn: (): RepostState => ({ reposted: initialReposted, count: initialCount }),
-    initialData: { reposted: initialReposted, count: initialCount },
-    staleTime: Infinity,
-  });
-  const reposted = data.reposted;
-  const count = data.count;
+  const quoteText = comment.trim();
 
-  const toggleMutation = useApiMutation(
-    (withComment?: string) =>
-      postJson<RepostState>("/api/reposts", {
+  /** 取消转发 — 仅移除转发记录（计数 -1），已发布的引用动态与评论保留 */
+  async function cancelRepost() {
+    try {
+      const r = await postJson<{ reposted: boolean; count: number }>("/api/reposts", { postId });
+      setReposted(r.reposted);
+      setCount(r.count);
+    } catch {
+      appToast.error(t("common.error"));
+    }
+  }
+
+  /** 转发三步：引用动态 → 原文评论 → 转发记录（计数） */
+  async function submitForward() {
+    if (!quoteText || submitting) return;
+    setSubmitting(true);
+    try {
+      const url = `${window.location.origin}/post/${publicId}`;
+      const quote =
+        `> ${t("post.forwardFrom")}**《${originalTitle}》**\n> ${url}`;
+      await postJson("/api/posts", {
+        type: "short",
+        content: `${quoteText}\n\n${quote}`,
+        action: "submit",
+      });
+      await postJson("/api/comments", { postId, body: quoteText });
+      const r = await postJson<{ reposted: boolean; count: number }>("/api/reposts", {
         postId,
-        comment: withComment?.trim() ? withComment.trim() : undefined,
-      }),
-    {
-      // 无关系查询键可失效 → 默认 RSC refresh 兜底页面上的服务端计数
-      optimistic: {
-        queryKey: stateKey,
-        apply: (prev) => {
-          const p = (prev ?? { reposted: initialReposted, count: initialCount }) as RepostState;
-          return {
-            reposted: !p.reposted,
-            count: Math.max(0, p.count + (p.reposted ? -1 : 1)),
-          };
-        },
-      },
-      onSuccess: (r) => {
-        queryClient.setQueryData<RepostState>(stateKey, { reposted: r.reposted, count: r.count });
-        setOpen(false);
-        setComment("");
-      },
-      onError: (err) => {
-        // 游客转发 → 关掉转发框，唤起登录引导（api 返回 401）
-        if (isAuthError(err)) {
-          setOpen(false);
-          openLoginDialog();
-        }
-      },
-    },
-  );
-
-  function toggle(withComment?: string) {
-    if (toggleMutation.pending) return;
-    void toggleMutation.mutate(withComment);
+        comment: quoteText,
+      });
+      setReposted(r.reposted);
+      setCount(r.count);
+      setOpen(false);
+      setComment("");
+      appToast.success(t("post.forwardDone"));
+      // 引用动态进入时间线 / 原文计数变化 → 让 RSC 回流
+      router.refresh();
+      void queryClient.invalidateQueries({ queryKey: ["feed"] });
+    } catch (err) {
+      appToast.error(err instanceof ApiError ? err.message : t("common.error"));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function onClick() {
+    if (!signedIn) {
+      openLoginDialog();
+      return;
+    }
     if (reposted) {
-      // already reposted → click cancels directly
-      toggle();
+      // 已转发 → 点击直接取消转发
+      void cancelRepost();
     } else {
       setOpen(true);
     }
@@ -105,16 +121,16 @@ export function RepostButton({
       <button
         type="button"
         onClick={onClick}
-        disabled={toggleMutation.pending}
+        disabled={submitting}
         aria-pressed={reposted}
         title={reposted ? t("post.reposted") : t("post.repost")}
-      className={cn(
-        "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm transition-colors",
-        "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500",
-        "disabled:pointer-events-none disabled:opacity-60",
-        reposted && "text-emerald-600 hover:text-emerald-600",
-        className,
-      )}
+        className={cn(
+          "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm transition-colors",
+          "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500",
+          "disabled:pointer-events-none disabled:opacity-60",
+          reposted && "text-emerald-600 hover:text-emerald-600",
+          className,
+        )}
       >
         <Repeat2 className="size-4 shrink-0" />
         {count > 0 ? (
@@ -128,20 +144,21 @@ export function RepostButton({
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("post.repost")}</DialogTitle>
-            <DialogDescription>{t("post.reposted")}</DialogDescription>
+            <DialogDescription>{t("post.forwardHint")}</DialogDescription>
           </DialogHeader>
           <Textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             maxLength={280}
             rows={3}
-            placeholder={t("feed.composePlaceholder")}
+            placeholder={t("post.forwardPlaceholder")}
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)}>
               {t("common.cancelAction")}
             </Button>
-            <Button onClick={() => toggle(comment)} disabled={toggleMutation.pending}>
+            <Button onClick={() => void submitForward()} disabled={submitting || !quoteText}>
+              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden />}
               {t("post.repost")}
             </Button>
           </DialogFooter>

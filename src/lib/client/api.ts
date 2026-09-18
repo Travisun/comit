@@ -66,6 +66,7 @@ const SESSION_REDIRECT_EXCLUDED = [
   "/api/likes",
   "/api/reposts",
   "/api/follows",
+  "/api/bookmarks",
 ] as const;
 
 export function redirectIfSessionExpired(status: number, url: string): void {

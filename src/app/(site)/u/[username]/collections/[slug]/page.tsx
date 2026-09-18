@@ -38,12 +38,13 @@ export default async function CollectionPage({ params }: Props) {
   const collection = await getCollectionBySlug(user.id, decodedSlug);
   if (!collection) notFound();
 
+  const viewer = await getCurrentUser();
   const { items } = await getPublishedPosts({
+    viewerId: viewer?.id,
     authorId: user.id,
     collectionId: collection.id,
     limit: 50,
   });
-  const viewer = await getCurrentUser();
 
   return (
     <CollectionView

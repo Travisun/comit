@@ -7,6 +7,7 @@ import { cn, timeAgo } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
+import { BookmarkButton } from "@/components/social/bookmark-button";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
@@ -169,13 +170,14 @@ export function TimelineActions({
       </span>
       <span
         className="group/r inline-flex items-center gap-1 text-xs transition-colors hover:text-emerald-500"
-        aria-label="转推"
+        aria-label="转发"
       >
         <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/r:bg-emerald-500/10">
           <Repeat2 className="size-4" />
         </span>
         {post.repostCount > 0 && <span className="num tabular-nums">{post.repostCount}</span>}
       </span>
+      <BookmarkButton postId={post.id} initialBookmarked={post.bookmarked ?? null} />
       <span className="group/v inline-flex items-center gap-1 text-xs" aria-label="查看次数" title="查看次数">
         <span className="grid size-7 place-items-center rounded-full">
           <Eye className="size-4" />

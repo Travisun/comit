@@ -314,7 +314,14 @@ export async function UserProfileView({
 
       <div>
         {tab === "posts" && (
-          <PostsTab user={user} page={page} tab={tab} stats={stats} viewerUsername={viewer?.username} />
+          <PostsTab
+            user={user}
+            page={page}
+            tab={tab}
+            stats={stats}
+            viewerUsername={viewer?.username}
+            viewerIdParam={viewer?.id}
+          />
         )}
         {tab === "short" && (
           <ShortsTab user={user} page={page} tab={tab} viewerUsername={viewer?.username} isSelf={isSelf} />
@@ -414,12 +421,14 @@ async function PostsTab({
   tab,
   stats,
   viewerUsername,
+  viewerIdParam,
 }: {
   user: User;
   page: number;
   tab: ProfileTab;
   stats: UserStats;
   viewerUsername?: string;
+  viewerIdParam?: string | null;
 }) {
   const [{ items, nextOffset }, top] = await Promise.all([
     getPublishedPosts({
@@ -427,6 +436,7 @@ async function PostsTab({
       type: "article",
       limit: PAGE_SIZE,
       offset: page * PAGE_SIZE,
+      viewerId: viewerIdParam,
     }),
     // 代表作：品牌主页的「作品集」门面，仅在内容达到一定量后展示
     stats.posts >= 4 ? getTopPosts(user.id, 2) : Promise.resolve([]),
@@ -751,7 +761,7 @@ export async function SingleUserHome({ user, viewer }: { user: User; viewer: Use
   const [stats, viewerState, { items }] = await Promise.all([
     getUserStats(user.id),
     isSelf ? Promise.resolve(null) : getFollowState(viewer?.id ?? null, user.id),
-    getPublishedPosts({ authorId: user.id, type: "article", limit: 20 }),
+    getPublishedPosts({ authorId: user.id, type: "article", limit: 20, viewerId: viewer?.id }),
   ]);
 
   return (

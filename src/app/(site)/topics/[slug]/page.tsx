@@ -37,13 +37,14 @@ export default async function TopicPage({ params, searchParams }: Props) {
   const topic = await getTopicBySlug(routeParam(slug));
   if (!topic) notFound();
 
+  const viewer = await getCurrentUser();
+  const viewerUsername = viewer?.username;
   const { items, nextOffset } = await getPublishedPosts({
+    viewerId: viewer?.id,
     topicSlug: topic.slug,
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
-  const viewer = await getCurrentUser();
-  const viewerUsername = viewer?.username;
 
   const pageHref = (p: number) => (p === 0 ? routes.topic(topic.slug) : `${routes.topic(topic.slug)}?page=${p}`);
   const pagerCls =

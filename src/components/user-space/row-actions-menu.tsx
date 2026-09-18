@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
   Bookmark,
@@ -63,9 +63,9 @@ export function RowActionsMenu({
   mine?: boolean;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const scheduleRefresh = useRscRefresh();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [preset, setPreset] = useState<string | null>(null);
   const [detail, setDetail] = useState("");
@@ -90,13 +90,24 @@ export function RowActionsMenu({
   const following = relationQ.data?.following ?? null;
   const blocking = relationQ.data?.blocked ?? null;
 
-  // 每个操作独立 mutation — pending 天然互不干扰（原单个 busy 管两个无关操作的问题随之消失）
+  // 收藏状态 — 菜单打开时拉取一次（此前恒显「收藏」，已收藏时文案错误）
+  const bookmarkQ = useQuery({
+    queryKey: queryKeys.bookmark(post.id),
+    queryFn: () =>
+      apiGet<{ bookmarked: boolean }>(`/api/bookmarks?postId=${post.id}`).catch(() => ({
+        bookmarked: false,
+      })),
+    enabled: menuOpen,
+    staleTime: 30_000,
+  });
+  const bookmarked = bookmarkQ.data?.bookmarked ?? false;
+
   const bookmarkMutation = useApiMutation(
     () => postJson<{ bookmarked: boolean }>("/api/bookmarks", { postId: post.id }),
     {
       refresh: false,
       successToast: (res) => (res.bookmarked ? "已加入收藏" : "已取消收藏"),
-      onSuccess: (res) => setBookmarked(res.bookmarked),
+      onSuccess: (res) => queryClient.setQueryData(queryKeys.bookmark(post.id), res),
     },
   );
 

@@ -40,6 +40,8 @@ export const postBriefSchema = z.object({
   sourceName: z.string().nullish(),
   /** 非空 ⇒ 该动态附带投票（插件槽位据此挂载 PollCard） */
   hasPoll: z.boolean().optional(),
+  /** viewer 收藏态（登录态的 feed 下发；游客恒 false）——行内收藏按钮初始状态 */
+  bookmarked: z.boolean().optional(),
 });
 export type PostBrief = z.infer<typeof postBriefSchema>;
 
