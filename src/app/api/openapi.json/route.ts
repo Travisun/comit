@@ -1,5 +1,6 @@
 import { listActions } from "@/core/capabilities/actions";
 import { config } from "@/core/config";
+import { getSetting } from "@/lib/settings";
 
 export const runtime = "nodejs";
 
@@ -8,6 +9,7 @@ export const runtime = "nodejs";
  * path/method 来自 Action 声明；schema 以 zod 结构描述（文档级，非严格 OpenAPI Schema）。
  */
 export async function GET() {
+  const siteName = await getSetting("site.name");
   const paths: Record<string, Record<string, unknown>> = {};
   for (const a of listActions()) {
     paths[a.path] = {
@@ -22,7 +24,7 @@ export async function GET() {
   return Response.json({
     openapi: "3.0.0",
     info: {
-      title: "comit.sh API",
+      title: `${siteName} API`,
       version: "1",
       description:
         "当前仅覆盖 Action 目录（defineAction）注册的端点，其余 route handler 未收录。/ " +
