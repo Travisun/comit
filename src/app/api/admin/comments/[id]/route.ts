@@ -5,6 +5,7 @@ import { comments } from "@/db/schema";
 import { ok, jsonBody } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { notFound } from "@/core/errors";
+import { publishComment } from "@/lib/moderation";
 import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
@@ -20,6 +21,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params;
     assertUuid(id);
     const body = parseOrThrow(patchSchema, await jsonBody(req));
+
+    const [current] = await db.select().from(comments).where(eq(comments.id, id)).limit(1);
+    if (!current) throw notFound("评论不存在 / Comment not found");
+
+    // 审核态 → visible 走人工过审管线（计数 +1 + comment:created 通知），
+    // 避免「状态改了但计数/通知没跟上」的漂移。
+    if (body.status === "visible" && (current.status === "pending_review" || current.status === "rejected")) {
+      await publishComment(current, { reviewedBy: "manual" });
+      await logAdmin(user.id, "comment.approve", "comment", id);
+      return ok({ ok: true, status: body.status });
+    }
 
     const [row] = await db
       .update(comments)

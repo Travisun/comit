@@ -6,6 +6,7 @@ import {
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import { FeedRowAfterSlot } from "@/extensions/_boot/client";
+import { Badge } from "@/components/ui/primitives";
 import type { FeedItemDTO } from "./types";
 
 /**
@@ -70,6 +71,7 @@ export function ShortCard({
   showLabel = true,
   rowHref = false,
   menu = false,
+  badge,
 }: {
   post: FeedItemDTO["post"];
   author: FeedItemDTO["author"];
@@ -82,6 +84,8 @@ export function ShortCard({
   rowHref?: boolean;
   /** render the「···」quick-actions menu (home/following feeds) */
   menu?: boolean;
+  /** 附带状态徽标（如本人视角的「审核中 / 未通过审核」） */
+  badge?: { text: string; tone?: "default" | "destructive" };
 }) {
   const href = postHref(post);
   const { text } = extractImages(post.content || post.summary || " ");
@@ -95,6 +99,11 @@ export function ShortCard({
         </div>
       )}
       <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
+      {badge && (
+        <Badge variant={badge.tone === "destructive" ? "destructive" : "secondary"} className="mt-0.5">
+          {badge.text}
+        </Badge>
+      )}
       {post.title && (
         <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
           <span className="line-clamp-2">{post.title}</span>

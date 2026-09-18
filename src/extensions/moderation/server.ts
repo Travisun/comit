@@ -1,20 +1,22 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { posts } from "@/db/schema";
-import { queue } from "@/core/queue";
+import { comments, posts } from "@/db/schema";
 import { emit } from "@/core/events";
-import { reviewPost } from "@/lib/moderation";
+import { reviewComment, reviewPost } from "@/lib/moderation";
 import { getSetting } from "@/lib/settings";
 import type { Plugin } from "@/core/plugins/types";
 
 /**
  * Moderation plugin — listens for submissions and runs the keyword/LLM
  * pipeline asynchronously through the queue so publishing stays snappy.
+ *
+ * 队列任务通过 ctx.jobs.work("review") 自包含注册（ext.job 通道统一消费），
+ * payload 支持 { postId }（帖子审核）与 { commentId }（评论审核）。
  */
 const plugin: Plugin = {
   name: "moderation",
   description: "Keyword + LLM content review pipeline",
-  version: "1.0.0",
+  version: "1.1.0",
   register(ctx) {
     ctx.events.on("post:submitted", async (payload) => {
       const reviewMode = await getSetting("moderation.reviewMode");
@@ -54,20 +56,36 @@ const plugin: Plugin = {
         }
         return;
       }
-      await queue.send(
-        "ext.job",
-        { extensionId: "moderation", task: "review", payloadJson: JSON.stringify({ postId: payload.postId }) },
-        { retryLimit: 2 },
-      );
+      await ctx.jobs.dispatch("review", { postId: payload.postId }, { retryLimit: 2 });
+    });
+
+    // 审核任务处理器：补齐此前缺失的注册（reviewMode=llm/manual 时任务
+    // 入队后无人消费，内容会永久停留在 pending_review）。
+    ctx.jobs.work("review", async (payload) => {
+      if (typeof payload.commentId === "string") {
+        const [row] = await db.select().from(comments).where(eq(comments.id, payload.commentId)).limit(1);
+        if (row && row.status === "pending_review") await reviewComment(row);
+        return;
+      }
+      if (typeof payload.postId === "string") {
+        const [row] = await db.select().from(posts).where(eq(posts.id, payload.postId)).limit(1);
+        if (row && row.status === "pending_review") await reviewPost(row);
+      }
     });
   },
 };
 
 export default plugin;
 
-/** Queue worker entry (invoked by core/workers.ts). */
+/** Queue worker entry — 供脚本/测试直接调用（队列消费走 ctx.jobs.work 注册表）。 */
 export async function processModerationJob(postId: string): Promise<void> {
   const [row] = await db.select().from(posts).where(eq(posts.id, postId)).limit(1);
   if (!row || row.status !== "pending_review") return;
   await reviewPost(row);
+}
+
+export async function processCommentModerationJob(commentId: string): Promise<void> {
+  const [row] = await db.select().from(comments).where(eq(comments.id, commentId)).limit(1);
+  if (!row || row.status !== "pending_review") return;
+  await reviewComment(row);
 }

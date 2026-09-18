@@ -15,8 +15,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 export default async function ConversationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ userId: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { userId } = await params;
   if (!UUID_RE.test(userId)) notFound();
@@ -56,7 +58,7 @@ export default async function ConversationPage({
     && blockedRow.length === 0;
 
   return (
-    <MessagesShell selectedUserId={other.id}>
+    <MessagesShell selectedUserId={other.id} initialTab={(await searchParams).tab === "notifications" ? "notifications" : "dm"}>
       {allowed ? (
         <ChatClient
           other={{

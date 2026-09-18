@@ -83,6 +83,8 @@ export interface AppEventPayloads {
   // internal / system
   "moderation:review.completed": {
     postId: string;
+    /** 评论审核时携带（评论挂在 postId 帖子下） */
+    commentId?: string;
     approved: boolean;
     by: "keyword" | "llm" | "manual";
     reason?: string;

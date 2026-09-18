@@ -17,6 +17,7 @@ import { BlockButton } from "@/components/social/block-button";
 import {
   getFollowState,
   getPublishedPosts,
+  getProfileActivity,
   listBookmarkPosts,
   getTopPosts,
   getUserCollections,
@@ -24,11 +25,13 @@ import {
   listFollowers,
   listFollowing,
   toFeedItemDTO,
+  toUserBrief,
   type UserCard,
 } from "./queries";
 import { VerifiedBadge } from "./verified-badge";
 import { ArticleCard, FEED_ROW_CLASS } from "./article-card";
 import { ShortCard } from "./short-card";
+import { CommentActivityCard } from "./comment-activity-card";
 import { SocialLinks } from "./sidebar-widgets";
 import type { UserStats, ViewerFollowState } from "./types";
 
@@ -276,7 +279,7 @@ export async function UserProfileView({
           <PostsTab user={user} page={page} tab={tab} stats={stats} viewerUsername={viewer?.username} />
         )}
         {tab === "short" && (
-          <ShortsTab user={user} page={page} tab={tab} viewerUsername={viewer?.username} />
+          <ShortsTab user={user} page={page} tab={tab} viewerUsername={viewer?.username} isSelf={isSelf} />
         )}
         {tab === "bookmarks" && <BookmarksTab user={user} viewer={viewer} viewerUsername={viewer?.username} />}
         {tab === "collections" && <CollectionsTab user={user} />}
@@ -427,40 +430,58 @@ async function PostsTab({
   );
 }
 
+/** 动态 tab — 短帖 + 该用户发表的全部评论，按时间全局合并；评论行可直达
+ * 原帖楼层并标注来源帖 / 回复对象。本人视角附带审核中/未通过的自见内容。 */
 async function ShortsTab({
   user,
   page,
   tab,
   viewerUsername,
+  isSelf,
 }: {
   user: User;
   page: number;
   tab: ProfileTab;
   viewerUsername?: string;
+  isSelf?: boolean;
 }) {
-  const { items, nextOffset } = await getPublishedPosts({
-    authorId: user.id,
-    type: "short",
+  const { items, nextOffset } = await getProfileActivity({
+    userId: user.id,
+    includeOwnPending: Boolean(isSelf),
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
   if (items.length === 0) return <EmptyState text="还没有发布任何动态" />;
+  const selfBrief = toUserBrief(user);
   return (
     <div>
-      {items.map((it) => {
-        const dto = toFeedItemDTO(it);
-        return (
+      {items.map((it) =>
+        it.kind === "short" ? (
           <ShortCard
-            key={it.post.id}
-            post={dto.post}
-            author={dto.author}
+            key={`short-${it.post.id}`}
+            post={toFeedItemDTO(it).post}
+            author={it.author}
             className={FEED_ROW_CLASS}
             viewerUsername={viewerUsername}
             rowHref
             menu={Boolean(viewerUsername)}
+            badge={
+              it.post.status === "pending_review"
+                ? { text: "审核中" }
+                : it.post.status === "rejected"
+                  ? { text: "未通过审核", tone: "destructive" }
+                  : undefined
+            }
           />
-        );
-      })}
+        ) : (
+          <CommentActivityCard
+            key={`comment-${it.comment.id}`}
+            comment={it.comment}
+            author={selfBrief}
+            className={FEED_ROW_CLASS}
+          />
+        ),
+      )}
       <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
     </div>
   );

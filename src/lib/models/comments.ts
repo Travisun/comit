@@ -5,6 +5,8 @@ import { z } from "zod";
 export const commentItemSchema = z.object({
   id: z.string(),
   body: z.string(),
+  /** visible | pending_review | rejected —— 审核态仅作者自见 */
+  status: z.enum(["visible", "pending_review", "rejected", "hidden", "deleted"]).optional(),
   createdAt: z.string(),
   likeCount: z.number(),
   liked: z.boolean().optional(),

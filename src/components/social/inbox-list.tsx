@@ -22,10 +22,13 @@ import {
 } from "@/lib/models/messages";
 
 /**
- * Unified message stream — the left pane of the inbox. DM conversations and
- * system notifications (抽象为"系统发给用户的消息") merge into one
- * time-sorted stream. The header carries the 新私信 people picker (mutual
- * follows with DMs enabled) and 全部已读 for notifications.
+ * Chat-style inbox left pane — 会话列表（发送者头像 + 最后一条消息预览 +
+ * 未读徽标）与系统通知分两个 tab：
+ *  - 私信 tab：纯 DM 会话列表，点击进入右侧聊天窗口（/messages/[userId]）
+ *  - 通知 tab：系统通知流（两步交互：点开摘要 → 查看详情跳转）
+ * Header carries the 新私信 people picker (mutual follows with DMs enabled)
+ * and 全部已读 for notifications. URL `?tab=notifications` 直接落到通知 tab
+ * （/notifications 重定向依赖该参数）。
  */
 
 interface InboxRow {
@@ -41,12 +44,21 @@ interface InboxRow {
   notification?: NotificationItem;
 }
 
-export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
+export type InboxTab = "dm" | "notifications";
+
+export function InboxList({
+  selectedUserId,
+  initialTab = "dm",
+}: {
+  selectedUserId?: string;
+  initialTab?: InboxTab;
+}) {
   const router = useRouter();
   const { locale } = useI18n();
   const zh = locale === "zh";
   const queryClient = useQueryClient();
   const [composeOpen, setComposeOpen] = useState(false);
+  const [tab, setTab] = useState<InboxTab>(initialTab);
 
   const conversationsQ = useQuery({
     queryKey: queryKeys.conversations(),
@@ -78,38 +90,46 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
   });
   const allowed = allowedQ.data;
 
-  const rows = useMemo<InboxRow[]>(() => {
-    const out: InboxRow[] = [];
-    for (const c of convs) {
-      out.push({
-        key: `dm-${c.userId}`,
-        kind: "dm",
-        displayName: c.displayName,
-        avatarPath: c.avatarPath,
-        preview: c.lastMessage
-          ? `${c.lastMessage.mine ? (zh ? "我: " : "You: ") : ""}${c.lastMessage.body}`
-          : `@${c.username}`,
-        time: c.lastMessage?.createdAt ?? null,
-        unread: c.unread,
-        bold: c.unread > 0,
-        dmUserId: c.userId,
-      });
-    }
-    for (const n of notifs) {
-      out.push({
-        key: `ntf-${n.id}`,
-        kind: "system",
-        displayName: n.title,
-        avatarPath: n.actor?.avatarPath ?? null,
-        preview: n.body ?? "",
-        time: n.createdAt,
-        unread: n.readAt ? 0 : 1,
-        bold: !n.readAt,
-        notification: n,
-      });
-    }
-    return out.sort((a, b) => (b.time ?? "").localeCompare(a.time ?? ""));
-  }, [convs, notifs, zh]);
+  const dmRows = useMemo<InboxRow[]>(
+    () =>
+      convs
+        .map((c) => ({
+          key: `dm-${c.userId}`,
+          kind: "dm" as const,
+          displayName: c.displayName,
+          avatarPath: c.avatarPath,
+          preview: c.lastMessage
+            ? `${c.lastMessage.mine ? (zh ? "我: " : "You: ") : ""}${c.lastMessage.body}`
+            : `@${c.username}`,
+          time: c.lastMessage?.createdAt ?? null,
+          unread: c.unread,
+          bold: c.unread > 0,
+          dmUserId: c.userId,
+        }))
+        .sort((a, b) => (b.time ?? "").localeCompare(a.time ?? "")),
+    [convs, zh],
+  );
+
+  const notifRows = useMemo<InboxRow[]>(
+    () =>
+      notifs
+        .map((n) => ({
+          key: `ntf-${n.id}`,
+          kind: "system" as const,
+          displayName: n.title,
+          avatarPath: n.actor?.avatarPath ?? null,
+          preview: n.body ?? "",
+          time: n.createdAt,
+          unread: n.readAt ? 0 : 1,
+          bold: !n.readAt,
+          notification: n,
+        }))
+        .sort((a, b) => (b.time ?? "").localeCompare(a.time ?? "")),
+    [notifs],
+  );
+
+  const rows = tab === "dm" ? dmRows : notifRows;
+  const unreadDms = dmRows.reduce((sum, r) => sum + r.unread, 0);
 
   const unreadNotifs = notifs.filter((n) => !n.readAt).length;
 
@@ -194,7 +214,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
       <div className="flex h-11 shrink-0 items-center justify-between border-b border-border pl-3 pr-2">
         <h2 className="text-[15px] font-normal">{zh ? "消息" : "Messages"}</h2>
         <div className="flex items-center gap-1">
-          {unreadNotifs > 0 && (
+          {tab === "notifications" && unreadNotifs > 0 && (
             <button
               type="button"
               onClick={() => void markAllRead()}
@@ -207,7 +227,10 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
             type="button"
             aria-label={zh ? "新私信" : "New DM"}
             title={zh ? "新私信（互相关注的人）" : "New DM (mutual follows)"}
-            onClick={() => setComposeOpen((v) => !v)}
+            onClick={() => {
+              setTab("dm");
+              setComposeOpen((v) => !v);
+            }}
             className={cn(
               "grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-[var(--hover)] hover:text-foreground",
               composeOpen && "bg-[var(--selected)] text-foreground",
@@ -216,6 +239,39 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
             <SquarePen className="size-4" aria-hidden />
           </button>
         </div>
+      </div>
+
+      {/* 私信 | 通知 分栏 tab：会话列表纯净化（聊天产品范式） */}
+      <div className="flex shrink-0 border-b border-border" role="tablist" aria-label={zh ? "消息分类" : "Inbox sections"}>
+        {([
+          { id: "dm" as const, label: zh ? "私信" : "Direct", badge: unreadDms },
+          { id: "notifications" as const, label: zh ? "通知" : "Alerts", badge: unreadNotifs },
+        ]).map(({ id, label, badge }) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => {
+              setTab(id);
+              if (id !== "dm") setComposeOpen(false);
+            }}
+            className={cn(
+              "relative flex flex-1 items-center justify-center gap-1.5 py-2.5 text-sm transition-colors",
+              tab === id
+                ? "font-medium text-foreground"
+                : "text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground",
+            )}
+          >
+            {label}
+            {badge > 0 && (
+              <span className="grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground tabular-nums">
+                {badge > 99 ? "99+" : badge}
+              </span>
+            )}
+            {tab === id && <span className="absolute inset-x-4 bottom-0 h-0.5 rounded-full bg-primary" />}
+          </button>
+        ))}
       </div>
 
       {/* 新私信 people picker */}
@@ -264,7 +320,25 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
             ))}
           </div>
         ) : rows.length === 0 ? (
-          <p className="p-4 text-sm text-muted-foreground">{zh ? "暂无消息" : "No messages yet"}</p>
+          <div className="flex flex-col items-center gap-2 px-6 py-12 text-center">
+            <span className="grid size-10 place-items-center rounded-full bg-[var(--muted)] text-muted-foreground">
+              {tab === "dm" ? <SquarePen className="size-4" aria-hidden /> : <Bell className="size-4" aria-hidden />}
+            </span>
+            <p className="text-sm text-muted-foreground">
+              {tab === "dm"
+                ? zh
+                  ? "还没有私信会话"
+                  : "No conversations yet"
+                : zh
+                  ? "暂无通知"
+                  : "No notifications"}
+            </p>
+            {tab === "dm" && (
+              <p className="text-xs leading-relaxed text-muted-foreground/80">
+                {zh ? "互相关注后即可私信" : "Mutual follows can DM each other"}
+              </p>
+            )}
+          </div>
         ) : (
           <ul>
             {rows.map((row) => {

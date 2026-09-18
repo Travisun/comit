@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { notifications, posts, users } from "@/db/schema";
+import { notifications, posts, users, comments } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
 import { renderMail } from "@/lib/mail";
 import { renderSystemMail, renderTemplate } from "@/lib/mail-templates";
@@ -222,10 +222,63 @@ const plugin: Plugin = {
     ctx.events.on("comment:created", (p) => void notifyCommentCreated(p));
     ctx.events.on("user:followed", (p) => void notifyUserFollowed(p));
     ctx.events.on("message:created", (p) => void notifyMessageCreated(p));
+    // 审核结果 → 通知内容作者（过审发布 / 未通过 + 原因）
+    ctx.events.on("moderation:review.completed", (p) => void notifyModerationCompleted(p));
   },
 };
 
 /* ------------------- 社交事件监听器（database + mail 双通道） ------------------- */
+
+/** 审核结果通知：帖子→帖子作者；评论→评论作者（非帖子作者）。 */
+async function notifyModerationCompleted(p: {
+  postId: string;
+  commentId?: string;
+  approved: boolean;
+  by: "keyword" | "llm" | "manual";
+  reason?: string;
+}): Promise<void> {
+  try {
+    const [post] = await db
+      .select({ authorId: posts.authorId, publicId: posts.publicId, title: posts.title, type: posts.type })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    if (!post) return;
+    // 评论审核：收件人是评论作者（帖子仅在链接/标题上出现）
+    let recipientId = post.authorId;
+    if (p.commentId) {
+      const [comment] = await db
+        .select({ userId: comments.userId })
+        .from(comments)
+        .where(eq(comments.id, p.commentId))
+        .limit(1);
+      if (!comment) return;
+      recipientId = comment.userId;
+    }
+    const kindZh = p.commentId ? "评论" : post.type === "short" ? "动态" : "文章";
+    const postTitle = post.title ?? `（无标题${kindZh}）`;
+    const url = p.commentId
+      ? `${routes.post(post.publicId)}#comment-${p.commentId}`
+      : routes.post(post.publicId);
+    await deliver(recipientId, {
+      key: p.approved ? "moderation.approved" : "moderation.rejected",
+      title: { zh: p.approved ? "审核通过" : "审核未通过", en: p.approved ? "Approved" : "Rejected" },
+      body: p.approved
+        ? {
+            zh: `你的${kindZh}「${postTitle}」已通过审核并发布。`,
+            en: `Your ${kindZh} "${postTitle}" has passed review and is now published.`,
+          }
+        : {
+            zh: `你的${kindZh}「${postTitle}」未通过审核。原因：${p.reason ?? "未提供"}`,
+            en: `Your ${kindZh} "${postTitle}" was rejected. Reason: ${p.reason ?? "unspecified"}`,
+          },
+      url,
+      payload: { postId: p.postId, commentId: p.commentId ?? null, approved: p.approved, reason: p.reason ?? null },
+    });
+  } catch (err) {
+    console.error("[notify] moderation:review.completed listener failed:", err);
+  }
+}
 
 /**
  * 落库 + SSE 实时广播（broadcast 同步、进程内 pub/sub；客户端收到

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { comments, likes, posts, users } from "@/db/schema";
@@ -10,6 +10,7 @@ import { jsonBody, ok, withApi, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
+import { getSetting } from "@/lib/settings";
 import { makeExcerpt } from "@/lib/utils";
 
 const createSchema = z.object({
@@ -99,17 +100,27 @@ export async function POST(req: Request) {
       throw new AppError(savingCtx.rejection, 422, "extension_rejected");
     }
 
+    // 审核管线：开启审核（llm/manual）时评论落库即 pending_review（仅作者
+    // 自见），由 moderation 队列任务审核；通过后才转 visible + 计入
+    // commentCount + 触发 comment:created（通知/webhook 只感知过审评论）。
+    const reviewMode = await getSetting("moderation.reviewMode");
+    const needsReview = reviewMode === "llm" || reviewMode === "manual";
+    const initialStatus = needsReview ? "pending_review" : "visible";
+
     // 评论插入 + commentCount 自增同事务：两条语句要么全部生效要么全部回滚，
     // 避免插入成功但计数更新失败导致的计数漂移（保持原子自增 +1 方向不变）。
+    // 审核模式下计数推迟到过审时（reviewComment）再自增。
     const created = await db.transaction(async (tx) => {
       const [row] = await tx
         .insert(comments)
-        .values(savingCtx.payload as typeof comments.$inferInsert)
+        .values({ ...(savingCtx.payload as typeof comments.$inferInsert), status: initialStatus })
         .returning();
-      await tx
-        .update(posts)
-        .set({ commentCount: sql`${posts.commentCount} + 1` })
-        .where(eq(posts.id, postId));
+      if (initialStatus === "visible") {
+        await tx
+          .update(posts)
+          .set({ commentCount: sql`${posts.commentCount} + 1` })
+          .where(eq(posts.id, postId));
+      }
       return row;
     });
 
@@ -119,18 +130,28 @@ export async function POST(req: Request) {
       postAuthorId: row.post.authorId,
     });
 
-    void emit("comment:created", {
-      commentId: created.id,
-      postId,
-      postAuthorId: row.post.authorId,
-      commenterId: me.id,
-      replyToUserId,
-      excerpt: makeExcerpt(body, 120),
-    });
+    if (needsReview) {
+      const { queue } = await import("@/core/queue");
+      await queue.send(
+        "ext.job",
+        { extensionId: "moderation", task: "review", payloadJson: JSON.stringify({ commentId: created.id }) },
+        { retryLimit: 2 },
+      );
+    } else {
+      void emit("comment:created", {
+        commentId: created.id,
+        postId,
+        postAuthorId: row.post.authorId,
+        commenterId: me.id,
+        replyToUserId,
+        excerpt: makeExcerpt(body, 120),
+      });
+    }
 
     return ok({
       id: created.id,
       body: created.body,
+      status: created.status,
       createdAt: created.createdAt,
       likeCount: created.likeCount,
       liked: false,
@@ -219,7 +240,17 @@ export async function GET(req: Request) {
     }
 
     const replyUsers = alias(users, "reply_users");
-    const conditions = [eq(comments.postId, postId), eq(comments.status, "visible")];
+    // 审核态（pending_review / rejected）仅评论作者本人可见，其余观众只见 visible
+    const statusCond = viewer
+      ? or(
+          eq(comments.status, "visible"),
+          and(
+            inArray(comments.status, ["pending_review", "rejected"]),
+            eq(comments.userId, viewer.user.id),
+          ),
+        )
+      : eq(comments.status, "visible");
+    const conditions = [eq(comments.postId, postId), statusCond];
     if (cursor) conditions.push(lt(comments.createdAt, new Date(cursor)));
     // 置顶评论走独立列表（list=pinned）在列表顶部渲染 —— 主流排除后
     // 才能保证「无论多少新评论进来，置顶楼层始终在最上方」
@@ -229,6 +260,7 @@ export async function GET(req: Request) {
       .select({
         id: comments.id,
         body: comments.body,
+        status: comments.status,
         createdAt: comments.createdAt,
         likeCount: comments.likeCount,
         userId: comments.userId,
@@ -273,6 +305,7 @@ export async function GET(req: Request) {
     const items = page.map((r) => ({
       id: r.id,
       body: r.body,
+      status: r.status,
       createdAt: r.createdAt,
       likeCount: r.likeCount,
       liked: viewer ? likedSet.has(r.id) : null, // 键恒存在，响应形状不随登录态漂移
@@ -337,16 +370,20 @@ export async function DELETE(req: Request) {
     }
 
     if (row.comment.status !== "deleted") {
-      // 软删 + 计数递减同事务，防止状态改了计数没减（或反之）的不一致
+      // 软删 + 计数递减同事务，防止状态改了计数没减（或反之）的不一致。
+      // 审核态（pending_review/rejected）从未计入 commentCount，递减跳过。
+      const wasVisible = row.comment.status === "visible";
       await db.transaction(async (tx) => {
         await tx
           .update(comments)
           .set({ status: "deleted", body: "", pinnedAt: null, solutionAt: null })
           .where(eq(comments.id, id));
-        await tx
-          .update(posts)
-          .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
-          .where(eq(posts.id, row.comment.postId));
+        if (wasVisible) {
+          await tx
+            .update(posts)
+            .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
+            .where(eq(posts.id, row.comment.postId));
+        }
       });
     }
     return ok();

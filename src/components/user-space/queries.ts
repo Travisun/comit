@@ -11,11 +11,13 @@ import {
   or,
   sql,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   blocks,
   bookmarks,
   collections,
+  comments,
   follows,
   likes,
   polls,
@@ -155,6 +157,127 @@ export async function getPublishedPosts(
 
   const hasMore = rows.length > limit;
   const items = hasMore ? rows.slice(0, limit) : rows;
+  return { items, nextOffset: hasMore ? offset + limit : null };
+}
+
+/* ------------------------- profile activity timeline ---------------------- */
+
+/** 「动态」时间线元素：短帖 或 该用户发表的评论 */
+export type ProfileActivityItem =
+  | { kind: "short"; post: Post; author: UserBrief; pollId?: string | null }
+  | { kind: "comment"; comment: CommentActivityRow };
+
+export interface CommentActivityRow {
+  id: string;
+  body: string;
+  status: string;
+  likeCount: number;
+  createdAt: Date;
+  /** 来源帖（用于「评论了《xx》」与楼层跳转链接） */
+  postPublicId: string;
+  postType: "article" | "short";
+  postTitle: string | null;
+  postSummary: string | null;
+  /** 非空 ⇒ 这是一条回复 */
+  replyToUsername: string | null;
+}
+
+/**
+ * 个人主页「动态」时间线：短帖 + 该用户的评论，按时间全局倒序合并分页。
+ * 先用 UNION 子查询取出本页 (kind, id)，再分批取详情（复用 FeedItem 行），
+ * 保证跨两种内容的全局分页正确。
+ * includeOwnPending（本人视角）：附带 pending_review / rejected 的自见内容。
+ */
+export async function getProfileActivity(opts: {
+  userId: string;
+  includeOwnPending?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<{ items: ProfileActivityItem[]; nextOffset: number | null }> {
+  const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
+  const offset = Math.max(opts.offset ?? 0, 0);
+  const selfView = Boolean(opts.includeOwnPending);
+  const postStatus = selfView
+    ? sql`in ('published', 'pending_review', 'rejected')`
+    : sql`= 'published'`;
+  const commentStatus = selfView
+    ? sql`in ('visible', 'pending_review', 'rejected')`
+    : sql`= 'visible'`;
+
+  const idRes = await db.execute<{ kind: "short" | "comment"; id: string }>(sql`
+    select u.kind, u.id from (
+      select 'short'::text as kind, p.id as id, p.published_at as at
+        from posts p
+       where p.author_id = ${opts.userId}
+         and p.type = 'short'
+         and p.visibility = 'public'
+         and p.status ${postStatus}
+      union all
+      select 'comment'::text as kind, c.id as id, c.created_at as at
+        from comments c
+        join posts p2 on p2.id = c.post_id
+       where c.user_id = ${opts.userId}
+         and c.status ${commentStatus}
+         and p2.status = 'published'
+         and p2.visibility = 'public'
+    ) u
+    order by u.at desc
+    limit ${limit + 1} offset ${offset}
+  `);
+  const idRows = idRes.rows;
+  const hasMore = idRows.length > limit;
+  const pageRows = hasMore ? idRows.slice(0, limit) : idRows;
+
+  const shortIds = pageRows.filter((r) => r.kind === "short").map((r) => r.id);
+  const commentIds = pageRows.filter((r) => r.kind === "comment").map((r) => r.id);
+
+  const replyUsers = alias(users, "reply_users");
+  const [shortRows, commentRows] = await Promise.all([
+    shortIds.length
+      ? db
+          .select({
+            post: posts,
+            author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+            pollId: polls.id,
+          })
+          .from(posts)
+          .innerJoin(users, eq(users.id, posts.authorId))
+          .leftJoin(polls, eq(polls.postId, posts.id))
+          .where(inArray(posts.id, shortIds))
+      : Promise.resolve([] as { post: Post; author: UserBrief; pollId: string | null }[]),
+    commentIds.length
+      ? db
+          .select({
+            id: comments.id,
+            body: comments.body,
+            status: comments.status,
+            likeCount: comments.likeCount,
+            createdAt: comments.createdAt,
+            postPublicId: posts.publicId,
+            postType: posts.type,
+            postTitle: posts.title,
+            postSummary: posts.summary,
+            replyToUsername: replyUsers.username,
+          })
+          .from(comments)
+          .innerJoin(posts, eq(posts.id, comments.postId))
+          .leftJoin(replyUsers, eq(replyUsers.id, comments.replyToUserId))
+          .where(inArray(comments.id, commentIds))
+      : Promise.resolve([] as CommentActivityRow[]),
+  ]);
+
+  const shortById = new Map(shortRows.map((r) => [r.post.id, r]));
+  const commentById = new Map(commentRows.map((r) => [r.id, r]));
+  const items: ProfileActivityItem[] = [];
+  for (const r of pageRows) {
+    if (r.kind === "short") {
+      const row = shortById.get(r.id);
+      if (row) items.push({ kind: "short", ...row });
+    } else {
+      const row = commentById.get(r.id);
+      if (row) items.push({ kind: "comment", comment: row });
+    }
+  }
   return { items, nextOffset: hasMore ? offset + limit : null };
 }
 

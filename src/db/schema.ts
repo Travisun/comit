@@ -398,7 +398,15 @@ export const comments = pgTable(
     replyToUserId: uuid("reply_to_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
-    status: varchar("status", { length: 16 }).default("visible").notNull(), // visible|hidden|deleted
+    // visible|hidden|deleted|pending_review|rejected — 后两者为审核管线状态（仅作者自见）
+    status: varchar("status", { length: 16 }).default("visible").notNull(),
+    /** 审核结果（关键词命中 / LLM 结论），结构同 posts.moderation */
+    moderation: jsonb("moderation").$type<{
+      keyword?: { severity: string; hits: string[] };
+      llm?: { approved: boolean; score?: number; reason?: string };
+      reviewedAt?: string;
+      reviewedBy?: string;
+    }>(),
     likeCount: integer("like_count").default(0).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     /**

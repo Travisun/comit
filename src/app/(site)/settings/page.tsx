@@ -12,6 +12,7 @@ import {
   KeyRound,
   Link2,
   Mail,
+  Puzzle,
   ShieldCheck,
   Terminal,
   UserRound,
@@ -40,6 +41,12 @@ const GROUPS = [
       { href: "/settings/username", label: { zh: "用户名", en: "Username" }, desc: { zh: "主页地址，每 30 天可修改一次", en: "Your profile URL, changeable every 30 days" }, icon: Globe },
       { href: "/settings/invites", label: { zh: "邀请码", en: "Invites" }, desc: { zh: "生成邀请码并查看使用情况", en: "Generate and track invite codes" }, icon: KeyRound },
       { href: "/settings/verification", label: { zh: "认证", en: "Verification" }, desc: { zh: "申请身份认证徽章", en: "Apply for a verification badge" }, icon: BadgeCheck },
+    ],
+  },
+  {
+    label: { zh: "扩展", en: "Extensions" },
+    items: [
+      { href: "/settings/extensions", label: { zh: "扩展设置", en: "Extension settings" }, desc: { zh: "管理已安装扩展的偏好设置", en: "Preferences for installed extensions" }, icon: Puzzle },
     ],
   },
   {

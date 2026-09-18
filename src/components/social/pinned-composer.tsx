@@ -696,11 +696,40 @@ export function PinnedComposer({
           </div>
         </div>
       )}
-      {(preview ? (
+      <div className="relative">
+        {/* 评论模式：Markdown/预览 切换 — 输入区右上角，常驻于预览/编辑两个分支之上，预览态也能切回 */}
+        {isComment && (
+          <div className="absolute right-2 top-2 z-10 inline-flex items-center rounded-full bg-[var(--muted)] p-[2px] text-[11px]">
+            <button
+              type="button"
+              aria-pressed={!preview}
+              onClick={() => setPreview(false)}
+              className={cn(
+                "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
+                !preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <PenLine className="size-3" aria-hidden /> Markdown
+            </button>
+            <button
+              type="button"
+              aria-pressed={preview}
+              onClick={() => setPreview(true)}
+              className={cn(
+                "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
+                preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Eye className="size-3" aria-hidden /> {zh ? "预览" : "Preview"}
+            </button>
+          </div>
+        )}
+        {preview ? (
           /* 预览：与发布同一服务端渲染管线；图片默认居中、合适尺寸 */
           <div
             className={cn(
               "min-h-16 overflow-y-auto px-3 pb-2 pt-1",
+              isComment && "pr-28",
               fullscreen && "min-h-0 flex-1",
             )}
             aria-live="polite"
@@ -727,33 +756,6 @@ export function PinnedComposer({
           </div>
         ) : (
           <div className="relative">
-            {/* 评论模式：Markdown/预览 切换 — 输入区右上角，与主发布器标题块同款 */}
-            {isComment && (
-              <div className="absolute right-2 top-2 z-10 inline-flex items-center rounded-full bg-[var(--muted)] p-[2px] text-[11px]">
-                <button
-                  type="button"
-                  aria-pressed={!preview}
-                  onClick={() => setPreview(false)}
-                  className={cn(
-                    "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
-                    !preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <PenLine className="size-3" aria-hidden /> Markdown
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={preview}
-                  onClick={() => setPreview(true)}
-                  className={cn(
-                    "inline-flex h-5 items-center gap-1 rounded-full px-2 transition-colors",
-                    preview ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Eye className="size-3" aria-hidden /> {zh ? "预览" : "Preview"}
-                </button>
-              </div>
-            )}
             <Textarea
               ref={taRef}
               value={content}
@@ -796,7 +798,8 @@ export function PinnedComposer({
               {highlightHashtags(content)}
             </div>
           </div>
-        ))}
+        )}
+      </div>
       {isComment && replyToUsername && (
         <div className="mx-3 mt-1 flex items-center justify-between rounded-lg bg-[var(--muted)] px-2.5 py-1 text-xs text-muted-foreground">
           <span>回复 @{replyToUsername}</span>

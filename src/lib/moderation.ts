@@ -1,9 +1,9 @@
-import { count, eq } from "drizzle-orm";
+import { count, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { keywords, posts, type Post } from "@/db/schema";
+import { comments, keywords, posts, type Comment, type Post } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
 import { emit } from "@/core/events";
-import { markdownToPlain } from "@/lib/utils";
+import { makeExcerpt, markdownToPlain } from "@/lib/utils";
 import { llmChat } from "@/lib/llm";
 
 /**
@@ -119,7 +119,151 @@ export async function reviewPost(post: Post): Promise<ReviewOutcome> {
     })
     .where(eq(posts.id, post.id));
   await emit("moderation:review.completed", { postId: post.id, approved: true, by: reviewMode === "llm" ? "llm" : "keyword" });
+  // 过审即正式发布：与 reviewMode=off 的直发路径一致，补发 post:published
+  // （webhooks/后续监听者依赖该事件感知发布）
+  const [published] = await db
+    .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
+    .from(posts)
+    .where(eq(posts.id, post.id))
+    .limit(1);
+  if (published) {
+    await emit("post:published", {
+      postId: post.id,
+      authorId: post.authorId,
+      publicId: published.publicId,
+      title: published.title ?? "",
+      type: published.type,
+    });
+  }
   return { status: "published", keywordHits, llm };
+}
+
+/* --------------------------- comment review ------------------------------- */
+
+export interface CommentReviewOutcome {
+  status: "visible" | "pending_review" | "rejected";
+  keywordHits: KeywordHit[];
+  llm?: LlmReviewResult | null;
+  reason?: string;
+}
+
+/**
+ * Full pipeline for a comment awaiting review (status = pending_review)。
+ * 与 reviewPost 同构：关键词 → LLM（reviewMode=llm）→ 人工兜底；
+ * 通过时才转 visible + commentCount 自增 + emit comment:created
+ * （通知/webhook 只在过审后感知到这条评论）。
+ */
+export async function reviewComment(comment: Comment): Promise<CommentReviewOutcome> {
+  const reviewMode = await getSetting("moderation.reviewMode");
+  const keywordsEnabled = await getSetting("moderation.keywordsEnabled");
+  const failMode = await getSetting("moderation.llmFailMode");
+
+  const keywordHits = keywordsEnabled ? await scanKeywords(comment.body) : [];
+  if (keywordHits.some((h) => h.severity === "block")) {
+    const reason = "包含被禁止的关键词 / contains blocked keywords";
+    await finishComment(comment, "rejected", keywordHits, null, reason, "keyword");
+    return { status: "rejected", keywordHits, reason };
+  }
+
+  const warned = keywordHits.length > 0;
+  let llm: LlmReviewResult | null = null;
+
+  if (reviewMode === "llm" && !warned) {
+    llm = await llmReview(comment.body.slice(0, 8000));
+    if (!llm) {
+      if (failMode === "closed") {
+        await finishComment(comment, "pending_review", keywordHits, llm, "LLM 审核暂时不可用", "llm");
+        return { status: "pending_review", keywordHits, llm };
+      }
+    } else if (!llm.approved) {
+      const reason = llm.reason ?? "LLM 审核未通过";
+      await finishComment(comment, "rejected", keywordHits, llm, reason, "llm");
+      return { status: "rejected", keywordHits, llm, reason };
+    }
+  }
+
+  if (reviewMode === "manual" || warned || (reviewMode === "llm" && !llm)) {
+    await finishComment(comment, "pending_review", keywordHits, llm, warned ? "命中警告关键词，转人工审核" : undefined, "manual");
+    return { status: "pending_review", keywordHits, llm };
+  }
+
+  // approved → visible + 计数 + 事件（与直发路径同一组副作用）
+  await publishComment(comment, {
+    keyword: keywordHits.length ? { severity: "warn", hits: keywordHits.map((h) => h.word) } : undefined,
+    llm: llm ?? undefined,
+    reviewedBy: reviewMode === "llm" ? "llm" : "keyword",
+  });
+  return { status: "visible", keywordHits, llm };
+}
+
+/**
+ * 评论过审落库：pending_review/rejected → visible + commentCount 自增 +
+ * emit comment:created（通知/webhook 挂在该事件上）。人工过审（管理端）与
+ * 自动过审共用，保证计数与事件副作用只有这一处实现。
+ */
+export async function publishComment(
+  comment: Comment,
+  moderation?: { keyword?: { severity: string; hits: string[] }; llm?: { approved: boolean; score?: number; reason?: string }; reviewedBy?: string },
+): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(comments)
+      .set({
+        status: "visible",
+        moderation: {
+          ...moderation,
+          reviewedAt: new Date().toISOString(),
+          reviewedBy: moderation?.reviewedBy ?? "manual",
+        },
+      })
+      .where(eq(comments.id, comment.id));
+    await tx
+      .update(posts)
+      .set({ commentCount: sql`${posts.commentCount} + 1` })
+      .where(eq(posts.id, comment.postId));
+  });
+  const [post] = await db
+    .select({ authorId: posts.authorId })
+    .from(posts)
+    .where(eq(posts.id, comment.postId))
+    .limit(1);
+  if (post) {
+    void emit("comment:created", {
+      commentId: comment.id,
+      postId: comment.postId,
+      postAuthorId: post.authorId,
+      commenterId: comment.userId,
+      replyToUserId: comment.replyToUserId ?? null,
+      excerpt: makeExcerpt(comment.body, 120),
+    });
+  }
+}
+
+async function finishComment(
+  comment: Comment,
+  status: "pending_review" | "rejected",
+  keywordHits: KeywordHit[],
+  llm: LlmReviewResult | null,
+  reason: string | undefined,
+  by: "keyword" | "llm" | "manual",
+) {
+  // pending → pending 无需回写（无状态变化）；rejected 落状态供作者自见
+  if (status === "pending_review" && !reason) return;
+  await db
+    .update(comments)
+    .set({
+      status,
+      moderation: {
+        keyword: keywordHits.length ? { severity: "warn", hits: keywordHits.map((h) => h.word) } : undefined,
+        llm: llm ?? undefined,
+        reviewedAt: new Date().toISOString(),
+        reviewedBy: by,
+      },
+    })
+    .where(eq(comments.id, comment.id));
+  if (status === "rejected") {
+    await emit("moderation:review.completed", { postId: comment.postId, approved: false, by, reason, commentId: comment.id });
+  }
 }
 
 async function finish(
