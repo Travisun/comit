@@ -23,6 +23,10 @@ RUN pnpm build
 FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
+# runner 阶段需要 pnpm（CMD pnpm start / migrate one-shot pnpm db:migrate）。
+# 版本须与 package.json 的 packageManager 保持一致；用 npm 全局安装而非
+# corepack —— 后者首跑时才下载 pnpm，容器启动会依赖外网且偶发抖动。
+RUN npm install -g pnpm@12.3.4
 RUN addgroup -S app && adduser -S app -G app
 COPY --from=build --chown=app:app /app/.next ./.next
 COPY --from=build --chown=app:app /app/public ./public
