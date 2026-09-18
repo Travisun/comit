@@ -25,6 +25,10 @@ services:
     restart: "no"
     network_mode: host
     env_file: .env
+    environment:
+      # 镜像内依赖已在构建期就位；pnpm 12 的 run 前依赖校验会尝试自动
+      # install 并写锁文件，只读容器内直接失败 → 显式关闭
+      npm_config_verify_deps_before_run: "false"
     # 增量迁移 one-shot：只跑未应用的 drizzle 迁移，幂等可重复执行
     command: ["pnpm", "db:migrate"]
 
@@ -33,6 +37,8 @@ services:
     restart: unless-stopped
     network_mode: host
     env_file: .env
+    environment:
+      npm_config_verify_deps_before_run: "false"
     # 只绑定 127.0.0.1：公网流量必须经宝塔 nginx 反代（X-Real-IP 依赖该拓扑）
     command: ["./node_modules/.bin/next", "start", "-H", "127.0.0.1", "-p", "3000"]
     volumes:
