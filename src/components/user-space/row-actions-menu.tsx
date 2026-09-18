@@ -7,6 +7,8 @@ import {
   Ban,
   Bookmark,
   UserCheck,
+  Eye,
+  EyeOff,
   Flag,
   Loader2,
   MessageCircle,
@@ -34,7 +36,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { apiGet, deleteJson, postJson } from "@/lib/client/api";
+import { apiGet, deleteJson, patchJsonSafe, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
 import { useRscRefresh } from "@/lib/client/rsc-refresh";
@@ -129,6 +131,23 @@ export function RowActionsMenu({
     successToast: "已移入回收站",
   });
 
+  // 作者可见性切换：仅自己可见 ⇄ 公开（PATCH 轻量端点，不触碰 status）
+  const visibilityMutation = useApiMutation(
+    async () => {
+      const r = await patchJsonSafe<{ visibility: string }>(`/api/posts/${post.id}`, {
+        visibility: post.visibility === "private" ? "public" : "private",
+      });
+      if (!r.ok) throw new Error(r.error ?? "操作失败，请稍后再试");
+      return r.data;
+    },
+    {
+      refresh: true, // 卡片上的「仅自己可见」徽标与列表归属都要 RSC 回流
+      invalidate: [queryKeys.feedPrefix(), queryKeys.myPostListPrefix()],
+      successToast: (data) =>
+        data?.visibility === "private" ? "已设为仅自己可见" : "已设为公开可见",
+    },
+  );
+
   const reportMutation = useApiMutation(
     (reason: string) => postJson("/api/reports", { targetType: "post", targetId: post.id, reason }),
     {
@@ -200,6 +219,17 @@ export function RowActionsMenu({
           {mine && (
             <>
               <DropdownMenuSeparator />
+              <MenuItem
+                icon={
+                  post.visibility === "private" ? (
+                    <Eye className="size-4" />
+                  ) : (
+                    <EyeOff className="size-4" />
+                  )
+                }
+                label={post.visibility === "private" ? "设为公开可见" : "设为仅自己可见"}
+                onClick={() => void visibilityMutation.mutate(undefined)}
+              />
               <MenuItem
                 icon={<PenLine className="size-4" />}
                 label="编辑"

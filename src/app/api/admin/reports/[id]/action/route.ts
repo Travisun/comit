@@ -54,6 +54,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const [report] = await db
       .select({
         id: reports.id,
+        reporterId: reports.reporterId,
         targetType: reports.targetType,
         targetId: reports.targetId,
         reason: reports.reason,
@@ -66,16 +67,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const note = body.note ?? null;
     const markResolved = () =>
       db.update(reports).set({ status: "resolved" }).where(eq(reports.id, id));
+    /** 举报处理完毕 → 通知举报人处理结果（best-effort，失败仅记日志） */
+    const notifyReporter = (outcome: "resolved" | "dismissed", action: string) => {
+      void emit("report:resolved", {
+        reportId: id,
+        reporterId: report.reporterId,
+        outcome,
+        action,
+        targetType: report.targetType,
+        reason: note ?? report.reason,
+      }).catch((err: unknown) => console.error("[reports] report:resolved emit failed:", err));
+    };
 
     switch (body.action) {
       case "resolve": {
         await markResolved();
         await logAdmin(user.id, "report.resolve", "report", id, note ?? report.reason);
+        notifyReporter("resolved", "resolve");
         return ok({ ok: true, status: "resolved" });
       }
       case "dismiss": {
         await db.update(reports).set({ status: "dismissed" }).where(eq(reports.id, id));
         await logAdmin(user.id, "report.dismiss", "report", id, note ?? report.reason);
+        notifyReporter("dismissed", "dismiss");
         return ok({ ok: true, status: "dismissed" });
       }
       case "delete_content": {
@@ -106,7 +120,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           }
         } else if (report.targetType === "comment") {
           const [c] = await db
-            .select({ id: comments.id })
+            .select({ id: comments.id, postId: comments.postId, userId: comments.userId })
             .from(comments)
             .where(eq(comments.id, report.targetId))
             .limit(1);
@@ -115,6 +129,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             .update(comments)
             .set({ status: "deleted" })
             .where(eq(comments.id, c.id));
+          // 评论被举报删除 → 通知评论作者（post:rejected 的评论侧对应物）
+          try {
+            await emit("comment:removed", {
+              commentId: c.id,
+              postId: c.postId,
+              authorId: c.userId,
+              reason: note ?? report.reason,
+              by: "report",
+            });
+          } catch (err) {
+            console.error("[reports] comment:removed emit failed:", err);
+          }
         } else {
           throw new AppError("用户类型举报没有可删除的内容 / Nothing to delete for user reports", 400);
         }
@@ -126,6 +152,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           report.targetId,
           note ?? `举报处置删除内容：${report.reason}`,
         );
+        notifyReporter("resolved", "delete_content");
         return ok({ ok: true, status: "resolved" });
       }
       case "ban_author": {
@@ -140,6 +167,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           report.targetId,
           note ?? `举报处置封禁作者（${days ? `${days} 天` : "永久"}）：${body.reason}`,
         );
+        notifyReporter("resolved", "ban_author");
         return ok({ ok: true, status: "resolved", banned: true, days });
       }
       case "warn_author": {
@@ -154,6 +182,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
           report.targetId,
           note ?? `举报处置警告作者：${message}`,
         );
+        notifyReporter("resolved", "warn_author");
         return ok({ ok: true, status: "resolved", warned: true });
       }
     }

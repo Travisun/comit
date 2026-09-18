@@ -21,6 +21,24 @@ export interface AuthorCardData extends UserBrief {
   followerCount: number;
 }
 
+/** 「动态」时间线里的评论行（getProfileActivity 返回；客户端卡片消费） */
+export interface CommentActivityRow {
+  id: string;
+  body: string;
+  status: string;
+  /** public | private（private 仅作者自见） */
+  visibility: string;
+  likeCount: number;
+  createdAt: Date;
+  /** 来源帖（用于「评论了《xx》」与楼层跳转链接） */
+  postPublicId: string;
+  postType: "article" | "short";
+  postTitle: string | null;
+  postSummary: string | null;
+  /** 非空 ⇒ 这是一条回复 */
+  replyToUsername: string | null;
+}
+
 export interface UserStats {
   posts: number;
   followers: number;

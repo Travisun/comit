@@ -33,6 +33,7 @@ import type {
   ArchiveGroup,
   AuthorCardData,
   CollectionCardData,
+  CommentActivityRow,
   FeedItemDTO,
   TopicRef,
   UserBrief,
@@ -167,20 +168,7 @@ export type ProfileActivityItem =
   | { kind: "short"; post: Post; author: UserBrief; pollId?: string | null }
   | { kind: "comment"; comment: CommentActivityRow };
 
-export interface CommentActivityRow {
-  id: string;
-  body: string;
-  status: string;
-  likeCount: number;
-  createdAt: Date;
-  /** 来源帖（用于「评论了《xx》」与楼层跳转链接） */
-  postPublicId: string;
-  postType: "article" | "short";
-  postTitle: string | null;
-  postSummary: string | null;
-  /** 非空 ⇒ 这是一条回复 */
-  replyToUsername: string | null;
-}
+export type { CommentActivityRow };
 
 /**
  * 个人主页「动态」时间线：短帖 + 该用户的评论，按时间全局倒序合并分页。
@@ -210,14 +198,15 @@ export async function getProfileActivity(opts: {
         from posts p
        where p.author_id = ${opts.userId}
          and p.type = 'short'
-         and p.visibility = 'public'
          and p.status ${postStatus}
+         and p.visibility ${selfView ? sql`in ('public', 'private')` : sql`= 'public'`}
       union all
       select 'comment'::text as kind, c.id as id, c.created_at as at
         from comments c
         join posts p2 on p2.id = c.post_id
        where c.user_id = ${opts.userId}
          and c.status ${commentStatus}
+         and c.visibility ${selfView ? sql`in ('public', 'private')` : sql`= 'public'`}
          and p2.status = 'published'
          and p2.visibility = 'public'
     ) u
@@ -251,6 +240,7 @@ export async function getProfileActivity(opts: {
             id: comments.id,
             body: comments.body,
             status: comments.status,
+            visibility: comments.visibility,
             likeCount: comments.likeCount,
             createdAt: comments.createdAt,
             postPublicId: posts.publicId,
@@ -629,11 +619,14 @@ export async function getViewerInteractions(
   return { liked: l.length > 0, reposted: r.length > 0 };
 }
 
-/** visibility gate — followers-only posts require following (or being author). */
+/** visibility gate — private 仅作者自见；followers-only 需关注（或为作者）。 */
 export function postVisibleTo(
   post: Pick<Post, "visibility" | "authorId">,
   viewer: { id: string; following: boolean } | null,
 ): boolean {
+  if (post.visibility === "private") {
+    return Boolean(viewer && viewer.id === post.authorId);
+  }
   if (post.visibility !== "followers") return true;
   if (!viewer) return false;
   if (viewer.id === post.authorId) return true;
@@ -691,6 +684,10 @@ export async function getPostForView(opts: {
   const viewerForGate = opts.viewer
     ? { id: opts.viewer.id, following: followState.following }
     : null;
+  // private（仅自己可见）对非作者按不存在处理（404），不展示关注锁卡片
+  if (post.visibility === "private" && !(viewerForGate && viewerForGate.id === post.authorId)) {
+    return null;
+  }
   const gated = !postVisibleTo(post, viewerForGate);
 
   const [topics_, interactions, collectionRow] = await Promise.all([

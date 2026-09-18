@@ -470,7 +470,9 @@ async function ShortsTab({
                 ? { text: "审核中" }
                 : it.post.status === "rejected"
                   ? { text: "未通过审核", tone: "destructive" }
-                  : undefined
+                  : it.post.visibility === "private"
+                    ? { text: "仅自己可见" }
+                    : undefined
             }
           />
         ) : (
@@ -479,6 +481,7 @@ async function ShortsTab({
             comment={it.comment}
             author={selfBrief}
             className={FEED_ROW_CLASS}
+            manage={Boolean(isSelf)}
           />
         ),
       )}

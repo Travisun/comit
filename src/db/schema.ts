@@ -27,7 +27,8 @@ export const postStatusEnum = pgEnum("post_status", [
   "rejected",
   "deleted",
 ]);
-export const postVisibilityEnum = pgEnum("post_visibility", ["public", "followers"]);
+/** private = 仅作者自见（作者在右上角菜单切换；public/followers 面向他人） */
+export const postVisibilityEnum = pgEnum("post_visibility", ["public", "followers", "private"]);
 export const tokenTypeEnum = pgEnum("token_type", ["email_verify", "password_reset"]);
 export const keywordSeverityEnum = pgEnum("keyword_severity", ["block", "warn"]);
 export const reportStatusEnum = pgEnum("report_status", ["open", "resolved", "dismissed"]);
@@ -400,6 +401,8 @@ export const comments = pgTable(
     }),
     // visible|hidden|deleted|pending_review|rejected — 后两者为审核管线状态（仅作者自见）
     status: varchar("status", { length: 16 }).default("visible").notNull(),
+    /** 作者可见性控制：public = 公开；private = 仅自己可见（与审核状态正交） */
+    visibility: varchar("visibility", { length: 8 }).default("public").notNull(),
     /** 审核结果（关键词命中 / LLM 结论），结构同 posts.moderation */
     moderation: jsonb("moderation").$type<{
       keyword?: { severity: string; hits: string[] };

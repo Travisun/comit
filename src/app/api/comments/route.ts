@@ -152,6 +152,7 @@ export async function POST(req: Request) {
       id: created.id,
       body: created.body,
       status: created.status,
+      visibility: created.visibility,
       createdAt: created.createdAt,
       likeCount: created.likeCount,
       liked: false,
@@ -190,7 +191,8 @@ export async function GET(req: Request) {
 
     const viewer = await apiUser();
 
-    // 独立列表：置顶（始终置顶渲染）/ 解决方案摘要盒（点击跳对应楼层）
+    // 独立列表：置顶（始终置顶渲染）/ 解决方案摘要盒（点击跳对应楼层）。
+    // 仅公开可见评论进入这两个列表（私有评论不出现在公共摘要位）。
     if (list === "pinned" || list === "solutions") {
       const flagCol = list === "pinned" ? comments.pinnedAt : comments.solutionAt;
       const rows = await db
@@ -211,6 +213,7 @@ export async function GET(req: Request) {
           and(
             eq(comments.postId, postId),
             eq(comments.status, "visible"),
+            eq(comments.visibility, "public"),
             isNotNull(flagCol),
           ),
         )
@@ -240,16 +243,14 @@ export async function GET(req: Request) {
     }
 
     const replyUsers = alias(users, "reply_users");
-    // 审核态（pending_review / rejected）仅评论作者本人可见，其余观众只见 visible
+    // 可见性合并：他人只见 公开+visible；作者自见自己的全部状态
+    // （pending_review / rejected / private 均保留）
     const statusCond = viewer
       ? or(
-          eq(comments.status, "visible"),
-          and(
-            inArray(comments.status, ["pending_review", "rejected"]),
-            eq(comments.userId, viewer.user.id),
-          ),
+          and(eq(comments.status, "visible"), eq(comments.visibility, "public")),
+          eq(comments.userId, viewer.user.id),
         )
-      : eq(comments.status, "visible");
+      : and(eq(comments.status, "visible"), eq(comments.visibility, "public"));
     const conditions = [eq(comments.postId, postId), statusCond];
     if (cursor) conditions.push(lt(comments.createdAt, new Date(cursor)));
     // 置顶评论走独立列表（list=pinned）在列表顶部渲染 —— 主流排除后
@@ -261,6 +262,7 @@ export async function GET(req: Request) {
         id: comments.id,
         body: comments.body,
         status: comments.status,
+        visibility: comments.visibility,
         createdAt: comments.createdAt,
         likeCount: comments.likeCount,
         userId: comments.userId,
@@ -306,6 +308,7 @@ export async function GET(req: Request) {
       id: r.id,
       body: r.body,
       status: r.status,
+      visibility: r.visibility,
       createdAt: r.createdAt,
       likeCount: r.likeCount,
       liked: viewer ? likedSet.has(r.id) : null, // 键恒存在，响应形状不随登录态漂移
@@ -371,14 +374,15 @@ export async function DELETE(req: Request) {
 
     if (row.comment.status !== "deleted") {
       // 软删 + 计数递减同事务，防止状态改了计数没减（或反之）的不一致。
-      // 审核态（pending_review/rejected）从未计入 commentCount，递减跳过。
-      const wasVisible = row.comment.status === "visible";
+      // 审核态（pending_review/rejected）与私有（private）评论从未计入
+      // commentCount，递减跳过。
+      const wasPubliclyVisible = row.comment.status === "visible" && row.comment.visibility === "public";
       await db.transaction(async (tx) => {
         await tx
           .update(comments)
           .set({ status: "deleted", body: "", pinnedAt: null, solutionAt: null })
           .where(eq(comments.id, id));
-        if (wasVisible) {
+        if (wasPubliclyVisible) {
           await tx
             .update(posts)
             .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
@@ -390,10 +394,11 @@ export async function DELETE(req: Request) {
   });
 }
 
-/** PATCH /api/comments — 博主管理评论：置顶（单槽）/解决方案（可多个）。 */
+/** PATCH /api/comments — 博主管理评论：置顶（单槽）/解决方案（可多个）；
+ * 评论作者：private/public 切换仅自己可见 ⇄ 公开。 */
 const patchSchema = z.object({
   id: z.uuid(),
-  action: z.enum(["pin", "unpin", "solve", "unsolve"]),
+  action: z.enum(["pin", "unpin", "solve", "unsolve", "private", "public"]),
 });
 
 export async function PATCH(req: Request): Promise<Response> {
@@ -409,6 +414,33 @@ export async function PATCH(req: Request): Promise<Response> {
       .where(eq(comments.id, id))
       .limit(1);
     if (!row) throw notFound("评论不存在 / Comment not found");
+
+    // 作者可见性切换：仅评论作者本人（自己的内容自己管理）
+    if (action === "private" || action === "public") {
+      if (row.comment.userId !== auth.user.id) {
+        throw forbidden("只有评论作者可以修改可见性 / Only the comment author can change visibility");
+      }
+      const visibility = action;
+      // commentCount 只统计 公开+visible：切换时同步增减（审核态未计数则不动）
+      const wasCounted = row.comment.status === "visible" && row.comment.visibility === "public";
+      const willCount = row.comment.status === "visible" && visibility === "public";
+      await db.transaction(async (tx) => {
+        await tx.update(comments).set({ visibility }).where(eq(comments.id, id));
+        if (!wasCounted && willCount) {
+          await tx
+            .update(posts)
+            .set({ commentCount: sql`${posts.commentCount} + 1` })
+            .where(eq(posts.id, row.comment.postId));
+        } else if (wasCounted && !willCount) {
+          await tx
+            .update(posts)
+            .set({ commentCount: sql`greatest(${posts.commentCount} - 1, 0)` })
+            .where(eq(posts.id, row.comment.postId));
+        }
+      });
+      return ok({ ok: true, visibility });
+    }
+
     if (row.postAuthorId !== auth.user.id) {
       throw forbidden("仅帖子作者可以管理评论 / Only the post author can manage comments");
     }
@@ -434,6 +466,16 @@ export async function PATCH(req: Request): Promise<Response> {
         await tx.update(comments).set({ solutionAt: null }).where(eq(comments.id, id));
       }
     });
+
+    // 标记解决方案 → 通知评论作者（取消标记不通知）
+    if (action === "solve") {
+      void emit("comment:solved", {
+        commentId: id,
+        postId: row.comment.postId,
+        commentAuthorId: row.comment.userId,
+        postAuthorId: row.postAuthorId,
+      });
+    }
 
     return ok({ ok: true });
   });

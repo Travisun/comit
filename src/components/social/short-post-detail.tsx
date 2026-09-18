@@ -11,6 +11,7 @@ import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { Comments } from "@/components/social/comments";
+import { SolutionsBox } from "@/components/social/solutions-box";
 import { PreviewBanner } from "@/components/social/preview-banner";
 import { PostDetailAfterSlot } from "@/extensions/_boot/client";
 import { getPollView } from "@/lib/poll-server";
@@ -50,12 +51,14 @@ export async function ShortPostDetail({
 
   // 可见性门禁与长文详情（postVisibleTo + blocked → 404）对齐：
   //  - followers-only 短动态对非关注者不可绕过；
+  //  - private（仅自己可见）对非作者一律 404；
   //  - 被作者拉黑的用户同样 404。
   let viewerState: Awaited<ReturnType<typeof getFollowState>> | null = null;
   if (!isAuthor) {
     viewerState = await getFollowState(viewer?.id, post.authorId);
     if (viewerState.blockedBy) notFound();
     if (post.visibility === "followers" && !viewerState.following) notFound();
+    if (post.visibility === "private") notFound();
   }
 
   let liked = false;
@@ -168,6 +171,9 @@ export async function ShortPostDetail({
             <ReportDialog targetType="post" targetId={post.id} />
           )}
         </div>
+
+        {/* 解决方案摘要盒：正文尾部、评论区之前 */}
+        <SolutionsBox postId={post.id} disabled={!author.commentsEnabled} />
 
         <section className="mt-6" id="comments">
           <Comments

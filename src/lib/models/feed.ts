@@ -28,7 +28,7 @@ export const postBriefSchema = z.object({
   /** raw markdown for short posts ("" for articles — too large to ship) */
   content: z.string(),
   coverPath: z.string().nullable(),
-  visibility: z.enum(["public", "followers"]),
+  visibility: z.enum(["public", "followers", "private"]),
   views: z.number(),
   likeCount: z.number(),
   commentCount: z.number(),

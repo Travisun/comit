@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronDown, Globe, Loader2, Lock, Info, Send } from "lucide-react";
+import { ArrowLeft, ChevronDown, EyeOff, Globe, Loader2, Lock, Info, Send } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { routes } from "@/core/routes";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ export interface EditorPost {
   summary: string;
   publicId: string;
   status: "draft" | "pending_review" | "published" | "rejected";
-  visibility: "public" | "followers";
+  visibility: "public" | "followers" | "private";
   collectionId: string | null;
   coverPath: string | null;
   topicNames: string[];
@@ -61,7 +61,7 @@ interface SettingsState {
   coverPath: string | null;
   collectionId: string | null;
   topicNames: string[];
-  visibility: "public" | "followers";
+  visibility: "public" | "followers" | "private";
   summary: string;
   label: ContentLabelId;
   sourceUrl: string;
@@ -431,11 +431,12 @@ function SettingsFields({
 
       <div className="flex flex-col gap-1.5">
         <Label>{t("editor.visibility")}</Label>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {(
             [
               ["public", t("editor.visibilityPublic"), <GlobeIcon key="g" />],
               ["followers", t("editor.visibilityFollowers"), <LockIcon key="l" />],
+              ["private", t("editor.visibilityPrivate"), <EyeOffIcon key="v" />],
             ] as const
           ).map(([val, label, icon]) => (
             <button
@@ -485,6 +486,10 @@ function GlobeIcon() {
 
 function LockIcon() {
   return <Lock className="size-4" />;
+}
+
+function EyeOffIcon() {
+  return <EyeOff className="size-4" />;
 }
 
 

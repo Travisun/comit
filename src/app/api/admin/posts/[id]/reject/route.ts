@@ -5,6 +5,7 @@ import { posts } from "@/db/schema";
 import { ok, jsonBody } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { AppError, notFound } from "@/core/errors";
+import { emit } from "@/core/events";
 import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
@@ -59,6 +60,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     await logAdmin(user.id, "post.reject", "post", id, body.reason);
+    // 人工驳回 → 通知作者（附原因）
+    void emit("post:rejected", {
+      postId: id,
+      authorId: post.authorId,
+      reason: body.reason,
+      moderatorId: user.id,
+    }).catch(() => undefined);
     return ok({ ok: true });
   });
 }

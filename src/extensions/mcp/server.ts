@@ -436,7 +436,13 @@ const TOOLS: McpToolDef[] = [
         })
         .from(comments)
         .innerJoin(users, eq(users.id, comments.userId))
-        .where(and(eq(comments.postId, String(args.postId)), eq(comments.status, "visible")))
+        .where(
+          and(
+            eq(comments.postId, String(args.postId)),
+            eq(comments.status, "visible"),
+            eq(comments.visibility, "public"),
+          ),
+        )
         .orderBy(desc(comments.createdAt))
         .limit(Math.min(Number(args.limit ?? 50), 200));
       return { comments: rows };

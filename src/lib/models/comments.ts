@@ -7,6 +7,8 @@ export const commentItemSchema = z.object({
   body: z.string(),
   /** visible | pending_review | rejected —— 审核态仅作者自见 */
   status: z.enum(["visible", "pending_review", "rejected", "hidden", "deleted"]).optional(),
+  /** public | private —— 作者可见性控制（private 仅自己可见） */
+  visibility: z.enum(["public", "private"]).optional(),
   createdAt: z.string(),
   likeCount: z.number(),
   liked: z.boolean().optional(),

@@ -224,10 +224,246 @@ const plugin: Plugin = {
     ctx.events.on("message:created", (p) => void notifyMessageCreated(p));
     // 审核结果 → 通知内容作者（过审发布 / 未通过 + 原因）
     ctx.events.on("moderation:review.completed", (p) => void notifyModerationCompleted(p));
+    // ---- 互动与管理处置通知（点赞 / 回复 / 解决方案 / 举报处理 / 人工审核 / 内容删除）
+    ctx.events.on("post:liked", (p) => void notifyPostLiked(p));
+    ctx.events.on("comment:liked", (p) => void notifyCommentLiked(p));
+    ctx.events.on("comment:solved", (p) => void notifyCommentSolved(p));
+    ctx.events.on("post:approved", (p) => void notifyPostApproved(p));
+    ctx.events.on("post:rejected", (p) => void notifyPostRejected(p));
+    ctx.events.on("comment:removed", (p) => void notifyCommentRemoved(p));
+    ctx.events.on("report:resolved", (p) => void notifyReportResolved(p));
   },
 };
 
 /* ------------------- 社交事件监听器（database + mail 双通道） ------------------- */
+
+/** 帖子被喜欢：通知帖子作者（自赞跳过）。 */
+async function notifyPostLiked(p: {
+  postId: string;
+  actorId: string;
+  authorId: string;
+}): Promise<void> {
+  try {
+    if (p.actorId === p.authorId) return;
+    const [post] = await db
+      .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    if (!post) return;
+    const actorName = await actorNameOf(p.actorId);
+    const kindZh = post.type === "short" ? "动态" : "文章";
+    const postTitle = post.title ?? `（无标题${kindZh}）`;
+    await deliver(p.authorId, {
+      key: "post.liked",
+      title: { zh: postTitle, en: postTitle },
+      body: {
+        zh: `${actorName} 喜欢了你的${kindZh}`,
+        en: `${actorName} liked your ${post.type === "short" ? "post" : "article"}`,
+      },
+      url: routes.post(post.publicId),
+      actorId: p.actorId,
+      payload: { postId: p.postId, actorName },
+    });
+  } catch (err) {
+    console.error("[notify] post:liked listener failed:", err);
+  }
+}
+
+/** 评论被喜欢：通知评论作者（自赞跳过），链接直达楼层。 */
+async function notifyCommentLiked(p: {
+  commentId: string;
+  actorId: string;
+  commentAuthorId: string;
+}): Promise<void> {
+  try {
+    if (p.actorId === p.commentAuthorId) return;
+    const [row] = await db
+      .select({ publicId: posts.publicId, body: comments.body })
+      .from(comments)
+      .innerJoin(posts, eq(posts.id, comments.postId))
+      .where(eq(comments.id, p.commentId))
+      .limit(1);
+    if (!row) return;
+    const actorName = await actorNameOf(p.actorId);
+    await deliver(p.commentAuthorId, {
+      key: "comment.liked",
+      title: { zh: "你的评论收到喜欢", en: "Your comment received a like" },
+      body: {
+        zh: `${actorName} 喜欢了你的评论：${truncateText(row.body, 80)}`,
+        en: `${actorName} liked your comment: ${truncateText(row.body, 80)}`,
+      },
+      url: `${routes.post(row.publicId)}#comment-${p.commentId}`,
+      actorId: p.actorId,
+      payload: { commentId: p.commentId, actorName },
+    });
+  } catch (err) {
+    console.error("[notify] comment:liked listener failed:", err);
+  }
+}
+
+/** 评论被帖子作者标记为解决方案：通知评论作者。 */
+async function notifyCommentSolved(p: {
+  commentId: string;
+  postId: string;
+  commentAuthorId: string;
+  postAuthorId: string;
+}): Promise<void> {
+  try {
+    if (p.commentAuthorId === p.postAuthorId) return; // 自己标记自己（主帖自评解）
+    const [row] = await db
+      .select({ publicId: posts.publicId, body: comments.body })
+      .from(comments)
+      .innerJoin(posts, eq(posts.id, comments.postId))
+      .where(eq(comments.id, p.commentId))
+      .limit(1);
+    if (!row) return;
+    const actorName = await actorNameOf(p.postAuthorId);
+    await deliver(p.commentAuthorId, {
+      key: "comment.solved",
+      title: { zh: "你的评论被标记为解决方案", en: "Your comment was marked as the solution" },
+      body: {
+        zh: `${actorName} 将你的评论标记为解决方案：${truncateText(row.body, 80)}`,
+        en: `${actorName} marked your comment as the solution: ${truncateText(row.body, 80)}`,
+      },
+      url: `${routes.post(row.publicId)}#comment-${p.commentId}`,
+      actorId: p.postAuthorId,
+      payload: { commentId: p.commentId, postId: p.postId, actorName },
+    });
+  } catch (err) {
+    console.error("[notify] comment:solved listener failed:", err);
+  }
+}
+
+/** 人工过审（管理端 approve）：通知作者已发布。 */
+async function notifyPostApproved(p: { postId: string; authorId: string; moderatorId?: string }): Promise<void> {
+  try {
+    const [post] = await db
+      .select({ publicId: posts.publicId, title: posts.title })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    if (!post) return;
+    await deliver(p.authorId, {
+      key: "moderation.approved",
+      title: { zh: "审核通过", en: "Approved" },
+      body: {
+        zh: `你的内容「${post.title ?? "（无标题）"}」已通过人工审核并发布。`,
+        en: `"${post.title ?? "Untitled"}" has passed manual review and is now published.`,
+      },
+      url: routes.post(post.publicId),
+      payload: { postId: p.postId, approved: true },
+    });
+  } catch (err) {
+    console.error("[notify] post:approved listener failed:", err);
+  }
+}
+
+/** 内容被驳回（人工驳回 / 举报处置）：通知作者并附原因。 */
+async function notifyPostRejected(p: {
+  postId: string;
+  authorId: string;
+  reason: string;
+  moderatorId?: string;
+}): Promise<void> {
+  try {
+    const [post] = await db
+      .select({ publicId: posts.publicId, title: posts.title })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    const postTitle = post?.title ?? "";
+    await deliver(p.authorId, {
+      key: "moderation.rejected",
+      title: { zh: "内容未通过审核", en: "Content rejected" },
+      body: {
+        zh: `你的内容${postTitle ? `「${postTitle}」` : ""}未通过审核。原因：${p.reason}`,
+        en: `Your content${postTitle ? ` "${postTitle}"` : ""} was rejected. Reason: ${p.reason}`,
+      },
+      // 软驳回（rejected）作者仍可查看详情与原因；物理删除时无链接
+      url: post ? routes.post(post.publicId) : undefined,
+      payload: { postId: p.postId, approved: false, reason: p.reason },
+    });
+  } catch (err) {
+    console.error("[notify] post:rejected listener failed:", err);
+  }
+}
+
+/** 评论被删除（举报处置 / 管理员删除）：通知评论作者。 */
+async function notifyCommentRemoved(p: {
+  commentId: string;
+  postId: string;
+  authorId: string;
+  reason?: string;
+  by: "report" | "admin";
+}): Promise<void> {
+  try {
+    const [post] = await db
+      .select({ publicId: posts.publicId, title: posts.title })
+      .from(posts)
+      .where(eq(posts.id, p.postId))
+      .limit(1);
+    const postTitle = post?.title ?? "";
+    const byZh = p.by === "report" ? "经举报核实" : "被管理员";
+    await deliver(p.authorId, {
+      key: "comment.removed",
+      title: { zh: "评论已被移除", en: "Comment removed" },
+      body: {
+        zh: `你在${postTitle ? `「${postTitle}」` : "某篇内容"}下的评论${byZh}删除。${p.reason ? `原因：${p.reason}` : ""}`,
+        en: `Your comment${postTitle ? ` on "${postTitle}"` : ""} was removed ${p.by === "report" ? "after a report" : "by a moderator"}.${p.reason ? ` Reason: ${p.reason}` : ""}`,
+      },
+      url: post ? routes.post(post.publicId) : undefined,
+      payload: { commentId: p.commentId, postId: p.postId, by: p.by, reason: p.reason ?? null },
+    });
+  } catch (err) {
+    console.error("[notify] comment:removed listener failed:", err);
+  }
+}
+
+/** 举报处理完毕：通知举报人结果（已处置 / 已忽略），附实际动作。 */
+async function notifyReportResolved(p: {
+  reportId: string;
+  reporterId: string;
+  outcome: "resolved" | "dismissed";
+  action?: string;
+  targetType?: string;
+  reason?: string;
+}): Promise<void> {
+  try {
+    const actionZh: Record<string, string> = {
+      resolve: "已处理完成",
+      dismiss: "未发现违规",
+      delete_content: "相关内容已被移除",
+      ban_author: "相关账号已被处置",
+      warn_author: "已向相关作者发出警告",
+    };
+    const targetZh = p.targetType === "post" ? "内容" : p.targetType === "comment" ? "评论" : "用户";
+    const summary = actionZh[p.action ?? ""] ?? "已处理";
+    await deliver(p.reporterId, {
+      key: "report.resolved",
+      title: { zh: p.outcome === "resolved" ? "举报已处理" : "举报已关闭", en: p.outcome === "resolved" ? "Report handled" : "Report dismissed" },
+      body: {
+        zh:
+          p.outcome === "resolved"
+            ? `你举报的${targetZh}：${summary}。感谢你的反馈，帮助我们维护社区环境。`
+            : `你举报的${targetZh}经核实未发现违规，该举报已关闭。`,
+        en:
+          p.outcome === "resolved"
+            ? `Your ${p.targetType ?? "content"} report: ${summary}. Thanks for helping keep the community safe.`
+            : `Your report was reviewed and no violation was found; it has been closed.`,
+      },
+      payload: { reportId: p.reportId, outcome: p.outcome, action: p.action ?? null },
+    });
+  } catch (err) {
+    console.error("[notify] report:resolved listener failed:", err);
+  }
+}
+
+/** 通知正文截断（纯文本，无 markdown 处理，够用即可）。 */
+function truncateText(text: string, max: number): string {
+  const t = text.replace(/\s+/g, " ").trim();
+  return t.length > max ? `${t.slice(0, max)}…` : t;
+}
 
 /** 审核结果通知：帖子→帖子作者；评论→评论作者（非帖子作者）。 */
 async function notifyModerationCompleted(p: {
@@ -313,12 +549,10 @@ async function notifyCommentCreated(p: {
   postId: string;
   postAuthorId: string;
   commenterId: string;
+  replyToUserId?: string | null;
   excerpt: string;
 }): Promise<void> {
   try {
-    // 去重决策：只通知文章作者；自己文章自己评论（含自评）跳过。
-    // replyToUserId 的「回复我」通知刻意不做（本次范围仅文章作者，模板已预留）。
-    if (p.postAuthorId === p.commenterId) return;
     const [post] = await db
       .select({ publicId: posts.publicId, title: posts.title, type: posts.type })
       .from(posts)
@@ -329,17 +563,37 @@ async function notifyCommentCreated(p: {
     const base = routes.post(post.publicId);
     const kindZh = post.type === "short" ? "动态" : "文章";
     const postTitle = post.title ?? `（无标题${kindZh}）`; // 短动态可无 title
-    await deliver(p.postAuthorId, {
-      key: "comment.created", // mail: comment.* → commentReply 模板（payload.actorName）
-      title: { zh: postTitle, en: postTitle },
-      body: {
-        zh: `${actorName} 评论了你的${kindZh}：${p.excerpt}`,
-        en: `${actorName} commented on your post: ${p.excerpt}`,
-      },
-      url: `${base}#comment-${p.commentId}`, // 锚点与 components/social/comments.tsx 一致
-      actorId: p.commenterId,
-      payload: { commentId: p.commentId, postId: p.postId, actorName, excerpt: p.excerpt },
-    });
+
+    // 1) 通知帖子作者（自己文章自己评论跳过）
+    if (p.postAuthorId !== p.commenterId) {
+      await deliver(p.postAuthorId, {
+        key: "comment.created", // mail: comment.* → commentReply 模板（payload.actorName）
+        title: { zh: postTitle, en: postTitle },
+        body: {
+          zh: `${actorName} 评论了你的${kindZh}：${p.excerpt}`,
+          en: `${actorName} commented on your post: ${p.excerpt}`,
+        },
+        url: `${base}#comment-${p.commentId}`, // 锚点与 components/social/comments.tsx 一致
+        actorId: p.commenterId,
+        payload: { commentId: p.commentId, postId: p.postId, actorName, excerpt: p.excerpt },
+      });
+    }
+
+    // 2) 通知被回复的评论作者（「回复我」；与帖子作者是同一人时上面已通知，跳过）
+    const replyTo = p.replyToUserId ?? null;
+    if (replyTo && replyTo !== p.commenterId && replyTo !== p.postAuthorId) {
+      await deliver(replyTo, {
+        key: "comment.reply",
+        title: { zh: `${actorName} 回复了你`, en: `${actorName} replied to you` },
+        body: {
+          zh: `你在「${postTitle}」的评论收到了回复：${p.excerpt}`,
+          en: `Your comment on "${postTitle}" received a reply: ${p.excerpt}`,
+        },
+        url: `${base}#comment-${p.commentId}`,
+        actorId: p.commenterId,
+        payload: { commentId: p.commentId, postId: p.postId, actorName, excerpt: p.excerpt },
+      });
+    }
   } catch (err) {
     console.error("[notify] comment:created listener failed:", err);
   }

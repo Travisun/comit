@@ -4,6 +4,7 @@ import { posts } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { AppError, notFound } from "@/core/errors";
+import { emit } from "@/core/events";
 import { assertUuid, logAdmin } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
@@ -56,6 +57,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
 
     await logAdmin(user.id, "post.approve", "post", id);
+    // 人工过审 → 通知作者（与自动审核管线 moderation:review.completed 对齐）
+    void emit("post:approved", { postId: id, authorId: post.authorId, moderatorId: user.id })
+      .catch(() => undefined);
     return ok({ ok: true });
   });
 }

@@ -54,6 +54,33 @@ export interface AppEventPayloads {
     actorId: string;
     commentAuthorId: string;
   };
+  /** 帖子作者把某条评论标记为解决方案（取消标记不 emit） */
+  "comment:solved": {
+    commentId: string;
+    postId: string;
+    /** 被标记评论的作者（通知对象） */
+    commentAuthorId: string;
+    /** 标记者（帖子作者） */
+    postAuthorId: string;
+  };
+  /** 评论被管理员/举报处置删除（通知评论作者） */
+  "comment:removed": {
+    commentId: string;
+    postId: string;
+    authorId: string;
+    reason?: string;
+    by: "report" | "admin";
+  };
+  /** 举报处理完毕（通知举报人处理结果） */
+  "report:resolved": {
+    reportId: string;
+    reporterId: string;
+    outcome: "resolved" | "dismissed";
+    /** 实际处置动作（resolve/dismiss/delete_content/ban_author/warn_author） */
+    action?: string;
+    targetType?: string;
+    reason?: string;
+  };
   "message:read": { userId: string; peerId: string; count: number };
   "message:created": {
     messageId: string;

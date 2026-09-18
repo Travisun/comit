@@ -10,7 +10,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
-import { BadgeCheck, Loader2, MessageCircle, Pin, Trash2 } from "lucide-react";
+import { BadgeCheck, Loader2, Lock, MessageCircle, Pin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
@@ -25,6 +25,7 @@ import {
 } from "@/lib/models/comments";
 import { LikeButton } from "./like-button";
 import { PinnedBar } from "./pinned-bar";
+import { CommentMenu } from "./comment-menu";
 import { patchJsonSafe } from "@/lib/client/api";
 import { openLoginDialog } from "@/lib/store/login-dialog";
 import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
@@ -163,15 +164,8 @@ export function Comments({
     enabled: !disabled,
     staleTime: 15_000,
   });
-
-  // 解决方案摘要盒（Discourse Solve 式，可多个）：渲染在正文下方、点击跳楼层
-  const solutionsQ = useQuery({
-    queryKey: queryKeys.commentsSolutions(postId),
-    queryFn: async () =>
-      commentsPageSchema.parse(await apiGet<unknown>(`${commentsUrl(postId)}&list=solutions&limit=20`)),
-    enabled: !disabled,
-    staleTime: 15_000,
-  });
+  // 解决方案摘要盒已上移至帖子主内容区（components/social/solutions-box.tsx，
+  // post-view / short-post-detail 渲染），评论区不再重复展示。
 
   const pendingNew = useMemo(() => {
     const page = checkQ.data;
@@ -311,10 +305,26 @@ export function Comments({
               key={c.id}
               id={`comment-${c.id}`}
               className={cn(
-                "flex gap-3 rounded-lg px-2 py-2 transition-colors scroll-mt-14",
+                "relative flex gap-3 rounded-lg px-2 py-2 transition-colors scroll-mt-14",
                 highlightId === c.id && "bg-[var(--selected)] ring-1 ring-primary/25",
               )}
             >
+              {/* 右上角操作菜单：置顶/解决方案（博主）、可见性（本人）、删除（有权限者） */}
+              {(c.canManage || c.mine || c.canDelete) && (
+                <div className="absolute right-0 top-0 z-10">
+                  <CommentMenu
+                    comment={c}
+                    onManage={(id, action) => void manage(id, action)}
+                    onRemove={(id) => remove(id)}
+                    onChanged={(next) => {
+                      if (next.visibility === "private") setCount((n) => Math.max(0, n - 1));
+                      else if (next.visibility === "public" && c.visibility === "private") setCount((n) => n + 1);
+                      // 可见性变化会影响公共列表/摘要位 → 前缀失效一并回拉
+                      void queryClient.invalidateQueries({ queryKey: queryKeys.comments(postId) });
+                    }}
+                  />
+                </div>
+              )}
               <Link href={`/u/${c.user.username}`} className="shrink-0" aria-label={c.user.displayName}>
                 <Avatar className="size-8 border border-border">
                   {c.user.avatarPath && (
@@ -374,14 +384,14 @@ export function Comments({
                       未通过审核 · 仅自己可见
                     </span>
                   )}
-                </div>
-                {/* 正文经 ShortContent 渲染：支持独立行图片（粘贴/选择上传的图片） */}
-                <div
-                  className={cn(
-                    "reading-serif mt-0.5 text-sm leading-relaxed",
-                    c.solution && "rounded-lg border-l-2 border-emerald-500/50 bg-emerald-500/5 px-2 py-1",
+                  {c.visibility === "private" && (
+                    <span className="inline-flex items-center gap-0.5 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <Lock className="size-2.5" aria-hidden /> 仅自己可见
+                    </span>
                   )}
-                >
+                </div>
+                {/* 正文：解决方案仅以徽标标记（不在评论区做内容高亮，摘要在主内容区） */}
+                <div className="reading-serif mt-0.5 text-sm leading-relaxed">
                   <ShortContent content={c.body} className="text-sm text-foreground/90" />
                 </div>
                 <div className="mt-1 flex items-center gap-1">
@@ -400,35 +410,6 @@ export function Comments({
                       {t("comments.reply")}
                     </button>
                   )}
-                  {c.canDelete && (
-                    <button
-                      type="button"
-                      onClick={() => void remove(c.id)}
-                      className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
-                      aria-label={t("common.delete")}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  )}                  {c.canManage && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void manage(c.id, c.pinned ? "unpin" : "pin")}
-                        className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                      >
-                        <Pin className="size-3.5" />
-                        {c.pinned ? "取消置顶" : "置顶"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void manage(c.id, c.solution ? "unsolve" : "solve")}
-                        className="inline-flex min-h-7 items-center gap-1 rounded-lg px-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted hover:text-emerald-600"
-                      >
-                        <BadgeCheck className="size-3.5" />
-                        {c.solution ? "取消解决方案" : "解决方案"}
-                      </button>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
@@ -441,45 +422,6 @@ export function Comments({
         {t("comments.title")}
         {count > 0 && <span className="text-muted-foreground tabular-nums">({count})</span>}
       </h2>
-
-      {(solutionsQ.data?.items.length ?? 0) > 0 && (
-        <div className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3">
-          <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-            <BadgeCheck className="size-3.5" aria-hidden />
-            解决方案 · {(solutionsQ.data?.items.length ?? 0)}
-          </div>
-          <div className="space-y-1">
-            {solutionsQ.data!.items.map((sc) => (
-              <button
-                key={sc.id}
-                type="button"
-                onClick={() => {
-                  const el = document.getElementById(`comment-${sc.id}`);
-                  if (el) {
-                    el.scrollIntoView({ block: "center", behavior: "smooth" });
-                    history.replaceState(null, "", `#comment-${sc.id}`);
-                  } else {
-                    toast.info("该评论在列表后段，请向下翻页查看");
-                  }
-                }}
-                className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--hover)]"
-              >
-                <Avatar className="size-6 shrink-0 border border-border">
-                  {sc.user.avatarPath && (
-                    <AvatarImage src={mediaUrl(sc.user.avatarPath)} alt={sc.user.displayName} />
-                  )}
-                  <AvatarFallback>{sc.user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">
-                  <span className="font-medium">{sc.user.displayName}</span>
-                  <span className="text-muted-foreground">：{sc.body.replace(/!\[[^\]]*\]\([^)]*\)/g, "").slice(0, 80)}</span>
-                </span>
-                <BadgeCheck className="size-3.5 shrink-0 text-emerald-600" aria-hidden />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* composer states — the input itself is the sticky bar at the bottom */}
       {disabled ? (

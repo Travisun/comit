@@ -37,7 +37,7 @@ const updateSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),
   content: z.string().max(200_000).optional(),
   summary: z.string().trim().max(500).nullish(),
-  visibility: z.enum(["public", "followers"]).optional(),
+  visibility: z.enum(["public", "followers", "private"]).optional(),
   collectionId: z.uuid().nullish(),
   coverPath: z.string().trim().min(1).max(500).nullish(),
   topicNames: topicNamesSchema,
@@ -59,7 +59,10 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
 
     const names = await topicNamesOf(post.id);
     if (post.authorId === auth.user.id) return ok({ ...post, topicNames: names });
-    if (post.status !== "published") throw notFound("内容不存在 / Post not found");
+    // 非作者：仅已发布且非私有内容可见（private 仅作者自见）
+    if (post.status !== "published" || post.visibility === "private") {
+      throw notFound("内容不存在 / Post not found");
+    }
     // non-authors never see moderation internals
     return ok({
       id: post.id,
@@ -170,6 +173,28 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
 
     const names = await topicNamesOf(post.id);
     return ok({ ...updated, topicNames: names });
+  });
+}
+
+/**
+ * PATCH /api/posts/[id] — 轻量切换作者可见性（右上角菜单用）：
+ * { visibility: "public" | "private" }。仅作者本人；不触碰 status/publishedAt。
+ */
+const patchSchema = z.object({ visibility: z.enum(["public", "private"]) });
+
+export async function PATCH(req: Request, ctx: Ctx): Promise<Response> {
+  return withUser(req, async (auth) => {
+    const { id } = await ctx.params;
+    parseWith(idSchema, id);
+    const post = await getAuthorPost(id, auth.user.id);
+    const body = parseWith(patchSchema, await jsonBody(req));
+
+    await db
+      .update(posts)
+      .set({ visibility: body.visibility, updatedAt: new Date() })
+      .where(eq(posts.id, post.id));
+
+    return ok({ id: post.id, visibility: body.visibility });
   });
 }
 

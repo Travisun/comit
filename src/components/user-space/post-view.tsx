@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/primitives";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
 import { Comments } from "@/components/social/comments";
+import { SolutionsBox } from "@/components/social/solutions-box";
 import { FollowButton } from "@/components/social/follow-button";
 import { ReportDialog } from "@/components/social/report-dialog";
 import { PreviewBanner } from "@/components/social/preview-banner";
@@ -220,6 +221,9 @@ export async function PostView({
             后关注获取更新。
           </p>
         )}
+
+        {/* 解决方案摘要盒：正文尾部、评论区之前（点击条目跳对应楼层） */}
+        <SolutionsBox postId={post.id} />
 
         {/* comments */}
         <section className="mt-8" id="comments">

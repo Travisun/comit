@@ -1,16 +1,20 @@
+"use client";
+
 import Link from "next/link";
-import { Heart, MessageCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Heart, Lock, MessageCircle } from "lucide-react";
 import { routes } from "@/core/routes";
 import { timeAgo } from "@/lib/utils";
 import { Badge } from "@/components/ui/primitives";
 import { TimelineRow } from "./article-card";
-import type { CommentActivityRow } from "./queries";
-import type { UserBrief } from "./types";
+import { CommentMenu } from "@/components/social/comment-menu";
+import type { CommentActivityRow, UserBrief } from "./types";
 
 /**
  * 「动态」时间线里的评论行：作者线 + 「评论了《来源帖》/ 回复了 @xx」
  * 上下文 + 评论正文摘录 + 前往原帖楼层的链接。整行点击即跳转
  * `/post/{publicId}#comment-{id}`（楼层锚点由评论区 focusAnchor 处理）。
+ * manage=true（本人视角）时右上角挂「···」菜单：可见性切换 / 删除。
  */
 
 /** 轻量 markdown 摘录：去掉图片/链接语法，保留可读文本 */
@@ -38,18 +42,31 @@ export function CommentActivityCard({
   comment,
   author,
   className,
+  manage = false,
 }: {
   comment: CommentActivityRow;
   author: UserBrief;
   className?: string;
+  /** 本人视角：显示右上角管理菜单（可见性 / 删除） */
+  manage?: boolean;
 }) {
+  const router = useRouter();
   const href = `${routes.post(comment.postPublicId)}#comment-${comment.id}`;
   const date = new Date(comment.createdAt);
   const pending = comment.status === "pending_review";
   const rejected = comment.status === "rejected";
+  const private_ = comment.visibility === "private";
 
   return (
     <TimelineRow author={author} className={className} href={href}>
+      {manage && (
+        <div className="absolute right-0 top-0 z-10">
+          <CommentMenu
+            comment={{ ...comment, mine: true, canDelete: true }}
+            onChanged={() => router.refresh()}
+          />
+        </div>
+      )}
       <div className="flex min-w-0 flex-wrap items-center gap-1 text-[15px] leading-tight">
         <Link
           href={routes.profile(author.username)}
@@ -72,6 +89,11 @@ export function CommentActivityCard({
           <Badge variant="destructive" className="ml-0.5 shrink-0">
             未通过审核
           </Badge>
+        )}
+        {private_ && (
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <Lock className="size-2.5" aria-hidden /> 仅自己可见
+          </span>
         )}
       </div>
 
