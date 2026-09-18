@@ -550,12 +550,22 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmResult> 
 export async function llmChat(opts: LlmChatOptions): Promise<string> {
   const result = await llmComplete({
     messages: opts.messages,
+    providerId: opts.providerId,
+    model: opts.model,
+    thinking: opts.thinking,
     temperature: opts.temperature,
     maxTokens: opts.maxTokens,
     timeoutMs: opts.timeoutMs,
     json: opts.json ?? true,
   });
   return result.text;
+}
+
+/** 是否有可用的 LLM（显式 providerId 可解析且模型目录非空，或平台默认/旧版回退可用）。 */
+export async function llmAvailable(providerId?: string): Promise<boolean> {
+  const resolved = await resolveProvider(providerId);
+  if (!resolved) return false;
+  return Boolean(resolved.model) || resolved.provider.models.length > 0;
 }
 
 /** 兼容旧版选项类型（v1 LlmChatOptions：messages/model/temperature/json…）。 */

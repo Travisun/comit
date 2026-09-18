@@ -26,6 +26,8 @@ export const SETTINGS_DEFAULTS = {
   "sso.discourse": false,
   "sso.cfaccess": false,
   "sso.linuxdo": false,
+  /** 认证（身份徽章）功能总开关：关闭后前台隐藏认证入口（管理端审核台保留） */
+  "verification.enabled": true,
   "moderation.reviewMode": "off" as "off" | "llm" | "manual",
   "moderation.keywordsEnabled": true,
   "moderation.llmFailMode": "open" as "open" | "closed",
@@ -50,6 +52,8 @@ export const SETTINGS_DEFAULTS = {
     default: { providerId: string; model: string } | null;
   },
   "moderation.llm": {
+    /** 审核专用模型覆盖：空 = 平台默认（llm.providers.default） */
+    providerId: "" as string,
     baseURL: "https://api.openai.com/v1",
     apiKey: "",
     model: "gpt-4o-mini",

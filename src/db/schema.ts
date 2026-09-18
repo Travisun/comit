@@ -91,6 +91,8 @@ export const users = pgTable(
       .$type<Record<string, Record<string, unknown>>>()
       .default({})
       .notNull(),
+    /** 注册后引导流程完成时间（null = 未完成，登录后引导进入 /onboarding） */
+    onboardedAt: timestamp("onboarded_at", { withTimezone: true }),
     // per-user feature switches
     rssEnabled: boolean("rss_enabled").default(true).notNull(),
     commentsEnabled: boolean("comments_enabled").default(true).notNull(),

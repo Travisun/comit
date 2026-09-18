@@ -13,15 +13,15 @@ export function AuthCard({
   children: ReactNode;
 }) {
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-10 sm:py-16">
-      <div className="rounded-lg border border-border bg-card p-6 shadow-[var(--shadow-card)]">
-        <div className="mb-4">
-          <h1 className="text-xl font-normal">{title}</h1>
-          {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
+    <div className="w-full">
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-card)] sm:p-8">
+        <div className="mb-5">
+          <h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+          {description ? <p className="mt-1.5 text-sm text-muted-foreground">{description}</p> : null}
         </div>
         <div className="flex flex-col gap-4">{children}</div>
         {footer ? (
-          <div className="mt-4 text-center text-sm text-muted-foreground">{footer}</div>
+          <div className="mt-5 text-center text-sm text-muted-foreground">{footer}</div>
         ) : null}
       </div>
     </div>

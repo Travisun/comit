@@ -32,7 +32,8 @@ export function ChallengeForm() {
       // 全量加载确保登录态/客户端缓存一致。
       // 跳转即将离场，保持 loading（按钮禁用）直到卸载——不再在 finally 里
       // 复位，否则导航完成前存在复点窗口。
-      window.location.replace(routes.home);
+      const target = (r.data as { redirect?: string } | undefined)?.redirect || routes.home;
+      window.location.replace(target);
     } catch {
       setError(t("common.error"));
       setLoading(false);

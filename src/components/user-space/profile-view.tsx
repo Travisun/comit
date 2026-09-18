@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/follow-button";
 import { BlockButton } from "@/components/social/block-button";
 import {
+  FOLLOWS_PAGE_SIZE,
   getFollowState,
   getPublishedPosts,
   getProfileActivity,
@@ -318,10 +319,16 @@ export async function UserProfileView({
         {tab === "short" && (
           <ShortsTab user={user} page={page} tab={tab} viewerUsername={viewer?.username} isSelf={isSelf} />
         )}
-        {tab === "bookmarks" && <BookmarksTab user={user} viewer={viewer} viewerUsername={viewer?.username} />}
-        {tab === "collections" && <CollectionsTab user={user} />}
-        {tab === "followers" && <FollowsTab user={user} mode="followers" viewer={viewer} />}
-        {tab === "following" && <FollowsTab user={user} mode="following" viewer={viewer} />}
+        {tab === "bookmarks" && (
+          <BookmarksTab user={user} viewer={viewer} viewerUsername={viewer?.username} page={page} tab={tab} />
+        )}
+        {tab === "collections" && <CollectionsTab user={user} page={page} tab={tab} />}
+        {tab === "followers" && (
+          <FollowsTab user={user} mode="followers" viewer={viewer} page={page} tab={tab} />
+        )}
+        {tab === "following" && (
+          <FollowsTab user={user} mode="following" viewer={viewer} page={page} tab={tab} />
+        )}
       </div>
     </main>
   );
@@ -532,10 +539,14 @@ async function BookmarksTab({
   user,
   viewer,
   viewerUsername,
+  page,
+  tab,
 }: {
   user: User;
   viewer: User | null;
   viewerUsername?: string;
+  page: number;
+  tab: ProfileTab;
 }) {
   const visibility = user.bookmarksVisibility;
   const isSelf = Boolean(viewer && viewer.id === user.id);
@@ -552,7 +563,7 @@ async function BookmarksTab({
     return <EmptyState text="由于用户的隐私设置，无法查看该列表。" />;
   }
 
-  const items = await listBookmarkPosts(user.id);
+  const { items, nextOffset } = await listBookmarkPosts(user.id, PAGE_SIZE, page * PAGE_SIZE);
   if (items.length === 0) {
     return <EmptyState text="还没有收藏内容。在信息流的「···」菜单里可以把内容加入收藏。" />;
   }
@@ -582,6 +593,7 @@ async function BookmarksTab({
           />
         ),
       )}
+      <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
     </div>
   );
 }
@@ -590,10 +602,14 @@ async function FollowsTab({
   user,
   mode,
   viewer,
+  page,
+  tab,
 }: {
   user: User;
   mode: "followers" | "following";
   viewer: User | null;
+  page: number;
+  tab: ProfileTab;
 }) {
   // 可见性规则：本人永远可见；public 公开；followers 需关注；friends 需互关；private 仅自己
   const visibility = mode === "followers" ? user.followersVisibility : user.followingVisibility;
@@ -609,7 +625,10 @@ async function FollowsTab({
   if (!allowed) {
     return <EmptyState text="由于用户的隐私设置，无法查看该列表。" />;
   }
-  const cards = mode === "followers" ? await listFollowers(user.id) : await listFollowing(user.id);
+  const { items: cards, nextOffset } =
+    mode === "followers"
+      ? await listFollowers(user.id, FOLLOWS_PAGE_SIZE, page * FOLLOWS_PAGE_SIZE)
+      : await listFollowing(user.id, FOLLOWS_PAGE_SIZE, page * FOLLOWS_PAGE_SIZE);
   if (cards.length === 0) {
     return (
       <EmptyState
@@ -624,6 +643,9 @@ async function FollowsTab({
           <FollowCard card={card} viewer={viewer} />
         </li>
       ))}
+      <li>
+        <Pager username={user.username} tab={tab} page={page} hasMore={nextOffset !== null} />
+      </li>
     </ul>
   );
 }
@@ -663,8 +685,20 @@ async function FollowCard({ card, viewer }: { card: UserCard; viewer: User | nul
   );
 }
 
-async function CollectionsTab({ user }: { user: User }) {
-  const collections = await getUserCollections(user.id);
+async function CollectionsTab({
+  user,
+  page,
+  tab,
+}: {
+  user: User;
+  page: number;
+  tab: ProfileTab;
+}) {
+  const { items: collections, nextOffset } = await getUserCollections(
+    user.id,
+    PAGE_SIZE,
+    page * PAGE_SIZE,
+  );
   if (collections.length === 0) return <EmptyState text="还没有创建合集" />;
   return (
     <div className="grid gap-3 p-5 sm:grid-cols-2">
@@ -683,6 +717,11 @@ async function CollectionsTab({ user }: { user: User }) {
           <div className="num mt-3 text-xs text-muted-foreground">{c.postCount} 篇文章</div>
         </Link>
       ))}
+      {nextOffset !== null && (
+        <div className="col-span-full">
+          <Pager username={user.username} tab={tab} page={page} hasMore />
+        </div>
+      )}
     </div>
   );
 }

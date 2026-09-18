@@ -553,11 +553,12 @@ export async function getArchives(userId: string): Promise<ArchiveGroup[]> {
   return [...groups.values()];
 }
 
-/** 用户的收藏列表（新→旧），带作者信息供卡片渲染。 */
+/** 用户的收藏列表（新→旧，offset 分页），带作者信息供卡片渲染。 */
 export async function listBookmarkPosts(
   userId: string,
-  limit = 100,
-): Promise<FeedItemDTO[]> {
+  limit = 10,
+  offset = 0,
+): Promise<{ items: FeedItemDTO[]; nextOffset: number | null }> {
   const rows = await db
     .select({
       post: posts,
@@ -576,9 +577,14 @@ export async function listBookmarkPosts(
     .leftJoin(polls, eq(polls.postId, posts.id))
     .where(and(eq(bookmarks.userId, userId), eq(posts.status, "published")))
     .orderBy(desc(bookmarks.createdAt))
-    .limit(limit);
+    .limit(limit + 1)
+    .offset(offset);
+  const hasMore = rows.length > limit;
   // DAL 出口即 DTO：杜绝 Date/全文 db 行对象经类型注解漂移到客户端
-  return rows.map((r) => toFeedItemDTO({ ...r, author: confiscateBannedUser(r.author) }));
+  return {
+    items: rows.slice(0, limit).map((r) => toFeedItemDTO({ ...r, author: confiscateBannedUser(r.author) })),
+    nextOffset: hasMore ? offset + limit : null,
+  };
 }
 
 /** Topics an author uses most (for the sidebar topic cloud). */
@@ -609,7 +615,11 @@ export async function getUserTopicCloud(userId: string, limit = 14): Promise<Top
 
 /* ------------------------------ collections ------------------------------ */
 
-export async function getUserCollections(userId: string): Promise<CollectionCardData[]> {
+export async function getUserCollections(
+  userId: string,
+  limit = 12,
+  offset = 0,
+): Promise<{ items: CollectionCardData[]; nextOffset: number | null }> {
   const rows = await db
     .select({
       id: collections.id,
@@ -620,8 +630,14 @@ export async function getUserCollections(userId: string): Promise<CollectionCard
     })
     .from(collections)
     .where(eq(collections.userId, userId))
-    .orderBy(collections.sortOrder, desc(collections.createdAt));
-  return rows.map((r) => ({ ...r, postCount: Number(r.postCount) }));
+    .orderBy(collections.sortOrder, desc(collections.createdAt))
+    .limit(limit + 1)
+    .offset(offset);
+  const hasMore = rows.length > limit;
+  return {
+    items: rows.slice(0, limit).map((r) => ({ ...r, postCount: Number(r.postCount) })),
+    nextOffset: hasMore ? offset + limit : null,
+  };
 }
 
 // cache()：同一请求内 generateMetadata 与页面组件共享同一次查询结果
@@ -881,28 +897,49 @@ const userCardSelection = {
   verified: users.verified,
 };
 
-/** People who follow the given user (粉丝). */
-export async function listFollowers(userId: string, limit = 100): Promise<UserCard[]> {
+/** 粉丝/关注列表分页大小（与个人主页其他 tab 对齐） */
+export const FOLLOWS_PAGE_SIZE = 24;
+
+/** People who follow the given user (粉丝) — offset 分页。 */
+export async function listFollowers(
+  userId: string,
+  limit = FOLLOWS_PAGE_SIZE,
+  offset = 0,
+): Promise<{ items: UserCard[]; nextOffset: number | null }> {
   const rows = await db
     .select(userCardSelection)
     .from(follows)
     .innerJoin(users, eq(users.id, follows.followerId))
     .where(and(eq(follows.followeeId, userId), eq(users.status, "active")))
     .orderBy(desc(follows.createdAt))
-    .limit(limit);
-  return rows as UserCard[];
+    .limit(limit + 1)
+    .offset(offset);
+  const hasMore = rows.length > limit;
+  return {
+    items: (hasMore ? rows.slice(0, limit) : rows) as UserCard[],
+    nextOffset: hasMore ? offset + limit : null,
+  };
 }
 
-/** People the given user follows (关注中). */
-export async function listFollowing(userId: string, limit = 100): Promise<UserCard[]> {
+/** People the given user follows (关注中) — offset 分页。 */
+export async function listFollowing(
+  userId: string,
+  limit = FOLLOWS_PAGE_SIZE,
+  offset = 0,
+): Promise<{ items: UserCard[]; nextOffset: number | null }> {
   const rows = await db
     .select(userCardSelection)
     .from(follows)
     .innerJoin(users, eq(users.id, follows.followeeId))
     .where(and(eq(follows.followerId, userId), eq(users.status, "active")))
     .orderBy(desc(follows.createdAt))
-    .limit(limit);
-  return rows as UserCard[];
+    .limit(limit + 1)
+    .offset(offset);
+  const hasMore = rows.length > limit;
+  return {
+    items: (hasMore ? rows.slice(0, limit) : rows) as UserCard[],
+    nextOffset: hasMore ? offset + limit : null,
+  };
 }
 
 /** Author's best-performing articles — the brand "代表作" strip. */

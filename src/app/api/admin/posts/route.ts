@@ -8,7 +8,7 @@ import { pagination } from "@/app/api/admin/_shared";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const STATUSES = ["draft", "pending_review", "published", "rejected"] as const;
+const STATUSES = ["draft", "pending_review", "published", "rejected", "deleted"] as const;
 
 /** GET /api/admin/posts?status=&q=&limit=25&offset= — searchable post list. */
 export async function GET(req: Request) {

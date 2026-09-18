@@ -78,7 +78,7 @@ export default function AdminOverviewPage() {
         <EmptyState title="加载失败" hint={statsQ.error.message} />
       ) : !data ? (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <Card key={i}>
                 <CardContent className="pt-5">
@@ -97,7 +97,7 @@ export default function AdminOverviewPage() {
       ) : (
         <div className="space-y-6">
           {/* stat cards */}
-          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             <Card>
               <CardContent className="pt-5">
                 <StatCard

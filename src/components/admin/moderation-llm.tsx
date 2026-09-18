@@ -16,8 +16,8 @@ import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
 
 interface LlmConfig {
-  baseURL: string;
-  apiKey: string;
+  /** 空 = 平台默认模型 */
+  providerId: string;
   model: string;
   temperature: number;
   prompt: string;
@@ -27,6 +27,7 @@ interface LlmConfig {
 
 // GET /api/admin/settings 的 moderation 白名单键（apiKey 被服务端脱敏为 hasKey）
 const llmEntrySchema = z.object({
+  providerId: z.string().optional(),
   baseURL: z.string().optional(),
   apiKey: z.string().optional(),
   model: z.string().optional(),
@@ -35,12 +36,32 @@ const llmEntrySchema = z.object({
   hasKey: z.boolean().optional(),
 });
 
+/** 系统提供商目录（站点设置 → AI 模型），用于审核专用模型下拉 */
+const providersEntrySchema = z.object({
+  providers: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        models: z.array(z.string()),
+        enabled: z.boolean(),
+        hasKey: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+  default: z
+    .object({ providerId: z.string(), model: z.string() })
+    .nullable()
+    .optional(),
+});
+
 const adminSettingsSchema = z.object({
   entries: z.object({
     "moderation.reviewMode": z.enum(["off", "llm", "manual"]),
     "moderation.keywordsEnabled": z.boolean(),
     "moderation.llmFailMode": z.enum(["open", "closed"]),
     "moderation.llm": llmEntrySchema,
+    "llm.providers": providersEntrySchema.optional(),
   }),
 });
 
@@ -80,7 +101,7 @@ export function ModerationLlmTab() {
       onSuccess: (res) => {
         setTestResult(
           res.result === null
-            ? "未获得结果：未配置 API Key，或调用失败（详见服务端日志）。"
+            ? "未获得结果：未配置 LLM 提供商或模型（站点设置 → AI 模型），或调用失败（详见服务端日志）。"
             : JSON.stringify(res.result, null, 2),
         );
       },
@@ -130,20 +151,24 @@ export function ModerationLlmTab() {
   );
 }
 
-/** 审核策略 + LLM 接口两张卡片 — 编辑态从 seed 初始化（不再用 effect 同步）。 */
+/** 审核策略 + 审核模型两张卡片 — 编辑态从 seed 初始化（不再用 effect 同步）。 */
 function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
   const cfg = seed["moderation.llm"];
-  const [hasKey, setHasKey] = useState(Boolean(cfg?.hasKey));
+  const providers = seed["llm.providers"];
   const [reviewMode, setReviewMode] = useState<"off" | "llm" | "manual">(seed["moderation.reviewMode"]);
   const [keywordsEnabled, setKeywordsEnabled] = useState(Boolean(seed["moderation.keywordsEnabled"]));
   const [failMode, setFailMode] = useState<"open" | "closed">(seed["moderation.llmFailMode"]);
   const [llm, setLlm] = useState<LlmConfig>(() => ({
-    baseURL: cfg?.baseURL ?? "",
-    apiKey: "",
+    providerId: cfg?.providerId ?? "",
     model: cfg?.model ?? "",
     temperature: cfg?.temperature ?? 0,
     prompt: cfg?.prompt ?? "",
   }));
+
+  // 可选模型 = 平台默认 + 各启用提供商的模型目录（与站点设置 AI 模型同源）
+  const enabledProviders = (providers?.providers ?? []).filter((p) => p.enabled && p.models.length > 0);
+  const modelValue = llm.providerId ? `${llm.providerId}::${llm.model}` : "";
+  const hasUsableModel = enabledProviders.length > 0 || Boolean(cfg?.hasKey);
 
   // 保存审核配置 — 成功失效设置键（重取服务端权威值）
   const saveMutation = useApiMutation(
@@ -152,15 +177,11 @@ function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
       keywordsEnabled: boolean;
       failMode: "open" | "closed";
       llm: LlmConfig;
-    }) => postJson<{ ok: boolean; hasKey: boolean }>("/api/admin/moderation/llm", payload),
+    }) => postJson<{ ok: boolean }>("/api/admin/moderation/llm", payload),
     {
       refresh: false,
       invalidate: [queryKeys.adminSettings()],
       successToast: "审核配置已保存",
-      onSuccess: (res) => {
-        setHasKey(res.hasKey);
-        setLlm((prev) => ({ ...prev, apiKey: "" }));
-      },
     },
   );
 
@@ -220,61 +241,76 @@ function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
 
       <div className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-card)] space-y-4">
         <div className="space-y-1">
-          <h3 className="text-sm font-semibold">LLM 接口</h3>
+          <h3 className="text-sm font-semibold">审核模型</h3>
           <p className="text-xs text-muted-foreground">
-            OpenAI 兼容接口。API Key {hasKey ? "已配置，留空表示保留原值" : "未配置"}
+            复用系统 LLM 能力：接口与密钥在「站点设置 → AI 模型」统一维护，这里只选择审核用的模型。
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="API Base URL">
-            <Input
-              value={llm.baseURL}
-              onChange={(e) => setLlm({ ...llm, baseURL: e.target.value })}
-              placeholder="https://api.openai.com/v1"
-            />
-          </Field>
-          <Field label="API Key">
-            <Input
-              type="password"
-              value={llm.apiKey}
-              onChange={(e) => setLlm({ ...llm, apiKey: e.target.value })}
-              placeholder={hasKey ? "••••••（留空保留原值）" : "sk-…"}
-              autoComplete="new-password"
-            />
-          </Field>
-          <Field label="模型">
-            <Input
-              value={llm.model}
-              onChange={(e) => setLlm({ ...llm, model: e.target.value })}
-              placeholder="gpt-4o-mini"
-            />
-          </Field>
-          <Field label="Temperature">
-            <Input
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={llm.temperature}
-              onChange={(e) => setLlm({ ...llm, temperature: Number(e.target.value) })}
-            />
-          </Field>
-          <div className="sm:col-span-2">
-            <Field label="审核提示词" hint="模型需返回 JSON：{approved, score, reason}">
-              <Textarea
-                rows={4}
-                value={llm.prompt}
-                onChange={(e) => setLlm({ ...llm, prompt: e.target.value })}
+        {hasUsableModel ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5 sm:max-w-96 sm:col-span-2">
+              <Label>审核模型</Label>
+              <select
+                value={modelValue}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) setLlm((prev) => ({ ...prev, providerId: "", model: "" }));
+                  else {
+                    const [providerId, model] = v.split("::");
+                    setLlm((prev) => ({ ...prev, providerId, model }));
+                  }
+                }}
+                className="h-[34px] rounded-md border-0 bg-card px-2.5 text-sm text-[color:var(--text-body)] outline-none shadow-[0_0_0_1px_var(--field-line),0_1px_1px_rgba(0,0,0,0.08)] focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)]"
+                aria-label="审核模型"
+              >
+                <option value="">
+                  平台默认模型
+                  {providers?.default ? `（${providers.default.providerId} · ${providers.default.model}）` : ""}
+                </option>
+                {enabledProviders.flatMap((p) =>
+                  p.models.map((m) => (
+                    <option key={`${p.id}::${m}`} value={`${p.id}::${m}`}>
+                      {p.label} — {m}
+                    </option>
+                  )),
+                )}
+              </select>
+            </div>
+            <Field label="Temperature">
+              <Input
+                type="number"
+                min={0}
+                max={2}
+                step={0.1}
+                value={llm.temperature}
+                onChange={(e) => setLlm({ ...llm, temperature: Number(e.target.value) })}
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="审核提示词" hint="模型需返回 JSON：{approved, score, reason}">
+                <Textarea
+                  rows={4}
+                  value={llm.prompt}
+                  onChange={(e) => setLlm({ ...llm, prompt: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Button onClick={() => void saveMutation.mutate({ reviewMode, keywordsEnabled, failMode, llm })} disabled={saveMutation.pending}>
+                <Save className="size-4" />
+                {saveMutation.pending ? "保存中…" : "保存审核配置"}
+              </Button>
+            </div>
           </div>
-          <div className="sm:col-span-2">
-            <Button onClick={() => void saveMutation.mutate({ reviewMode, keywordsEnabled, failMode, llm })} disabled={saveMutation.pending}>
-              <Save className="size-4" />
-              {saveMutation.pending ? "保存中…" : "保存审核配置"}
-            </Button>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border bg-[var(--muted)]/40 px-4 py-3 text-sm text-muted-foreground">
+            尚未配置可用的 LLM 提供商 —— 前往
+            <a href="/admin/settings" className="mx-1 font-medium text-primary hover:underline">
+              站点设置 → AI 模型
+            </a>
+            添加提供商与模型后，再回到这里选择审核模型。
           </div>
-        </div>
+        )}
       </div>
     </>
   );

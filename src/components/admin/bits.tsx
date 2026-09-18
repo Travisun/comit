@@ -100,12 +100,14 @@ export function StatCard({
   icon: ReactNode;
   href?: string;
 }) {
+  // 等高布局：无 sub 的卡片保留占位行，网格内多卡高度一致；数值右对齐
+  // 图标列固定，窄卡（2 列栅格）不换行溢出
   const inner = (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
+    <div className="flex h-full items-start justify-between gap-3">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm text-muted-foreground">{label}</p>
         <p className="mt-1 text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-        {sub ? <p className="mt-1 text-xs text-muted-foreground">{sub}</p> : null}
+        <p className="mt-1 truncate text-xs text-muted-foreground">{sub ?? "\u00a0"}</p>
       </div>
       <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary [&_svg]:size-4.5">
         {icon}
@@ -113,7 +115,7 @@ export function StatCard({
     </div>
   );
   return href ? (
-    <Link href={href} className="transition-opacity hover:opacity-80">
+    <Link href={href} className="block h-full transition-opacity hover:opacity-80">
       {inner}
     </Link>
   ) : (

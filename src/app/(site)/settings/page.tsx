@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { requireUser } from "@/lib/auth/guards";
 import { getT } from "@/lib/i18n";
+import { getSetting } from "@/lib/settings";
 import { TimelineHeader } from "@/components/site-shell";
 
 export const metadata: Metadata = { title: "设置", robots: { index: false, follow: false } };
@@ -70,45 +71,65 @@ export default async function SettingsHomePage() {
   const { locale } = await getT();
   void auth;
   const zh = locale === "zh";
+  // 认证功能关闭时隐藏「认证」入口（其余分组原样）
+  const verificationEnabled = await getSetting("verification.enabled");
 
   return (
     <div className="w-full pt-[10px]">
       <TimelineHeader title={zh ? "设置" : "Settings"} />
       <div className="mx-auto w-full max-w-[600px] pb-10">
         {GROUPS.map((group) => (
-          <section key={group.label.en} className="border-b border-border py-2 first:pt-0">
-            <h2 className="px-4 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
-              {zh ? group.label.zh : group.label.en}
-            </h2>
-            <ul>
-              {group.items.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      className="flex items-center gap-2.5 rounded-lg px-4 py-2 transition-colors hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] focus-visible:outline-none"
-                    >
-                      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--muted)] text-muted-foreground">
-                        <Icon className="size-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium text-foreground">
-                          {zh ? item.label.zh : item.label.en}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {zh ? item.desc.zh : item.desc.en}
-                        </span>
-                      </span>
-                      <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
+          <SettingsGroup key={group.label.en} group={group} zh={zh} verificationEnabled={verificationEnabled} />
         ))}
       </div>
     </div>
+  );
+}
+
+function SettingsGroup({
+  group,
+  zh,
+  verificationEnabled,
+}: {
+  group: (typeof GROUPS)[number];
+  zh: boolean;
+  verificationEnabled: boolean;
+}) {
+  const items = group.items.filter((i) => verificationEnabled || i.href !== "/settings/verification");
+  if (items.length === 0) return null;
+  return (
+    <>
+        <section key={group.label.en} className="border-b border-border py-2 first:pt-0">
+          <h2 className="px-4 py-2 text-xs font-normal uppercase tracking-wider text-muted-foreground">
+            {zh ? group.label.zh : group.label.en}
+          </h2>
+          <ul>
+            {items.map((item) => {
+              const Icon = item.icon;
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className="flex items-center gap-2.5 rounded-lg px-4 py-2 transition-colors hover:bg-[var(--hover)] focus-visible:bg-[var(--hover)] focus-visible:outline-none"
+                  >
+                    <span className="grid size-7 shrink-0 place-items-center rounded-md bg-[var(--muted)] text-muted-foreground">
+                      <Icon className="size-4" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-foreground">
+                        {zh ? item.label.zh : item.label.en}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {zh ? item.desc.zh : item.desc.en}
+                      </span>
+                    </span>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+      </section>
+    </>
   );
 }

@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EmptyState } from "@/components/admin/bits";
+import { EmptyState, Pagination } from "@/components/admin/bits";
 import { ConfirmDialog, RejectDialog } from "@/components/admin/post-actions";
 import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
@@ -137,17 +137,27 @@ export function VerificationConsole() {
   );
 }
 
+const PAGE_SIZE = 25;
+
 function RequestList({ status, q }: { status: TabKey; q: string }) {
   const { locale } = useI18n();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [rejectTarget, setRejectTarget] = useState<AdminVerificationItem | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<AdminVerificationItem | null>(null);
+  // 搜索词变化回到第 0 页：记录词快照，渲染期发现漂移直接校正（无 effect）
+  const [offset, setOffset] = useState(0);
+  const [qSnapshot, setQSnapshot] = useState(q);
+  if (q !== qSnapshot) {
+    setQSnapshot(q);
+    setOffset(0);
+  }
 
-  // 列表查询 — tab/搜索词进 queryKey；placeholderData 保留上一页数据
+  // 列表查询 — tab/搜索词/页码进 queryKey；placeholderData 保留上一页数据；
+  // 搜索词变化回第 0 页
   const listQ = useQuery({
     ...apiQueryOptions({
-      queryKey: queryKeys.adminVerification(status, q),
-      url: `/api/admin/verification?status=${status}&limit=50&q=${encodeURIComponent(q)}`,
+      queryKey: [...queryKeys.adminVerification(status, q), offset],
+      url: `/api/admin/verification?status=${status}&limit=${PAGE_SIZE}&offset=${offset}&q=${encodeURIComponent(q)}`,
       schema: verificationPageSchema,
     }),
     placeholderData: keepPreviousData,
@@ -299,6 +309,10 @@ function RequestList({ status, q }: { status: TabKey; q: string }) {
           );
         })}
       </div>
+
+      {total > PAGE_SIZE && (
+        <Pagination offset={offset} limit={PAGE_SIZE} total={total} onPage={setOffset} />
+      )}
 
       <RejectDialog
         open={rejectTarget !== null}

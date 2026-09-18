@@ -1,4 +1,5 @@
 import { desc, eq, inArray } from "drizzle-orm";
+import { getSetting } from "@/lib/settings";
 import { db } from "@/db";
 import { exportJobs, sessions, totpSecrets, users, webhooks } from "@/db/schema";
 import { USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users";
@@ -212,5 +213,10 @@ export async function getSettingsPageData(auth: {
     })),
   };
 
-  return { data, enabledTabs: [...SETTINGS_TABS] };
+  // 认证功能关闭时，前台设置不暴露 verification 分节（直链 [tab] 会重定向）
+  const verificationEnabled = await getSetting("verification.enabled");
+  const enabledTabs = verificationEnabled
+    ? [...SETTINGS_TABS]
+    : SETTINGS_TABS.filter((t) => t !== "verification");
+  return { data, enabledTabs };
 }

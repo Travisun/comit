@@ -26,6 +26,8 @@ export async function POST(req: Request) {
       throw new AppError("验证码错误，请重试 / Invalid code, try again", 400, "bad_totp");
     }
     await setSessionPending2fa(auth.sessionId, false);
-    return ok({ ok: true, recoveryCodes: result.recoveryCodes });
+    // 未完成注册引导的用户先进 onboarding
+    const redirect = auth.user.onboardedAt ? undefined : "/onboarding";
+    return ok({ ok: true, recoveryCodes: result.recoveryCodes, redirect });
   });
 }

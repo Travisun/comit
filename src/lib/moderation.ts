@@ -4,7 +4,7 @@ import { comments, keywords, posts, type Comment, type Post } from "@/db/schema"
 import { getSetting } from "@/lib/settings";
 import { emit } from "@/core/events";
 import { makeExcerpt, markdownToPlain } from "@/lib/utils";
-import { llmChat } from "@/lib/llm";
+import { llmAvailable, llmChat } from "@/lib/llm";
 
 /**
  * Content moderation pipeline:
@@ -40,14 +40,19 @@ export interface LlmReviewResult {
 
 export async function llmReview(text: string): Promise<LlmReviewResult | null> {
   const cfg = await getSetting("moderation.llm");
-  if (!cfg.apiKey) return null;
+  // 审核接入系统 LLM 能力：接口与密钥统一在 站点设置 → AI 模型
+  // （llm.providers）维护，这里只做模型选择（providerId/model，空 = 平台
+  // 默认）与提示词；providers 全未配置时回退旧版 moderation.llm 凭证，
+  // 两侧都不可用则视为"LLM 不可用"。
+  if (!(await llmAvailable(cfg.providerId || undefined))) return null;
   try {
     const content = await llmChat({
       messages: [
         { role: "system", content: cfg.prompt },
         { role: "user", content: `请审核以下内容并只返回 JSON：\n\n${text.slice(0, 8000)}` },
       ],
-      model: cfg.model,
+      providerId: cfg.providerId || undefined,
+      model: cfg.model || undefined,
       temperature: cfg.temperature,
       json: true,
     });

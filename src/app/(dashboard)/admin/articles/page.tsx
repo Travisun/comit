@@ -27,7 +27,7 @@ const postItemSchema = z.object({
   id: z.string(),
   title: z.string().nullable(),
   type: z.enum(["article", "short"]),
-  status: z.enum(["draft", "pending_review", "published", "rejected"]),
+  status: z.enum(["draft", "pending_review", "published", "rejected", "deleted"]),
   views: z.number(),
   likeCount: z.number(),
   commentCount: z.number(),
@@ -50,6 +50,7 @@ const STATUS_OPTIONS = [
   { value: "pending_review", label: "待审核" },
   { value: "rejected", label: "已驳回" },
   { value: "draft", label: "草稿" },
+  { value: "deleted", label: "回收站" },
 ];
 
 /** Fetches and renders one page of posts; keyed by filter state via queryKey. */

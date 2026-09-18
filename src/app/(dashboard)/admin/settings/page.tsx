@@ -66,6 +66,7 @@ const suggestSchema = z.object({
 
 const FEATURE_KEYS: { key: string; label: string; desc: string }[] = [
   { key: "site.registrationOpen", label: "开放注册", desc: "关闭后新用户将无法注册" },
+  { key: "verification.enabled", label: "认证功能", desc: "关闭后前台隐藏认证入口（管理端审核台保留）" },
   { key: "site.inviteRequired", label: "注册需要邀请码", desc: "仅持有有效邀请码的用户可完成注册" },
   { key: "site.force2fa", label: "强制两步验证", desc: "所有用户登录时必须完成 TOTP 验证" },
 ];

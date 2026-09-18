@@ -26,6 +26,7 @@ export function SetupForm() {
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
+  const [afterUrl, setAfterUrl] = useState<string | null>(null);
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
@@ -139,12 +140,13 @@ export function SetupForm() {
     setConfirmError(null);
     setSubmitting(true);
     try {
-      const r = await postJsonSafe<{ recoveryCodes?: string[] }>("/api/auth/2fa/confirm", { code });
+      const r = await postJsonSafe<{ recoveryCodes?: string[]; redirect?: string }>("/api/auth/2fa/confirm", { code });
       if (!r.ok) {
         setConfirmError(r.error ?? t("common.error"));
         return;
       }
       const { recoveryCodes } = r.data;
+      setAfterUrl(r.data.redirect ?? null);
       if (!recoveryCodes) {
         setConfirmError(t("common.error"));
         return;
@@ -175,7 +177,7 @@ export function SetupForm() {
             className="flex-1"
             onClick={() => {
               // 整页跳转：安全设置边界不做 SPA 导航（push+refresh 双 RSC 竞态）
-              window.location.replace(routes.home);
+              window.location.replace(afterUrl ?? routes.home);
             }}
           >
             {t("common.confirm")}
