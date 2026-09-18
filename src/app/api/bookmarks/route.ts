@@ -5,7 +5,7 @@ import { bookmarks } from "@/db/schema";
 import { AppError } from "@/core/errors";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
-import { posts } from "@/db/schema";
+import { getInteractablePost } from "@/lib/interactions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,12 +21,18 @@ export async function POST(req: Request) {
     // 桶 action.social：per-user 默认 60 次/60s，覆盖 toggle 高频场景
     await rateLimitBucket("action.social", auth.user.id);
 
-    const [post] = await db
-      .select({ id: posts.id })
-      .from(posts)
-      .where(eq(posts.id, parsed.data.postId))
-      .limit(1);
-    if (!post) throw new AppError("内容不存在 / Post not found", 404, "not_found");
+    // 已收藏的帖放行，保证作者收紧可见性后用户仍能撤销
+    const existingBookmark = async () => {
+      const [row] = await db
+        .select({ x: bookmarks.userId })
+        .from(bookmarks)
+        .where(and(eq(bookmarks.userId, auth.user.id), eq(bookmarks.postId, parsed.data.postId)))
+        .limit(1);
+      return Boolean(row);
+    };
+    const post = await getInteractablePost(parsed.data.postId, auth.user.id, {
+      allowExisting: existingBookmark,
+    });
 
     const removed = await db
       .delete(bookmarks)

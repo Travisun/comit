@@ -5,6 +5,7 @@ import { invites, users } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { pagination } from "@/app/api/admin/_shared";
+import { escapeLikePattern } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     const conds: SQL[] = [];
     if (filter === "used") conds.push(isNotNull(invites.usedAt));
     if (filter === "unused") conds.push(isNull(invites.usedAt));
-    if (q) conds.push(ilike(invites.code, `%${q}%`));
+    if (q) conds.push(ilike(invites.code, `%${escapeLikePattern(q)}%`));
     const where = conds.length ? and(...conds) : undefined;
 
     const [rows, [{ n: total }], [usedStat]] = await Promise.all([

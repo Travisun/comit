@@ -2,10 +2,11 @@ import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { posts, reposts } from "@/db/schema";
-import { AppError, notFound } from "@/core/errors";
+import { AppError } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { getInteractablePost } from "@/lib/interactions";
 
 const bodySchema = z.object({
   postId: z.uuid(),
@@ -23,12 +24,16 @@ export async function POST(req: Request) {
     // 桶 action.social：per-user 默认 60 次/60s，覆盖 toggle 高频场景
     await rateLimitBucket("action.social", me);
 
-    const [post] = await db
-      .select({ id: posts.id, authorId: posts.authorId })
-      .from(posts)
-      .where(eq(posts.id, postId))
-      .limit(1);
-    if (!post) throw notFound("内容不存在 / Post not found");
+    // 已转发过的帖放行，保证作者收紧可见性后用户仍能撤销
+    const existingRepost = async () => {
+      const [row] = await db
+        .select({ x: reposts.userId })
+        .from(reposts)
+        .where(and(eq(reposts.userId, me), eq(reposts.postId, postId)))
+        .limit(1);
+      return Boolean(row);
+    };
+    const post = await getInteractablePost(postId, me, { allowExisting: existingRepost });
 
     const removed = await db
       .delete(reposts)

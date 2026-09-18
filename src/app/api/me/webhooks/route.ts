@@ -5,9 +5,8 @@ import { webhooks } from "@/db/schema";
 import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
-import { isForbiddenHostLiteral } from "@/core/http-client";
 import { ALL_WEBHOOK_EVENT_NAMES, newWebhookSecret } from "@/extensions/webhooks/server";
-import { parseOrThrow } from "../_shared";
+import { parseOrThrow, webhookUrlSchema } from "../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,15 +42,8 @@ export async function GET(req: Request) {
 }
 
 const postSchema = z.object({
-  // 创建时快速拦截本机/内网字面量（localhost、私有 IP 等；DNS 层的权威校验
-  // 在投递时的 ssrfGuard，见 core/http-client）——域名此时放行，投递前复检
-  url: z
-    .url("URL 格式不正确 / Invalid URL")
-    .max(2000)
-    .startsWith("http")
-    .refine((u) => !isForbiddenHostLiteral(new URL(u).hostname), {
-      message: "URL 不允许指向本机或内网地址 / URL must not point to internal hosts",
-    }),
+  // webhookUrlSchema：拦截本机/内网字面量（与 PATCH 更新接口共用，见 me/_shared）
+  url: webhookUrlSchema,
   events: z.array(z.enum(ALL_WEBHOOK_EVENT_NAMES)).min(1, "至少选择一个事件 / Pick at least one event"),
 });
 

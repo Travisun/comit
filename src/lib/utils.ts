@@ -9,6 +9,12 @@ export function cn(...inputs: ClassValue[]) {
 /** useSyncExternalStore 配套空订阅器 — 读取客户端专值（window.*）时使用。 */
 export const subscribeNoop = () => () => {};
 
+/** LIKE/ILIKE 通配符转义（% _ \）—— Postgres 默认转义符为反斜杠。不转义时
+ * q="%" 会退化为全表顺序扫描的低成本放大查询。 */
+export function escapeLikePattern(q: string): string {
+  return q.replace(/[\\%_]/g, "\\$&");
+}
+
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;

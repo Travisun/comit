@@ -4,6 +4,7 @@ import { posts, users } from "@/db/schema";
 import { ok } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { pagination } from "@/app/api/admin/_shared";
+import { escapeLikePattern } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
       filters.push(eq(posts.status, status as (typeof STATUSES)[number]));
     }
     if (q) {
-      const like = `%${q}%`;
+      const like = `%${escapeLikePattern(q)}%`;
       const cond = or(
         ilike(posts.title, like),
         ilike(users.username, like),

@@ -70,6 +70,13 @@ export const RATE_BUCKETS = [
     en: "Markdown preview render (per user)",
   },
   { name: "mcp.api", limit: 60, windowSec: 60, zh: "MCP JSON-RPC 调用（按 API token）", en: "MCP JSON-RPC calls (per API token)" },
+  {
+    name: "export.create",
+    limit: 3,
+    windowSec: 3600,
+    zh: "创建数据导出任务（按用户）",
+    en: "Export job creation (per user)",
+  },
   { name: "client.error", limit: 30, windowSec: 60, zh: "客户端错误上报（按 IP）", en: "Client error reporting (per IP)" },
 ] as const;
 

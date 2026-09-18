@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { posts } from "@/db/schema";
+import { follows, posts } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
@@ -59,9 +59,18 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
 
     const names = await topicNamesOf(post.id);
     if (post.authorId === auth.user.id) return ok({ ...post, topicNames: names });
-    // 非作者：仅已发布且非私有内容可见（private 仅作者自见）
+    // 非作者：仅已发布且非私有内容可见（private 仅作者自见；
+    // followers 与帖子页 postVisibleTo 同口径 —— 需关注，否则按不存在处理）
     if (post.status !== "published" || post.visibility === "private") {
       throw notFound("内容不存在 / Post not found");
+    }
+    if (post.visibility === "followers") {
+      const [f] = await db
+        .select({ x: follows.followerId })
+        .from(follows)
+        .where(and(eq(follows.followerId, auth.user.id), eq(follows.followeeId, post.authorId)))
+        .limit(1);
+      if (!f) throw notFound("内容不存在 / Post not found");
     }
     // non-authors never see moderation internals
     return ok({

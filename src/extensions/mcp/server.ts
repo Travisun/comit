@@ -7,8 +7,11 @@ import {
   type Plugin,
 } from "@/core/plugins/types";
 import { emit } from "@/core/events";
-import { makeExcerpt, slugifyTitle } from "@/lib/utils";
+import { escapeLikePattern, makeExcerpt, slugifyTitle } from "@/lib/utils";
 import { preSubmitCheck } from "@/lib/moderation";
+import { getInteractablePost } from "@/lib/interactions";
+import { deleteMediaFile } from "@/lib/media";
+import { asStorageTag } from "@/lib/storage";
 
 /**
  * MCP plugin — exposes the platform to LLM agents over the Model Context
@@ -163,12 +166,18 @@ const TOOLS: McpToolDef[] = [
   ),
   tool(
     "get_post",
-    "Get one post's full markdown content by id.",
+    "Get one post's full markdown content by id. The caller's own posts are readable in any lifecycle state; other people's posts only when published and visible to the caller (public, or followers-only if the caller follows the author).",
     ["posts:read"],
     { type: "object", required: ["postId"], properties: { postId: { type: "string" } } },
-    async (args) => {
+    async (args, ctx) => {
       const row = await postWithAuthor(String(args.postId));
       if (!row) throw new Error("post not found");
+      // 与 web GET /api/posts/[id] 同口径：作者任意状态可读；他人仅
+      // published + 对其可见（public / followers-已关注），草稿、回收站、
+      // 私有内容一律按不存在处理 —— 防止 token 越权读取任意草稿/已删帖。
+      if (row.post.authorId !== ctx.userId) {
+        await getInteractablePost(row.post.id, ctx.userId);
+      }
       return {
         id: row.post.id,
         type: row.post.type,
@@ -349,7 +358,7 @@ const TOOLS: McpToolDef[] = [
           and(
             eq(posts.status, "published"),
             eq(posts.visibility, "public"),
-            or(ilike(posts.title, `%${q}%`), ilike(posts.content, `%${q}%`)),
+            or(ilike(posts.title, `%${escapeLikePattern(q)}%`), ilike(posts.content, `%${escapeLikePattern(q)}%`)),
           ),
         )
         .orderBy(desc(posts.publishedAt))
@@ -409,23 +418,37 @@ const TOOLS: McpToolDef[] = [
   ),
   tool(
     "delete_media",
-    "Delete a media file from the authenticated user's library.",
+    "Delete a media file from the authenticated user's library (removes the library row and the underlying file).",
     ["media:write"],
     { type: "object", required: ["mediaId"], properties: { mediaId: { type: "string" } } },
     async (args, ctx) => {
-      const rows = await db
-        .delete(media)
+      const [row] = await db
+        .select({ id: media.id, path: media.path, storage: media.storage })
+        .from(media)
         .where(and(eq(media.id, String(args.mediaId)), eq(media.userId, ctx.userId)))
-        .returning({ id: media.id });
-      return { deleted: rows.length > 0 };
+        .limit(1);
+      if (!row) return { deleted: false };
+      await db.delete(media).where(eq(media.id, row.id));
+      // 与 admin DELETE /api/admin/media/[id] 同款：连物理对象一起删
+      // （存储不可用时 deleteMediaFile 内部转 cleanup 队列补偿）
+      await deleteMediaFile(row.path, asStorageTag(row.storage));
+      return { deleted: true };
     },
   ),
   tool(
     "list_post_comments",
-    "List comments on a post.",
+    "List comments on a post (only comments the caller may see).",
     ["comments:read"],
     { type: "object", required: ["postId"], properties: { postId: { type: "string" }, limit: { type: "number", default: 50 } } },
-    async (args) => {
+    async (args, ctx) => {
+      // 隐藏内容门控：他人草稿/回收站/私有帖的评论不可经 MCP 读取
+      const [p] = await db
+        .select({ authorId: posts.authorId })
+        .from(posts)
+        .where(eq(posts.id, String(args.postId)))
+        .limit(1);
+      if (!p) throw new Error("post not found");
+      if (p.authorId !== ctx.userId) await getInteractablePost(String(args.postId), ctx.userId);
       const rows = await db
         .select({
           id: comments.id,

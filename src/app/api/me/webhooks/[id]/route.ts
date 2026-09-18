@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { webhooks } from "@/db/schema";
 import { notFound, ok, withUser } from "@/lib/http";
 import { ALL_WEBHOOK_EVENT_NAMES } from "@/extensions/webhooks/server";
-import { parseOrThrow } from "../../_shared";
+import { parseOrThrow, webhookUrlSchema } from "../../_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +14,9 @@ type Ctx = { params: Promise<{ id: string }> };
 const idSchema = z.uuid();
 
 const patchSchema = z.object({
-  url: z.url().max(2000).startsWith("http").optional(),
+  // 与创建共用同一 URL schema（内网/本机黑名单），防止把已创建的合法
+  // webhook 更新成 SSRF 地址绕过创建层防线
+  url: webhookUrlSchema.optional(),
   events: z.array(z.enum(ALL_WEBHOOK_EVENT_NAMES)).min(1).optional(),
   active: z.boolean().optional(),
 });

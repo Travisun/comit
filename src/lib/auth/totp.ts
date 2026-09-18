@@ -1,5 +1,6 @@
 import { TOTP, generateSecret, generateURI, NobleCryptoPlugin, ScureBase32Plugin } from "otplib";
-import { randomBytes } from "crypto";
+import { randomBytes, scrypt as _scrypt, timingSafeEqual } from "crypto";
+import { promisify } from "util";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { totpSecrets } from "@/db/schema";
@@ -14,6 +15,12 @@ const otpOptions = () => ({
   crypto: new NobleCryptoPlugin(),
   base32: new ScureBase32Plugin(),
 });
+
+const scrypt = promisify(_scrypt) as (
+  secret: string,
+  salt: Buffer,
+  keylen: number,
+) => Promise<Buffer>;
 
 /** Create (or reset) a pending TOTP setup; returns secret + otpauth URI. */
 export async function createTotpSetup(user: { id: string; email: string }) {
@@ -66,7 +73,7 @@ export async function verifyTotpCode(
   if (opts.confirm) {
     // confirm 成功激活 2FA；step 已在上面认领时记录
     const codes = generateRecoveryCodes();
-    const hashed = await Promise.all(codes.map((c) => sha256(c)));
+    const hashed = await hashRecoveryCodes(codes);
     await db
       .update(totpSecrets)
       .set({ confirmedAt: new Date(), recoveryCodes: hashed })
@@ -79,29 +86,39 @@ export async function verifyTotpCode(
 /** Return newly generated recovery codes (plaintext, shown once). */
 export async function regenerateRecoveryCodes(userId: string): Promise<string[]> {
   const codes = generateRecoveryCodes();
-  const hashed = await Promise.all(codes.map((c) => sha256(c)));
+  const hashed = await hashRecoveryCodes(codes);
   await db.update(totpSecrets).set({ recoveryCodes: hashed }).where(eq(totpSecrets.userId, userId));
   return codes;
 }
 
 export async function consumeRecoveryCode(userId: string, code: string): Promise<boolean> {
-  // 原子消费（atomic consume）：一条 UPDATE 同时完成存在检查 + 移除，替代旧的
-  // select→update 两步（非原子，两个并发请求可双花同一恢复码）。
-  //   WHERE recovery_codes @> to_jsonb($hash) ⇒ jsonb 包含检查：数组中存在该 hash
-  //   SET  recovery_codes - $hash             ⇒ jsonb `-` 移除匹配的字符串元素
-  // 行锁 + WHERE 条件保证只有第一个请求命中，后者返回 0 行 ⇒ 按无效恢复码拒绝。
-  const hash = sha256(code.trim());
-  const removed = await db
-    .update(totpSecrets)
-    .set({ recoveryCodes: sql`${totpSecrets.recoveryCodes} - ${hash}::text` })
-    .where(
-      and(
-        eq(totpSecrets.userId, userId),
-        sql`${totpSecrets.recoveryCodes} @> to_jsonb(${hash}::text)`,
-      ),
-    )
-    .returning({ userId: totpSecrets.userId });
-  return removed.length > 0;
+  // scrypt 带盐 ⇒ 无法像 sha256 那样先算 hash 再交给 SQL 匹配，只能取出候选
+  // 逐条验证。命中后仍走与旧实现同款的单条原子 UPDATE 完成消费：
+  //   WHERE recovery_codes @> to_jsonb($stored) ⇒ jsonb 包含检查（该 hash 仍在）
+  //   SET  recovery_codes - $stored             ⇒ jsonb `-` 移除匹配元素
+  // 行锁 + WHERE 保证并发双花时后到者 UPDATE 命中 0 行 ⇒ 按无效恢复码拒绝。
+  const [row] = await db
+    .select({ recoveryCodes: totpSecrets.recoveryCodes })
+    .from(totpSecrets)
+    .where(eq(totpSecrets.userId, userId))
+    .limit(1);
+  if (!row || row.recoveryCodes.length === 0) return false;
+
+  for (const stored of row.recoveryCodes) {
+    if (!(await verifyRecoveryCodeHash(code, stored))) continue;
+    const removed = await db
+      .update(totpSecrets)
+      .set({ recoveryCodes: sql`${totpSecrets.recoveryCodes} - ${stored}::text` })
+      .where(
+        and(
+          eq(totpSecrets.userId, userId),
+          sql`${totpSecrets.recoveryCodes} @> to_jsonb(${stored}::text)`,
+        ),
+      )
+      .returning({ userId: totpSecrets.userId });
+    if (removed.length > 0) return true;
+  }
+  return false;
 }
 
 export async function hasConfirmedTotp(userId: string): Promise<boolean> {
@@ -115,7 +132,43 @@ export async function hasConfirmedTotp(userId: string): Promise<boolean> {
 
 export function generateRecoveryCodes(n = 8): string[] {
   return Array.from({ length: n }, () => {
-    const raw = randomBytes(5).toString("hex").toUpperCase();
-    return `${raw.slice(0, 5)}-${raw.slice(5)}`;
+    // 128 位熵（16 字节），4×8 hex 分组展示
+    const raw = randomBytes(16).toString("hex").toUpperCase();
+    return raw.match(/.{8}/g)!.join("-");
   });
+}
+
+/* ----------------------- recovery code hashing (v2) -----------------------
+ * 存量恢复码是 40 位熵 + 裸 sha256（DB 泄露场景可离线爆破）；v2 升级为
+ * 128 位熵 + scrypt 慢哈希。jsonb 数组内两种形态共存：
+ *   - v2：`s1$<salthex>$<keyhex>`（带前缀，scrypt，归一化后哈希）
+ *   - 存量：裸 64 位 hex（sha256，原始输入 trim 后哈希）
+ * 旧码随消费/再生成自然淘汰，无需迁移。
+ * ------------------------------------------------------------------------- */
+
+/** 恢复码归一化：剥分隔符 + 统一大写（生成与校验共用同一形状）。 */
+function normalizeRecoveryCode(code: string): string {
+  return code.replace(/[^0-9a-zA-Z]/g, "").toUpperCase();
+}
+
+async function hashRecoveryCode(code: string): Promise<string> {
+  const salt = randomBytes(16);
+  const key = await scrypt(normalizeRecoveryCode(code), salt, 32);
+  return `s1$${salt.toString("hex")}$${key.toString("hex")}`;
+}
+
+async function verifyRecoveryCodeHash(code: string, stored: string): Promise<boolean> {
+  if (stored.startsWith("s1$")) {
+    const [, saltHex, keyHex] = stored.split("$");
+    if (!saltHex || !keyHex) return false;
+    const key = await scrypt(normalizeRecoveryCode(code), Buffer.from(saltHex, "hex"), 32);
+    const expected = Buffer.from(keyHex, "hex");
+    return key.length === expected.length && timingSafeEqual(key, expected);
+  }
+  // 存量码兼容路径：与旧实现逐字节同口径（trim 后 sha256），不做大小写归一
+  return stored === sha256(code.trim());
+}
+
+async function hashRecoveryCodes(codes: string[]): Promise<string[]> {
+  return Promise.all(codes.map((c) => hashRecoveryCode(c)));
 }

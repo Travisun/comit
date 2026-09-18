@@ -17,8 +17,14 @@ function decodePayloadNonce(sso: string): string | null {
   }
 }
 
+/** 登录失败跳转：一并清掉 mb_sso_nonce cookie，不把一次性 nonce 留在浏览器。 */
+function loginErrorRedirect() {
+  const res = NextResponse.redirect(absolute(`${routes.login}?error=oauth`));
+  res.cookies.delete("mb_sso_nonce");
+  return res;
+}
+
 export async function GET(req: NextRequest) {
-  const loginError = absolute(`${routes.login}?error=oauth`);
   try {
     const url = new URL(req.url);
     const sso = url.searchParams.get("sso") ?? "";
@@ -27,10 +33,10 @@ export async function GET(req: NextRequest) {
 
     // verifyDiscourseCallback only checks the HMAC; the nonce is our CSRF guard
     if (!sso || !sig || !cookieNonce || decodePayloadNonce(sso) !== cookieNonce) {
-      return NextResponse.redirect(loginError);
+      return loginErrorRedirect();
     }
     const profile = await verifyDiscourseCallback(sso, sig);
-    if (!profile) return NextResponse.redirect(loginError);
+    if (!profile) return loginErrorRedirect();
 
     const { user } = await findOrCreateFederatedUser(profile);
     await createSession(user.id, {
@@ -45,6 +51,6 @@ export async function GET(req: NextRequest) {
     return res;
   } catch (err) {
     console.error("[auth/sso/discourse] callback failed:", err);
-    return NextResponse.redirect(loginError);
+    return loginErrorRedirect();
   }
 }

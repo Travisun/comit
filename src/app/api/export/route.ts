@@ -4,6 +4,7 @@ import { exportJobs } from "@/db/schema";
 import { unauthorized } from "@/core/errors";
 import { ok, withApi, withUser } from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { queue } from "@/core/queue";
 
 export const runtime = "nodejs";
@@ -39,6 +40,9 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {
+    // 全量 zip 构建是 CPU/磁盘密集任务（worker 并发有限），按用户限流防单
+    // 人循环入队占满队列
+    await rateLimitBucket("export.create", auth.user.id);
     const [job] = await db
       .insert(exportJobs)
       .values({ userId: auth.user.id, status: "queued" })

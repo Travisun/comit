@@ -144,12 +144,14 @@ export async function POST(req: Request) {
         return created;
       });
     } catch (err) {
-      // 并发兜底：查后插之间撞 users_username_key / users_email_key 唯一约束
+      // 并发兜底：查后插之间撞 users_username_key / users_email_key 唯一约束。
+      // 用户名冲突保留明确文案（存在独立的可用性查询 API，本就是公开信息）；
+      // 邮箱冲突用统一模糊文案 —— 注册邮箱是否在库属隐私信息，不给枚举通道。
       if (isPgUniqueViolation(err, "users_username_key")) {
         throw conflict("用户名已被占用 / Username already taken");
       }
       if (isPgUniqueViolation(err, "users_email_key")) {
-        throw conflict("邮箱已被注册 / Email already registered");
+        throw conflict("邮箱或用户名已被注册 / Email or username already registered");
       }
       if (isPgUniqueViolation(err)) {
         throw conflict("邮箱或用户名已被注册 / Email or username already registered");

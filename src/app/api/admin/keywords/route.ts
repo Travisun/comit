@@ -7,6 +7,7 @@ import { withPermission } from "@/lib/permissions";
 import { pagination } from "@/app/api/admin/_shared";
 import { conflict } from "@/core/errors";
 import { parseOrThrow } from "@/app/api/admin/_shared";
+import { escapeLikePattern } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
     const items = await db
       .select()
       .from(keywords)
-      .where(q ? ilike(keywords.word, `%${q}%`) : undefined)
+      .where(q ? ilike(keywords.word, `%${escapeLikePattern(q)}%`) : undefined)
       .orderBy(desc(keywords.createdAt))
       .limit(limit);
 

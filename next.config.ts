@@ -41,6 +41,7 @@ const nextConfig: NextConfig = {
     // X-Content-Type-Options / Referrer-Policy 已收敛至此；proxy 只保留 rewrite）。
     // "/(.*)" 覆盖页面、/api route handlers 与静态资源，含 matcher 被排除的
     // _next/static、api/auth/oauth、api/mcp 等路径，无死角。
+    const isProd = process.env.NODE_ENV === "production";
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
@@ -49,7 +50,37 @@ const nextConfig: NextConfig = {
         key: "Permissions-Policy",
         value: "camera=(), microphone=(), geolocation=()",
       },
+      // CSP（净化器回归时的纵深防线）。取舍说明：
+      //  - script 保留 'unsafe-inline'：Next.js 客户端引导依赖内联脚本，
+      //    nonce 化需要动渲染管线，当前阶段以 object-src/base-uri/frame-ancestors
+      //    这三项高价值指令为主；'unsafe-eval' 供 mermaid/KaTeX/开发期 React
+      //    refresh 使用（sanitizer 已剥脚本标签，此头仅作二道防线）。
+      //  - img/media 放开 *：用户 Markdown 可引用外部图片/音视频，属产品能力。
+      {
+        key: "Content-Security-Policy",
+        value: [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+          "style-src 'self' 'unsafe-inline'",
+          "img-src * data: blob:",
+          "media-src * data: blob:",
+          "font-src 'self' data:",
+          "connect-src 'self'",
+          "object-src 'none'",
+          "base-uri 'self'",
+          "form-action 'self'",
+          "frame-ancestors 'self'",
+        ].join("; "),
+      },
     ];
+    // HSTS 仅在「生产 + APP_URL 为 https」时下发：本地 http 联调或误配
+    // 不会把浏览器锁进 https 一年。includeSubDomains 覆盖用户子域（同为本应用）。
+    if (isProd && (process.env.APP_URL ?? "").startsWith("https://")) {
+      securityHeaders.push({
+        key: "Strict-Transport-Security",
+        value: "max-age=31536000; includeSubDomains",
+      });
+    }
     const rules: { source: string; headers: { key: string; value: string }[] }[] = [
       { source: "/(.*)", headers: securityHeaders },
     ];

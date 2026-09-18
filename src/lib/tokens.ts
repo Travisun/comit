@@ -1,6 +1,6 @@
-import { apiTokens } from "@/db/schema";
+import { apiTokens, users } from "@/db/schema";
 import { db } from "@/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, lt, or, sql } from "drizzle-orm";
 import { randomToken, sha256 } from "@/lib/auth/password";
 
 /**
@@ -37,13 +37,23 @@ export async function createApiToken(userId: string, name: string, scopes: strin
 export async function resolveApiToken(token: string): Promise<{ userId: string; scopes: string[]; tokenId: string } | null> {
   if (!token.startsWith("mbt_")) return null;
   const [row] = await db
-    .select()
+    .select({ token: apiTokens })
     .from(apiTokens)
-    .where(and(eq(apiTokens.tokenHash, sha256(token)), isNull(apiTokens.revokedAt)))
+    .innerJoin(users, eq(users.id, apiTokens.userId))
+    .where(
+      and(
+        eq(apiTokens.tokenHash, sha256(token)),
+        isNull(apiTokens.revokedAt),
+        // 与 web 会话门控（getAuth）同口径：封禁/注销用户或临时封禁未到期的
+        // token 一律拒绝；解封后自动恢复，无需重新签发。
+        eq(users.status, "active"),
+        or(isNull(users.bannedUntil), lt(users.bannedUntil, sql`now()`)),
+      ),
+    )
     .limit(1);
   if (!row) return null;
-  await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.id));
-  return { userId: row.userId, scopes: row.scopes, tokenId: row.id };
+  await db.update(apiTokens).set({ lastUsedAt: new Date() }).where(eq(apiTokens.id, row.token.id));
+  return { userId: row.token.userId, scopes: row.token.scopes, tokenId: row.token.id };
 }
 
 export async function listApiTokens(userId: string) {

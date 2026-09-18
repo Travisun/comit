@@ -4,6 +4,7 @@ import { posts } from "@/db/schema";
 import { routes } from "@/core/routes";
 import { withUser, ok } from "@/lib/http";
 import { markdownToPlain } from "@/lib/utils";
+import { escapeLikePattern } from "@/lib/utils";
 
 /**
  * GET /api/posts/mine?status=&type=&q=&limit=&offset=
@@ -32,7 +33,7 @@ export async function GET(req: Request) {
     }
     if (type !== "all") conds.push(eq(posts.type, type as never));
     if (q) {
-      const like = `%${q}%`;
+      const like = `%${escapeLikePattern(q)}%`;
       conds.push(or(ilike(posts.title, like), ilike(posts.content, like))!);
     }
 

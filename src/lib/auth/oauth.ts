@@ -1,5 +1,5 @@
 import { GitHub, Google, Twitter, generateCodeVerifier } from "arctic";
-import { createHash, createHmac, randomBytes } from "crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { config } from "@/core/config";
 import { httpRequest } from "@/core/http-client";
 import { forbidden } from "@/core/errors";
@@ -290,7 +290,10 @@ export async function discourseSsoStartUrl(nonce: string, returnPath: string): P
 export async function verifyDiscourseCallback(sso: string, sig: string): Promise<FederatedProfile | null> {
   const c = await oauthCreds("discourse");
   const expected = createHmac("sha256", c.clientSecret).update(sso).digest("hex");
-  if (expected !== sig) return null;
+  // 常数时间比较，防 HMAC 时序侧信道（与 password.ts 同款纪律）
+  const a = Buffer.from(expected, "hex");
+  const b = Buffer.from(sig, "hex");
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
   const data = new URLSearchParams(Buffer.from(sso, "base64").toString());
   return {
     provider: "discourse",

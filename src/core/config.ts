@@ -3,10 +3,8 @@
  * group access). Runtime-tunable settings live in the DB `settings` table
  * (see src/lib/settings.ts) and are edited from the admin panel.
  */
-function req(name: string, fallback?: string): string {
-  const v = process.env[name] ?? fallback;
-  if (v === undefined) throw new Error(`Missing env: ${name}`);
-  return v;
+declare global {
+  var __mbAuthSecretWarned: boolean | undefined;
 }
 
 export const config = {
@@ -24,7 +22,23 @@ export const config = {
   },
   auth: {
     get secret() {
-      return req("AUTH_SECRET", "dev-secret-insecure-please-change");
+      const v = process.env.AUTH_SECRET;
+      if (v && v.length >= 32) return v;
+      if (process.env.NODE_ENV === "production") {
+        // 惰性 fail-fast：当前无消费者，未来任何签名用途启用时，缺配置/弱配置
+        // 在第一次取用处即炸，而不是带着公开默认值上线
+        throw new Error(
+          "AUTH_SECRET must be set to a random 32+ char value in production (e.g. `openssl rand -base64 48`)",
+        );
+      }
+      // dev 兜底（只警告一次，避免每次取值刷屏）
+      if (!globalThis.__mbAuthSecretWarned) {
+        globalThis.__mbAuthSecretWarned = true;
+        console.warn(
+          "[config] AUTH_SECRET 未设置，使用不安全的 dev 默认值（生产环境必须设置 32+ 字符随机值）",
+        );
+      }
+      return "dev-secret-insecure-please-change";
     },
     sessionCookie: "mb_session",
     pendingCookie: "mb_pending",

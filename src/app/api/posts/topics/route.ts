@@ -2,6 +2,7 @@ import { count, desc, eq, ilike } from "drizzle-orm";
 import { db } from "@/db";
 import { postTopics, topics } from "@/db/schema";
 import { ok, withUser } from "@/lib/http";
+import { escapeLikePattern } from "@/lib/utils";
 
 /**
  * GET /api/posts/topics?q=<query> — fuzzy topic lookup for the editor's
@@ -19,7 +20,7 @@ export async function GET(req: Request): Promise<Response> {
       })
       .from(topics)
       .leftJoin(postTopics, eq(postTopics.topicId, topics.id))
-      .where(q ? ilike(topics.name, `%${q}%`) : undefined)
+      .where(q ? ilike(topics.name, `%${escapeLikePattern(q)}%`) : undefined)
       .groupBy(topics.id)
       .orderBy(desc(count(postTopics.postId)), topics.name)
       .limit(10);

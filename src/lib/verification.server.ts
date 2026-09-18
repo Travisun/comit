@@ -13,6 +13,7 @@ import {
   type VerificationRequestView,
   type VerificationType,
 } from "./verification";
+import { escapeLikePattern } from "@/lib/utils";
 
 /**
  * db-backed half of the verification domain (the pure constants live in
@@ -84,7 +85,7 @@ export async function listRequests({
   if (status) conds.push(eq(verificationRequests.status, status));
   const kw = q?.trim();
   if (kw) {
-    const like = `%${kw}%`;
+    const like = `%${escapeLikePattern(kw)}%`;
     conds.push(
       or(
         ilike(users.username, like),

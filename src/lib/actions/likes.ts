@@ -2,9 +2,9 @@ import { z } from "zod";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, likes, posts } from "@/db/schema";
-import { notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { rateLimitAction, defineAction } from "@/core/capabilities/actions";
+import { getInteractableComment, getInteractablePost } from "@/lib/interactions";
 
 /**
  * 点赞切换（Action 层示范 — 原 route.ts 的完整业务，现为声明式定义）。
@@ -24,23 +24,29 @@ export const toggleLike = defineAction({
     const { targetType, targetId } = input;
     const userId = user!.id;
 
-    // target must exist (and give us the author for events)
+    // target must be visible to the actor (and give us the author for events);
+    // 已有同条互动时放行，保证作者收紧可见性后用户仍能撤销
+    const existingLike = async () => {
+      const [row] = await db
+        .select({ x: likes.userId })
+        .from(likes)
+        .where(
+          and(
+            eq(likes.userId, userId),
+            eq(likes.targetType, targetType),
+            eq(likes.targetId, targetId),
+          ),
+        )
+        .limit(1);
+      return Boolean(row);
+    };
+    const gate = { allowExisting: existingLike };
     let authorId: string;
     if (targetType === "post") {
-      const [post] = await db
-        .select({ authorId: posts.authorId })
-        .from(posts)
-        .where(eq(posts.id, targetId))
-        .limit(1);
-      if (!post) throw notFound("内容不存在 / Post not found");
+      const post = await getInteractablePost(targetId, userId, gate);
       authorId = post.authorId;
     } else {
-      const [c] = await db
-        .select({ userId: comments.userId })
-        .from(comments)
-        .where(eq(comments.id, targetId))
-        .limit(1);
-      if (!c) throw notFound("评论不存在 / Comment not found");
+      const c = await getInteractableComment(targetId, userId, gate);
       authorId = c.userId;
     }
 

@@ -3,8 +3,19 @@ import { z, type ZodType } from "zod";
 import { db } from "@/db";
 import { media } from "@/db/schema";
 import { AppError } from "@/core/errors";
+import { isForbiddenHostLiteral } from "@/core/http-client";
 
 /** Helpers shared by /api/me/* route handlers. */
+
+/** webhook URL schema — 创建与更新共用同一内网/本机字面量黑名单（SSRF 防线一；
+ * DNS 级权威校验在投递时 ssrfGuard，见 core/http-client）。 */
+export const webhookUrlSchema = z
+  .url("URL 格式不正确 / Invalid URL")
+  .max(2000)
+  .startsWith("http")
+  .refine((u) => !isForbiddenHostLiteral(new URL(u).hostname), {
+    message: "URL 不允许指向本机或内网地址 / URL must not point to internal hosts",
+  });
 
 export function parseOrThrow<T>(schema: ZodType<T>, data: unknown): T {
   const result = schema.safeParse(data);
