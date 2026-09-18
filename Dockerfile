@@ -6,6 +6,8 @@ FROM node:24-alpine AS deps
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# pnpm patchedDependencies（pnpm-workspace.yaml 引用）：锁文件安装期即需补丁文件
+COPY patches ./patches
 # workspace 包（src/extensions/*）的 package.json 一并还原，pnpm 才能解析
 COPY src/extensions ./src/extensions
 RUN pnpm install --frozen-lockfile --ignore-scripts
