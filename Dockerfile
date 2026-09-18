@@ -40,6 +40,9 @@ COPY --from=build --chown=app:app /app/src/extensions ./src/extensions
 # @/extensions/_boot/tables）
 COPY --from=build --chown=app:app /app/tsconfig.json ./tsconfig.json
 COPY --from=build --chown=app:app /app/next.config.ts ./next.config.ts
+# next.config.ts 顶部 import ./scripts/lib/instance-guard.mjs（启动兜底守卫），
+# 运行期加载配置即需要
+COPY --from=build --chown=app:app /app/scripts ./scripts
 USER app
 EXPOSE 3000
 CMD ["pnpm", "start"]
