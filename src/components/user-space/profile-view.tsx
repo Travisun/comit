@@ -1,5 +1,6 @@
 import Link from "next/link";
 import {
+  Ban,
   CalendarDays,
   FolderOpen,
   LayoutDashboard,
@@ -9,6 +10,7 @@ import {
 import type { User } from "@/db/schema";
 import { routes } from "@/core/routes";
 import { cn, formatDate } from "@/lib/utils";
+import { banScopeLabel } from "@/lib/banned";
 import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
 import { Button } from "@/components/ui/button";
@@ -247,6 +249,41 @@ function ProfileActions({
 /* ------------------------------ profile view ------------------------------ */
 
 export type ProfileTab = "posts" | "short" | "bookmarks" | "collections" | "followers" | "following";
+
+/**
+ * 封禁用户主页 — 主页标注（横幅：范围 + 原因）+ 没收后的身份展示：
+ * 头像回落封禁图标、昵称统一「已封禁用户」，不渲染任何内容与互动入口。
+ * 写面拦截（禁言/点赞/评论/关注/私信）在会话层完成，见 lib/banned.ts。
+ */
+export function BannedProfileView({ user }: { user: User }) {
+  return (
+    <main className="w-full pb-10">
+      <div className="relative h-36 w-full overflow-hidden border-b border-border bg-gradient-to-br from-destructive/10 via-[var(--muted)] to-[var(--muted)] md:h-48" />
+      <div className="px-4">
+        <div className="grid size-24 -mt-12 place-items-center rounded-full bg-[var(--muted)] ring-4 ring-card">
+          <Ban className="size-9 text-muted-foreground" aria-hidden />
+        </div>
+        <h1 className="mt-2 text-xl font-normal text-muted-foreground">已封禁用户</h1>
+        <div className="text-[15px] text-muted-foreground">@{user.username}</div>
+
+        <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/[0.04] px-4 py-3">
+          <p className="flex items-center gap-2 text-sm font-medium text-destructive">
+            <Ban className="size-4 shrink-0" aria-hidden />
+            该账号已被封禁（{banScopeLabel(user.bannedUntil)}）
+          </p>
+          {user.banReason && (
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              原因：{user.banReason}
+            </p>
+          )}
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            封禁期间，该用户无法发布内容、评论、点赞、关注他人或收发私信，主页内容已停用展示。
+          </p>
+        </div>
+      </div>
+    </main>
+  );
+}
 
 export async function UserProfileView({
   user,

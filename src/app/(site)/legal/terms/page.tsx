@@ -12,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function TermsPage() {
   return (
-    <LegalDoc title="服务协议（Terms of Service）" updated="2026-09-12">
+    <LegalDoc title="服务协议" updated="2026-09-18">
       <p>
         欢迎使用 comit.sh（下称“本平台”）。comit.sh 为每一次提交提供归宿；本协议界定你与本平台之间关于账户、内容与服务的全部约定。
         注册或使用本平台即表示你已阅读、理解并同意本协议的全部内容。若你不同意本协议，请停止注册或使用本平台。
@@ -20,17 +20,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="一、账户与注册"
-        en={
-          <>
-            <p>
-              You must provide a valid email address, choose a unique username, and (where required) an
-              invitation code to register. Two-factor authentication (TOTP) is mandatory. You are
-              responsible for safeguarding your credentials and recovery codes and for all activity under
-              your account. You must be at least 16 years old, or the minimum age required by your local
-              law, to register.
-            </p>
-          </>
-        }
       >
         <p>
           1. 注册本平台需要提供有效邮箱地址，设置唯一的用户名；站点开启邀请制时，你还需要持有有效的邀请码方可完成注册。邀请码由已注册用户或管理员生成，请通过正规渠道获取。
@@ -46,17 +35,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="二、内容权利"
-        en={
-          <>
-            <p>
-              You retain full copyright of everything you publish. You grant the platform an
-              unconditional, royalty-free, non-exclusive, worldwide license to reproduce, distribute,
-              use, and publicly display your content for commercial or non-commercial purposes and for
-              research purposes (including within aggregated feeds, archives, snapshots and datasets
-              derived from the public service).
-            </p>
-          </>
-        }
       >
         <blockquote>
           <p>
@@ -79,16 +57,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="三、行为规范与内容审核"
-        en={
-          <>
-            <p>
-              Illegal, pornographic, violent, hateful, privacy-invading and spam content is prohibited.
-              Submissions pass keyword filtering and may additionally be reviewed by an automated LLM
-              service and/or human moderators before publication. Violations may lead to removal,
-              suspension or termination.
-            </p>
-          </>
-        }
       >
         <p>
           1. 你不得发布、传播法律法规禁止的内容，包括但不限于：违法违规、色情低俗、暴力恐怖、仇恨歧视、侵犯他人隐私、垃圾营销与恶意刷屏内容。
@@ -97,23 +65,13 @@ export default function TermsPage() {
           2. 本平台结合关键词审核与 LLM（大语言模型）审核对发布内容进行合规检查，必要时进行人工复核。审核结果不影响你对内容的著作权，仅决定内容能否在平台公开分发。
         </p>
         <p>
-          3. 对违规内容，本平台有权采取隐藏、下架、驳回等措施；对违规账户，视情节给予警告、禁言、封禁直至注销处理。
+          3. 对违规内容，本平台有权采取隐藏、下架、驳回等措施；对违规账户，视情节轻重给予警告、限期封禁（7 / 15 / 30 / 90 天）或永久封禁等处理。封禁期间，账户将被全面限制：无法发布内容、评论、点赞、关注他人或收发私信，主页将标注封禁状态，昵称与头像暂停展示；限期封禁期满后自动解除，永久封禁不可恢复。
         </p>
         <p>4. 你可以通过举报入口对违规内容进行举报，本平台管理员将依规处理。</p>
       </LegalSection>
 
       <LegalSection
         title="四、子域名规则"
-        en={
-          <>
-            <p>
-              Eligible users may bind one custom subdomain (e.g. alice.example.com) to their blog. A
-              subdomain can only be set once and cannot be changed afterwards. It must not infringe
-              trademarks, impersonate others, or conflict with reserved names. Misused subdomains may be
-              reclaimed without notice.
-            </p>
-          </>
-        }
       >
         <p>
           1. 在站点开启子域名功能后，符合条件的用户可以将一个子域名（如 <code>alice.example.com</code>）绑定到自己的博客，通过该子域名独立访问。
@@ -129,15 +87,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="五、服务的按现状提供"
-        en={
-          <>
-            <p>
-              The service is provided “as is” and “as available”, without warranties of any kind, express
-              or implied, including merchantability, fitness for a particular purpose and
-              non-infringement. We do not warrant uninterrupted or error-free operation.
-            </p>
-          </>
-        }
       >
         <p>
           1. 本平台按“现状”和“现有”基础提供服务，不对服务的可用性、及时性、安全性、准确性作出任何明示或默示的保证。
@@ -149,16 +98,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="六、责任限制"
-        en={
-          <>
-            <p>
-              To the maximum extent permitted by law, the platform shall not be liable for any indirect,
-              incidental, special, consequential or punitive damages, or for loss of profits, data or
-              goodwill arising from your use of the service. Nothing in these terms limits liability that
-              cannot be limited by law.
-            </p>
-          </>
-        }
       >
         <p>
           1. 在法律允许的最大范围内，本平台不对任何间接的、偶然的、特殊的、惩罚性的损害承担责任，亦不对利润损失、数据损失或商誉损失承担责任。
@@ -170,15 +109,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="七、协议的变更"
-        en={
-          <>
-            <p>
-              We may update these terms to reflect service or legal changes. Material changes will be
-              announced on the site (and/or by email) before taking effect. Continued use after the
-              effective date constitutes acceptance of the updated terms.
-            </p>
-          </>
-        }
       >
         <p>
           1. 本平台可根据服务发展与法律要求修订本协议，修订后的协议将在本页面公布；重大变更将通过站内公告或邮件提前通知。
@@ -190,16 +120,6 @@ export default function TermsPage() {
 
       <LegalSection
         title="八、协议的终止"
-        en={
-          <>
-            <p>
-              You may stop using the service and delete your account at any time from Settings → Data.
-              We may suspend or terminate accounts that violate these terms or the law. Upon
-              termination, the license in Section 2 survives only for already-published caches,
-              backups and research datasets as described in the Privacy Policy.
-            </p>
-          </>
-        }
       >
         <p>
           1. 你可随时在“设置 → 数据与导出”中导出你的数据并删除账户，账户删除后本协议对你终止。

@@ -70,6 +70,16 @@ export function EmailPanel() {
     if (params.get("error")) toast.error(zh ? "确认链接无效或已过期" : "Invalid or expired link");
   }, [zh]);
 
+  // 取消换绑 — 清除待确认地址，已发的确认链接随之作废
+  const cancelMutation = useApiMutation(
+    () => apiRequest<{ message?: string }>("/api/me/email", "DELETE"),
+    {
+      refresh: false,
+      invalidate: [queryKeys.emailStatus()],
+      successToast: (res) => res.message ?? (zh ? "已取消换绑" : "Change cancelled"),
+    },
+  );
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (sendMutation.pending) return;
@@ -108,9 +118,23 @@ export function EmailPanel() {
               icon={<MailQuestion className="size-4" />}
               title={zh ? "待确认的新邮箱" : "Pending new email"}
               description={
-                zh ? "点击确认邮件中的链接后生效。" : "Takes effect via the link in the confirmation email."
+                zh ? "点击确认邮件中的链接后生效；验证通过前登录邮箱保持不变。" : "Takes effect via the link in the confirmation email."
               }
-              control={<span className="font-mono text-sm text-foreground">{state.pendingEmail}</span>}
+              control={
+                <span className="flex items-center gap-2">
+                  <span className="font-mono text-sm text-foreground">{state.pendingEmail}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 rounded-full px-3 text-xs"
+                    disabled={cancelMutation.pending}
+                    onClick={() => void cancelMutation.mutate(undefined)}
+                  >
+                    {zh ? "取消换绑" : "Cancel"}
+                  </Button>
+                </span>
+              }
             />
           )}
         </SettingsPanelList>

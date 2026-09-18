@@ -40,7 +40,8 @@ export async function GET(req: Request) {
   });
 }
 
-/** POST /api/me/email — 申请换绑：校验密码 → 记录待确认地址 → 发确认邮件。 */
+/** POST /api/me/email — 申请换绑：校验密码 → 记录待确认地址 → 发确认邮件。
+ * 待确认地址重复提交 = 重发确认邮件（验证信丢失后可再次触达）。 */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {
     // 已登录换绑：按用户限流（桶清单标注按主体），防攻击者换 IP 绕过每用户邮箱操作频率
@@ -51,27 +52,28 @@ export async function POST(req: Request) {
     if (newEmail === auth.user.email.toLowerCase()) {
       throw new AppError("新邮箱与当前邮箱相同 / Same as current email", 400, "same_email");
     }
-    if (auth.user.pendingEmail === newEmail) {
-      return ok({ pendingEmail: maskEmail(newEmail), message: "确认邮件已发送，请查收。" });
-    }
 
-    // 有密码的账户必须验证密码；仅 OAuth 的账户跳过
+    // 有密码的账户必须验证密码；仅 OAuth 的账户跳过（重发同样要验）
     if (auth.user.passwordHash) {
       const okPw = body.password ? await verifyPassword(body.password, auth.user.passwordHash) : false;
       if (!okPw) throw new AppError("密码错误 / Incorrect password", 403, "bad_password");
     }
 
-    const [taken] = await db
-      .select({ id: users.id })
-      .from(users)
-      .where(and(eq(users.email, newEmail), ne(users.id, auth.user.id)))
-      .limit(1);
-    if (taken) throw forbidden("该邮箱已被其他账户使用 / Email already in use");
+    // 重发：待确认地址未变化 → 不改库，直接再发一封确认邮件
+    const isResend = auth.user.pendingEmail === newEmail;
+    if (!isResend) {
+      const [taken] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, newEmail), ne(users.id, auth.user.id)))
+        .limit(1);
+      if (taken) throw forbidden("该邮箱已被其他账户使用 / Email already in use");
 
-    await db
-      .update(users)
-      .set({ pendingEmail: newEmail, updatedAt: new Date() })
-      .where(eq(users.id, auth.user.id));
+      await db
+        .update(users)
+        .set({ pendingEmail: newEmail, updatedAt: new Date() })
+        .where(eq(users.id, auth.user.id));
+    }
 
     const token = await issueAuthToken(auth.user.id, "email_verify", 60 * 24);
     const confirmUrl = absolute(`${CONFIRM_PATH}?token=${encodeURIComponent(token)}`);
@@ -81,7 +83,24 @@ export async function POST(req: Request) {
 
     return ok({
       pendingEmail: maskEmail(newEmail),
-      message: "确认邮件已发送至新邮箱，点击邮件中的链接完成换绑。",
+      message: isResend
+        ? "确认邮件已重新发送至待确认邮箱，请查收。"
+        : "确认邮件已发送至新邮箱，点击邮件中的链接完成换绑。新邮箱验证通过前，登录邮箱保持不变。",
     });
+  });
+}
+
+/** DELETE /api/me/email — 取消进行中的换绑（清除待确认地址，验证链接随之作废）。 */
+export async function DELETE(req: Request) {
+  return withUser(req, async (auth) => {
+    await rateLimitBucket("auth.email", auth.user.id);
+    if (!auth.user.pendingEmail) {
+      throw new AppError("没有进行中的换绑 / No pending email change", 400, "no_pending");
+    }
+    await db
+      .update(users)
+      .set({ pendingEmail: null, updatedAt: new Date() })
+      .where(eq(users.id, auth.user.id));
+    return ok({ pendingEmail: null, message: "已取消换绑，当前邮箱保持不变。" });
   });
 }

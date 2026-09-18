@@ -53,7 +53,8 @@ export interface ModalityTarget {
   displayName?: string;
 }
 
-const BAN_DAYS = [1, 3, 7, 30, 90] as const;
+/** 处罚档位（产品约定：7 / 15 / 30 / 90 天 + 永久封禁单独入口） */
+const BAN_DAYS = [7, 15, 30, 90] as const;
 
 function TargetLine({ target }: { target: ModalityTarget }) {
   return (

@@ -12,7 +12,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function PrivacyPage() {
   return (
-    <LegalDoc title="隐私政策（Privacy Policy）" updated="2026-09-12">
+    <LegalDoc title="隐私政策" updated="2026-09-18">
       <p>
         本政策说明 comit.sh（下称“本平台”）如何收集、使用、存储与保护你的个人数据。你的主页属于你，你的数据同理。本平台以
         GDPR（欧盟《通用数据保护条例》）为合规框架设计数据处理流程，无论你身处何地均参照本政策执行。
@@ -20,16 +20,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="一、我们收集的数据"
-        en={
-          <>
-            <p>
-              Account data (email, username, display name, bio, avatar/cover images, optional GitHub /
-              ORCID / website), content you publish (articles, short posts, comments), media you upload,
-              session and security logs (IP, user agent, login times), and preference data (theme,
-              language, notification settings).
-            </p>
-          </>
-        }
       >
         <p>1. <strong>账户资料</strong>：邮箱、用户名、昵称、一句话简介、头像与主页封面，以及你可选填的 GitHub、ORCID、个人网站。</p>
         <p>2. <strong>内容数据</strong>：你发布的文章、短动态、评论、话题、合集，以及点赞、关注、转推等社交行为记录。</p>
@@ -40,16 +30,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="二、使用目的"
-        en={
-          <>
-            <p>
-              We use your data to provide and operate the service (publishing, feeds, subdomains, RSS),
-              to secure accounts (mandatory 2FA, abuse prevention), to communicate transactional
-              notifications you opt into, to moderate content, and to comply with legal obligations. We
-              do not sell personal data.
-            </p>
-          </>
-        }
       >
         <p>1. 提供并运营核心服务：内容发布、动态流、用户主页、子域名访问、RSS 分发、评论与私信。</p>
         <p>2. 账户安全：强制两步验证、会话管理、异常登录检测与滥用防护。</p>
@@ -61,15 +41,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="三、法律基础"
-        en={
-          <>
-            <p>
-              Processing rests on: performance of a contract (operating your account and publishing
-              features), legitimate interests (security, abuse prevention, service improvement),
-              consent (optional emails, OAuth connections), and legal obligations (records retention).
-            </p>
-          </>
-        }
       >
         <p>1. <strong>合同履行</strong>（GDPR 第 6(1)(b) 条）：运营你的账户及发布、订阅、子域名等功能。</p>
         <p>2. <strong>正当利益</strong>（第 6(1)(f) 条）：平台安全、反滥用、服务改进与统计。</p>
@@ -79,17 +50,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="四、你的权利"
-        en={
-          <>
-            <p>
-              Under GDPR you have the rights of access, rectification, erasure, data portability,
-              restriction and objection. On this platform you can exercise them directly: export all
-              your content as a ZIP from Settings → Data & export (portability), correct your profile in
-              Settings → Profile (rectification), and delete your account in Settings → Data (erasure).
-              You may also contact us to exercise any right; we respond within 30 days.
-            </p>
-          </>
-        }
       >
         <p>1. <strong>访问权</strong>：你可以随时查看与获取你的个人数据。</p>
         <p>2. <strong>更正权</strong>：在“设置 → 资料”中直接修改你的资料信息。</p>
@@ -106,17 +66,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="五、数据保留与删除"
-        en={
-          <>
-            <p>
-              Content and account data are kept while your account is active. After account deletion,
-              personal identifiers are removed or irreversibly anonymized; pseudonymized post records may
-              be retained where the community license applies, with author attribution replaced by an
-              anonymous marker. Backups rotate out within 90 days. Security logs are kept for up to 180
-              days.
-            </p>
-          </>
-        }
       >
         <p>1. 账户存续期间，你的数据将被保存以维持服务运行。</p>
         <p>
@@ -129,15 +78,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="六、Cookie 说明"
-        en={
-          <>
-            <p>
-              We use a strictly necessary session cookie (httpOnly, SameSite=Lax) to keep you signed in,
-              plus preference cookies for theme and language. No advertising or cross-site tracking
-              cookies are used, and no third-party analytics scripts are embedded by default.
-            </p>
-          </>
-        }
       >
         <p>1. <strong>会话 Cookie</strong>（<code>mb_session</code>）：维持登录状态，httpOnly + SameSite=Lax，仅用于身份认证，关闭浏览器后按有效期自动过期。</p>
         <p>2. <strong>偏好 Cookie</strong>：主题（明暗）与界面语言选择。</p>
@@ -146,17 +86,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="七、第三方数据处理"
-        en={
-          <>
-            <p>
-              OAuth providers (GitHub, Google, X, etc.) receive your login interaction when you use
-              social sign-in. Transactional email is delivered through the SMTP provider configured by
-              the operator. Important: when automated content review is enabled, the text of your
-              submissions is sent to the configured LLM (large language model) provider for compliance
-              analysis. Each provider processes data under its own privacy policy.
-            </p>
-          </>
-        }
       >
         <p>1. <strong>OAuth 提供商</strong>（GitHub、Google、X 等）：使用第三方登录时，登录交互数据将由相应提供商按其隐私政策处理。</p>
         <p>2. <strong>邮件服务（SMTP）</strong>：验证邮件与通知邮件经由站点配置的 SMTP 服务商发送。</p>
@@ -169,14 +98,6 @@ export default function PrivacyPage() {
 
       <LegalSection
         title="八、联系我们"
-        en={
-          <>
-            <p>
-              Data protection contact: [administrator email placeholder] · [postal address placeholder].
-              Please include “Privacy request” in your subject line.
-            </p>
-          </>
-        }
       >
         <p>
           数据保护联系人：[管理员邮箱占位] <br />

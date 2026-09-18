@@ -29,6 +29,7 @@ import {
   type Post,
   type User,
 } from "@/db/schema";
+import { confiscateBannedUser } from "@/lib/banned";
 import type {
   ArchiveGroup,
   AuthorCardData,
@@ -145,7 +146,13 @@ export async function getPublishedPosts(
   const rows = await db
     .select({
       post: posts,
-      author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      author: {
+        username: users.username,
+        displayName: users.displayName,
+        avatarPath: users.avatarPath,
+        status: users.status,
+        bannedUntil: users.bannedUntil,
+      },
       pollId: polls.id,
     })
     .from(posts)
@@ -157,7 +164,10 @@ export async function getPublishedPosts(
     .offset(offset);
 
   const hasMore = rows.length > limit;
-  const items = hasMore ? rows.slice(0, limit) : rows;
+  const items = (hasMore ? rows.slice(0, limit) : rows).map((r) => ({
+    ...r,
+    author: confiscateBannedUser(r.author),
+  }));
   return { items, nextOffset: hasMore ? offset + limit : null };
 }
 
@@ -226,7 +236,13 @@ export async function getProfileActivity(opts: {
       ? db
           .select({
             post: posts,
-            author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+            author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          },
             pollId: polls.id,
           })
           .from(posts)
@@ -279,7 +295,13 @@ export async function getHotPosts(limit = 5): Promise<FeedItem[]> {
     db
       .select({
         post: posts,
-        author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+        author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          },
         pollId: polls.id,
       })
       .from(posts)
@@ -289,17 +311,26 @@ export async function getHotPosts(limit = 5): Promise<FeedItem[]> {
       .orderBy(desc(score))
       .limit(limit);
 
+  type RawAuthor = FeedItem["author"] & { status: string; bannedUntil: Date | null };
+  const confiscate = (rows: { post: Post; author: RawAuthor; pollId?: string | null }[]) =>
+    rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
   const recent = await baseQuery(and(...base, gte(posts.publishedAt, new Date(Date.now() - 30 * DAY))));
-  if (recent.length >= limit) return recent;
-  return baseQuery(and(...base));
+  if (recent.length >= limit) return confiscate(recent);
+  return confiscate(await baseQuery(and(...base)));
 }
 
 /** Hot posts of one author (for the sidebar "hot-posts" widget). */
 export async function getUserHotPosts(userId: string, limit = 5): Promise<FeedItem[]> {
-  return db
+  const rows = await db
     .select({
       post: posts,
-      author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          },
       pollId: polls.id,
     })
     .from(posts)
@@ -308,6 +339,7 @@ export async function getUserHotPosts(userId: string, limit = 5): Promise<FeedIt
     .where(and(eq(posts.authorId, userId), eq(posts.status, "published"), eq(posts.visibility, "public")))
     .orderBy(desc(sql`(${posts.views} + ${posts.likeCount} * 3)`))
     .limit(limit);
+  return rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
 }
 
 /* -------------------------------- topics --------------------------------- */
@@ -411,6 +443,16 @@ export async function getActiveUserByUsername(username: string): Promise<User | 
     .select()
     .from(users)
     .where(and(eq(users.username, username), eq(users.status, "active")))
+    .limit(1);
+  return user ?? null;
+}
+
+/** 任意状态取用户（/u/[username] 封禁主页标注用；deleted 仍返回，由调用方分支）。 */
+export async function getUserByUsernameAnyStatus(username: string): Promise<User | null> {
+  const [user] = await db
+    .select()
+    .from(users)
+    .where(eq(users.username, username))
     .limit(1);
   return user ?? null;
 }
@@ -519,7 +561,13 @@ export async function listBookmarkPosts(
   const rows = await db
     .select({
       post: posts,
-      author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          },
       pollId: polls.id,
     })
     .from(bookmarks)
@@ -530,7 +578,7 @@ export async function listBookmarkPosts(
     .orderBy(desc(bookmarks.createdAt))
     .limit(limit);
   // DAL 出口即 DTO：杜绝 Date/全文 db 行对象经类型注解漂移到客户端
-  return rows.map(toFeedItemDTO);
+  return rows.map((r) => toFeedItemDTO({ ...r, author: confiscateBannedUser(r.author) }));
 }
 
 /** Topics an author uses most (for the sidebar topic cloud). */
@@ -704,7 +752,8 @@ export async function getPostForView(opts: {
 
   return {
     post,
-    author,
+    // 没收展示：封禁中的作者隐藏头像、昵称统一为「已封禁用户」
+    author: confiscateBannedUser(author),
     topics: topics_,
     collection: collectionRow[0] ?? null,
     followState,
@@ -864,10 +913,16 @@ export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedI
   // 转义 LIKE 通配符：q="%" 会退化为全表 ilike 顺序扫描（低成本放大）
   const escaped = needle.replace(/[\\%_]/g, "\\$&");
   const like = `%${escaped}%`;
-  return db
+  const rows = await db
     .select({
       post: posts,
-      author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath },
+      author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          },
       pollId: polls.id,
     })
     .from(posts)
@@ -882,6 +937,7 @@ export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedI
     )
     .orderBy(desc(posts.publishedAt))
     .limit(limit);
+  return rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
 }
 
 export async function getTopPosts(
@@ -889,7 +945,13 @@ export async function getTopPosts(
   limit = 2,
 ): Promise<FeedItemDTO[]> {
   const rows = await db
-    .select({ post: posts, author: { username: users.username, displayName: users.displayName, avatarPath: users.avatarPath } })
+    .select({ post: posts, author: {
+            username: users.username,
+            displayName: users.displayName,
+            avatarPath: users.avatarPath,
+            status: users.status,
+            bannedUntil: users.bannedUntil,
+          } })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(
@@ -902,5 +964,5 @@ export async function getTopPosts(
     )
     .orderBy(desc(sql`(${posts.likeCount} * 3 + ${posts.views})`))
     .limit(limit);
-  return rows.map(toFeedItemDTO);
+  return rows.map((r) => toFeedItemDTO({ ...r, author: confiscateBannedUser(r.author) }));
 }

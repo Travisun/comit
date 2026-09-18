@@ -11,7 +11,7 @@ export const metadata: Metadata = pageMetadata({
 
 export default function CopyrightPage() {
   return (
-    <LegalDoc title="内容权利与版权声明（Copyright）" updated="2026-09-12">
+    <LegalDoc title="内容权利与版权声明" updated="2026-09-18">
       <p>
         本声明说明 comit.sh（下称“本平台”）上内容的版权归属、平台获得许可的范围、侵权举报流程，以及内容转载的推荐规范。
         comit.sh 为每一次提交留下主页，而提交内容的权利，自始至终属于提交者本人。
@@ -19,16 +19,6 @@ export default function CopyrightPage() {
 
       <LegalSection
         title="一、版权归属声明"
-        en={
-          <>
-            <p>
-              All content published on the platform — articles, short posts, comments, images and media
-              — remains the intellectual property of its original author. The platform does not claim
-              ownership of user content. Republication elsewhere without authorization may constitute
-              infringement.
-            </p>
-          </>
-        }
       >
         <p>
           1. 用户在本平台发布的全部内容（文章、短动态、评论、图片及其他媒体）的著作权归内容作者本人所有，本平台不对用户内容主张任何所有权。
@@ -41,18 +31,6 @@ export default function CopyrightPage() {
 
       <LegalSection
         title="二、平台许可范围"
-        en={
-          <>
-            <p>
-              By publishing, you grant the platform an unconditional, royalty-free, non-exclusive,
-              worldwide license to reproduce, distribute, use and publicly display your content for
-              commercial or non-commercial purposes and for research purposes — including aggregated
-              feeds, archives, snapshots and datasets derived from the public service. This license does
-              not transfer ownership and does not restrict your right to license the same content to
-              others.
-            </p>
-          </>
-        }
       >
         <blockquote>
           <p>
@@ -74,18 +52,6 @@ export default function CopyrightPage() {
 
       <LegalSection
         title="三、侵权举报流程"
-        en={
-          <>
-            <p>
-              If you believe content on the platform infringes your rights, submit a report via the
-              “report” entry on the post page (or contact the administrator directly), including: (1) the
-              infringing content URL, (2) proof of your right ownership, (3) your contact information,
-              and (4) a good-faith statement. Administrators review reports, may remove content and
-              notify the author; repeat infringers may be banned. Submitting knowingly false reports may
-              make you liable.
-            </p>
-          </>
-        }
       >
         <p>
           1. <strong>举报入口</strong>：在涉嫌侵权内容的文章页点击“举报”按钮提交，或直接通过管理员邮箱联系（见页脚）。
@@ -99,17 +65,6 @@ export default function CopyrightPage() {
 
       <LegalSection
         title="四、转载规范建议"
-        en={
-          <>
-            <p>
-              Authors are encouraged to mark their works with an open license. We recommend
-              <strong> CC BY-SA 4.0</strong> (Attribution-ShareAlike): anyone may share and adapt your
-              work as long as they credit you and distribute under the same license. You may also choose
-              CC BY, CC BY-NC or full copyright; stating the license at the top or bottom of your article
-              makes reuse unambiguous.
-            </p>
-          </>
-        }
       >
         <p>
           1. 建议作者在文章开头或结尾标注授权方式，明确他人可以如何使用你的作品。本平台推荐使用

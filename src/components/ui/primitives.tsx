@@ -86,7 +86,9 @@ function Switch({ className, ...props }: React.ComponentProps<typeof SwitchPrimi
         "peer inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full border px-0.5 transition-colors",
         "border-[#ced5db] bg-[linear-gradient(to_bottom,#e9ecef,#f0f3f5)] shadow-[inset_0_1px_2px_rgba(0,0,0,0.12)]",
         "dark:border-[#3a4258] dark:bg-[linear-gradient(to_bottom,#232937,#1c212c)]",
-        "data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:shadow-none",
+        // 开启态：渐变是 background-image，会盖住 bg-primary 的背景色 —— 必须
+        // bg-none 清掉图层（含 dark 变体），primary 填充才能显出来
+        "data-[state=checked]:border-primary data-[state=checked]:bg-none dark:data-[state=checked]:bg-none data-[state=checked]:bg-primary data-[state=checked]:shadow-none",
         "focus-visible:outline-none focus-visible:shadow-[0_0_0_1px_var(--field-focus-a),0_0_0_2px_var(--field-focus-b)]",
         className,
       )}

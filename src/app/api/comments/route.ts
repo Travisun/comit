@@ -12,6 +12,7 @@ import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
 import { getSetting } from "@/lib/settings";
 import { makeExcerpt } from "@/lib/utils";
+import { confiscateBannedUser } from "@/lib/banned";
 
 const createSchema = z.object({
   postId: z.uuid(),
@@ -206,6 +207,8 @@ export async function GET(req: Request) {
           username: users.username,
           displayName: users.displayName,
           avatarPath: users.avatarPath,
+          status: users.status,
+          bannedUntil: users.bannedUntil,
         })
         .from(comments)
         .innerJoin(users, eq(users.id, comments.userId))
@@ -233,11 +236,13 @@ export async function GET(req: Request) {
         canManage: isPostAuthor,
         pinned: list === "pinned",
         solution: list === "solutions",
-        user: {
+        user: confiscateBannedUser({
           username: r.username,
           displayName: r.displayName,
           avatarPath: r.avatarPath,
-        },
+          status: r.status,
+          bannedUntil: r.bannedUntil,
+        }),
       }));
       return ok({ items, nextCursor: null });
     }
@@ -273,6 +278,8 @@ export async function GET(req: Request) {
         username: users.username,
         displayName: users.displayName,
         avatarPath: users.avatarPath,
+        authorStatus: users.status,
+        authorBannedUntil: users.bannedUntil,
         replyToUsername: replyUsers.username,
       })
       .from(comments)
@@ -323,11 +330,13 @@ export async function GET(req: Request) {
       canManage: isPostAuthor,
       pinned: Boolean(r.pinnedAt),
       solution: Boolean(r.solutionAt),
-      user: {
+      user: confiscateBannedUser({
         username: r.username,
         displayName: r.displayName,
         avatarPath: r.avatarPath,
-      },
+        status: r.authorStatus,
+        bannedUntil: r.authorBannedUntil,
+      }),
       replyToCommentId: r.replyToCommentId,
       replyToUsername: r.replyToUsername ?? null,
     }));

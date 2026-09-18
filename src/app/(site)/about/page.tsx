@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  Compass,
   FileOutput,
   GitCommitHorizontal,
   GraduationCap,
+  HeartHandshake,
   History,
+  Home,
   Landmark,
   Microscope,
   PenTool,
@@ -12,6 +15,7 @@ import {
   ScrollText,
   Server,
   ShieldCheck,
+  Sparkles,
   Terminal,
 } from "lucide-react";
 import { routes } from "@/core/routes";
@@ -52,6 +56,19 @@ const PROMISES = [
   { icon: ShieldCheck, title: "about.promise.security.title", desc: "about.promise.security.desc" },
 ] as const;
 
+/** 社区三件事 —— 呼吁每个人来这里安家、记录、看世界 */
+const THINGS = [
+  { icon: Home, step: "01", title: "about.things.home.title", desc: "about.things.home.desc" },
+  { icon: Sparkles, step: "02", title: "about.things.daily.title", desc: "about.things.daily.desc" },
+  { icon: Compass, step: "03", title: "about.things.feed.title", desc: "about.things.feed.desc" },
+] as const;
+
+const SPIRIT = [
+  { icon: PenTool, line: "about.spirit.item1" },
+  { icon: HeartHandshake, line: "about.spirit.item2" },
+  { icon: ShieldCheck, line: "about.spirit.item3" },
+] as const;
+
 export default async function AboutPage() {
   const { t } = await getT();
 
@@ -85,7 +102,40 @@ export default async function AboutPage() {
             </p>
           </div>
         </div>
+
+        <div className="mt-6 flex flex-wrap gap-2.5">
+          <Button asChild>
+            <Link href={routes.register}>
+              <GitCommitHorizontal className="size-4" /> {t("about.cta.register")}
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={routes.explore}>{t("about.cta.explore")}</Link>
+          </Button>
+        </div>
       </header>
+
+      {/* ---------------------- 在这里，做三件事 ---------------------- */}
+      <section className="mt-14">
+        <h2 className="text-lg font-normal">{t("about.things.title")}</h2>
+        <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          {THINGS.map((x) => (
+            <div
+              key={x.title}
+              className="flex flex-col rounded-2xl border border-border/70 bg-card p-4 shadow-[var(--shadow-soft)]"
+            >
+              <div className="flex items-center justify-between">
+                <span className="grid size-9 place-items-center rounded-xl border border-border/70 bg-[var(--muted)] text-primary">
+                  <x.icon className="size-4" />
+                </span>
+                <span className="font-mono text-xs text-muted-foreground/60">{x.step}</span>
+              </div>
+              <h3 className="mt-3 font-normal">{t(x.title)}</h3>
+              <p className="mt-1.5 flex-1 text-sm leading-relaxed text-muted-foreground">{t(x.desc)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* --------------------------- 为什么叫 comit --------------------------- */}
       <section className="mt-14">
@@ -140,6 +190,19 @@ export default async function AboutPage() {
         </ul>
       </section>
 
+      {/* ---------------------------- 社区精神 ---------------------------- */}
+      <section className="mt-14">
+        <h2 className="text-lg font-normal">{t("about.spirit.title")}</h2>
+        <ul className="mt-5 space-y-3.5">
+          {SPIRIT.map((x) => (
+            <li key={x.line} className="flex items-center gap-3 text-sm text-muted-foreground">
+              <x.icon className="size-4 shrink-0 text-primary" aria-hidden />
+              {t(x.line)}
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {/* -------------------------------- CTA -------------------------------- */}
       <section className="mt-16 border-t border-border/60 pt-10 text-center">
         <h2 className="text-balance text-xl font-normal">{t("about.cta.title")}</h2>
@@ -151,6 +214,9 @@ export default async function AboutPage() {
             </Link>
           </Button>
           <Button asChild variant="outline">
+            <Link href={routes.explore}>{t("about.cta.explore")}</Link>
+          </Button>
+          <Button asChild variant="ghost">
             <Link href={routes.legal.terms}>{t("about.cta.terms")}</Link>
           </Button>
         </div>
