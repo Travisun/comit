@@ -95,6 +95,10 @@ export const queryKeys = {
   /** 通知列表（前缀 ["notifications"] 可连带未读角标一起失效） */
   notifications: () => ["notifications"] as const,
   notificationBadge: () => ["notifications", "badge"] as const,
+  /** 左栏 System 会话预览（limit=1：最新一条 + 未读数） */
+  notificationsPreview: () => ["notifications", "preview"] as const,
+  /** System 聊天窗内的通知无限流 */
+  notificationsInfinite: () => ["notifications", "infinite"] as const,
   /** 话题搜索联想（composer-panels 与 topic-input 共享同一份缓存） */
   topicsSearch: (q: string) => ["topics", "search", q] as const,
   /** 关注/屏蔽关系（按用户名；follow-button 走 RSC refresh 不占键） */

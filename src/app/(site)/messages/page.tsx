@@ -10,18 +10,13 @@ import { Button } from "@/components/ui/button";
 export const metadata = { title: "消息 / Inbox" };
 export const dynamic = "force-dynamic";
 
-export default async function MessagesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ tab?: string }>;
-}) {
+export default async function MessagesPage() {
   const user = await getCurrentUser();
   if (!user) redirect(routes.login);
   const { t } = await getT();
-  const { tab } = await searchParams;
 
   return (
-    <MessagesShell initialTab={tab === "notifications" ? "notifications" : "dm"}>
+    <MessagesShell>
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <MessageCircle className="size-10" />
         <p className="text-sm font-medium text-foreground">{t("messages.empty")}</p>

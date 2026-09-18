@@ -2,22 +2,21 @@
 
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { InboxList, type InboxTab } from "./inbox-list";
+import { InboxList } from "./inbox-list";
 
 /**
  * Chat-style two-pane inbox（微信/Telegram 范式）:
- * LEFT = 会话列表（私信 tab 为纯发送者会话流 + 未读徽标；通知 tab 为系统
- * 通知）。RIGHT = 选中会话的聊天窗口；未选中时显示空态引导。
+ * LEFT = 会话列表 — 置顶 System 官方会话（系统通知抽象为私信）+ DM 会话，
+ * 均带未读徽标与最后一条消息预览。RIGHT = 选中会话的聊天窗口
+ * （/messages/[userId] 或 /messages/system）；未选中时显示空态引导。
  * On mobile only one pane shows at a time: without `selectedUserId` the list
  * is visible; with it, the chat pane.
  */
 export function MessagesShell({
   selectedUserId,
-  initialTab = "dm",
   children,
 }: {
   selectedUserId?: string;
-  initialTab?: InboxTab;
   children?: ReactNode;
 }) {
   return (
@@ -28,7 +27,7 @@ export function MessagesShell({
           selectedUserId ? "hidden" : "flex",
         )}
       >
-        <InboxList selectedUserId={selectedUserId} initialTab={initialTab} />
+        <InboxList selectedUserId={selectedUserId} />
       </aside>
       <section
         className={cn(
