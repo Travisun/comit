@@ -1,0 +1,52 @@
+# 服务器部署编排（外部已有 PostgreSQL / Redis 实例 — 宝塔面板形态）
+#
+# 与 docker-compose.prod.yml（内置 pg/redis 全家桶）的区别：
+#   - 不再创建 postgres/redis 容器，直接连接宿主机已有实例；
+#   - network_mode: host —— 容器与宿主机共享网络栈，DATABASE_URL/REDIS_URL
+#     直接写 127.0.0.1，免去「宿主机 PG 只监听 127.0.0.1 导致容器经
+#     host-gateway 连不上」的改造（改 listen_addresses/pg_hba 的备选方案见
+#     docs/deploy-baota.md）；
+#   - app 以 `-H 127.0.0.1` 只绑定本机回环，公网唯一入口是宝塔 nginx 反代；
+#   - migrate 仍为 one-shot 服务：保证每次部署 schema 与代码同版。
+#
+# 用法（服务器上，仓库根目录）：
+#   cp .env.server.example .env && vim .env     # 填域名/数据库/Redis/AUTH_SECRET
+#   docker compose -f docker-compose.server.yml build
+#   docker compose -f docker-compose.server.yml up -d
+#   curl -fsS http://127.0.0.1:3000/api/health  # 健康探针
+#
+# 注意：host 模式下 ports 映射无效（也不需要）；uploads/exports 用命名卷持久化。
+
+name: myblogs
+
+services:
+  migrate:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: "no"
+    network_mode: host
+    env_file: .env
+    # 增量迁移 one-shot：只跑未应用的 drizzle 迁移，幂等可重复执行
+    command: ["pnpm", "db:migrate"]
+
+  app:
+    build: { context: ., dockerfile: Dockerfile }
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    # 只绑定 127.0.0.1：公网流量必须经宝塔 nginx 反代（X-Real-IP 依赖该拓扑）
+    command: ["./node_modules/.bin/next", "start", "-H", "127.0.0.1", "-p", "3000"]
+    volumes:
+      - uploads:/app/storage/uploads
+      - exports:/app/storage/exports
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+volumes:
+  uploads:
+  exports:
