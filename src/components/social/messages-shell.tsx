@@ -23,7 +23,7 @@ export function MessagesShell({
     <div className="mx-auto flex h-[calc(100dvh-7rem)] w-full md:h-full">
       <aside
         className={cn(
-          "w-full shrink-0 flex-col bg-[var(--muted)]/30 md:flex md:w-72 md:border-r md:border-border xl:w-80",
+          "w-full shrink-0 flex-col bg-[var(--muted)]/30 md:flex md:w-64 md:border-r md:border-border xl:w-72",
           selectedUserId ? "hidden" : "flex",
         )}
       >
