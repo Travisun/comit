@@ -21,7 +21,10 @@ import { config } from "@/core/config";
  * web Response. Notifications get `202 Accepted` per the spec.
  */
 
-export const MCP_SERVER_INFO = { name: "myblogs-mcp", version: "1.0.0" } as const;
+/** 服务名随站点名动态生成（默认站点名 comit.sh ⇒ comit.sh-mcp）。 */
+export function mcpServerInfo(siteName: string) {
+  return { name: `${siteName}-mcp`, version: "1.0.0" } as const;
+}
 
 export interface McpAuthContext {
   userId: string;
@@ -34,7 +37,7 @@ export async function ensureMcpBootstrapped(): Promise<void> {
 }
 
 function createMcpServer(auth: McpAuthContext, brandName?: string): Server {
-  const server = new Server(MCP_SERVER_INFO, {
+  const server = new Server(mcpServerInfo(brandName ?? config.app.name), {
     capabilities: { tools: {} },
     instructions: `${brandName ?? config.app.name} content API. Use tools/list to discover tools; every tool call is scoped by the API token's permissions.`,
   });
@@ -96,10 +99,11 @@ export function mcpErrorResponse(
   id: string | number | null,
   code: number,
   message: string,
+  realm = "mcp",
 ): Response {
   return Response.json(jsonRpcErrorBody(id, code, message), {
     status,
-    headers: status === 401 ? { "WWW-Authenticate": 'Bearer realm="myblogs-mcp"' } : undefined,
+    headers: status === 401 ? { "WWW-Authenticate": `Bearer realm="${realm}"` } : undefined,
   });
 }
 

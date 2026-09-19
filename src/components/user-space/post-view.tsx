@@ -202,12 +202,14 @@ export async function PostView({
             initialCount={post.repostCount}
             initialReposted={interactions.reposted}
             signedIn={Boolean(viewer)}
+            fixedLabel
           />
           <LikeButton
             targetType="post"
             targetId={post.id}
             initialCount={post.likeCount}
             initialLiked={interactions.liked}
+            fixedLabel
           />
           <PostActionsSlot postId={post.id} postType={post.type} publicId={post.publicId} />
           <span className="ml-auto inline-flex items-center gap-1.5 text-sm">

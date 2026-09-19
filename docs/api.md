@@ -159,7 +159,7 @@
 
 ## 4. MCP 端点与工具清单
 
-端点：`/api/mcp`（MCP Streamable HTTP，**stateless**——每 POST 一条 JSON-RPC 消息，GET 返回服务信息页）。认证必须 Bearer 令牌，无会话回退。服务名 `myblogs-mcp@1.0.0`。
+端点：`/api/mcp`（MCP Streamable HTTP，**stateless**——每 POST 一条 JSON-RPC 消息，GET 返回服务信息页）。认证必须 Bearer 令牌，无会话回退。服务名 `<站点名>-mcp@1.0.0`（站点名默认 comit.sh ⇒ `comit.sh-mcp`）。
 
 工具（12 个，均作用于**令牌属主**账号，scope 不符返回 403；令牌属主被封禁/注销后令牌即时失效，解封自动恢复）：
 

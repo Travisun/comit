@@ -21,6 +21,7 @@ export function LikeButton({
   initialCount,
   initialLiked,
   className,
+  fixedLabel = false,
 }: {
   targetType: "post" | "comment";
   targetId: string;
@@ -28,6 +29,8 @@ export function LikeButton({
   initialLiked: boolean;
   /** optional extra styling (contract superset) */
   className?: string;
+  /** 详情操作栏模式：恒显「点赞」两字（计数入 title），保证各操作宽度一致 */
+  fixedLabel?: boolean;
 }) {
   const { t } = useI18n();
   const queryClient = useQueryClient();
@@ -90,7 +93,9 @@ export function LikeButton({
       )}
     >
       <Heart className={cn("size-4 shrink-0", liked && "fill-current")} />
-      {count > 0 ? (
+      {fixedLabel ? (
+        <span>{t("post.like")}</span>
+      ) : count > 0 ? (
         <span className="tabular-nums">{count}</span>
       ) : (
         <span className="hidden sm:inline">{t("post.like")}</span>

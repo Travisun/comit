@@ -36,7 +36,7 @@ function ShareAction(ctx: { postId: string; postType: "article" | "short"; publi
       title="复制链接"
     >
       <Link2 className="size-4 shrink-0" />
-      <span className="hidden sm:inline">复制链接</span>
+      <span className="hidden sm:inline">复制</span>
     </button>
   );
 }

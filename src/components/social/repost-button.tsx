@@ -36,6 +36,7 @@ export function RepostButton({
   initialReposted,
   signedIn = true,
   className,
+  fixedLabel = false,
 }: {
   postId: string;
   /** 原文 permalink（/post/{publicId}），引用块链接用 */
@@ -47,6 +48,8 @@ export function RepostButton({
   /** 游客点击直接唤起登录 dialog */
   signedIn?: boolean;
   className?: string;
+  /** 详情操作栏模式：恒显「转发」两字（计数入 title），保证各操作宽度一致 */
+  fixedLabel?: boolean;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -133,7 +136,9 @@ export function RepostButton({
         )}
       >
         <Repeat2 className="size-4 shrink-0" />
-        {count > 0 ? (
+        {fixedLabel ? (
+          <span>{t("post.repost")}</span>
+        ) : count > 0 ? (
           <span className="tabular-nums">{count}</span>
         ) : (
           <span className="hidden sm:inline">{t("post.repost")}</span>

@@ -84,7 +84,8 @@ export function BookmarkButton({
       )}
     >
       <Bookmark className={cn("size-4 shrink-0", bookmarked && "fill-current")} />
-      {withLabel && <span className="hidden sm:inline">{bookmarked ? "已收藏" : "收藏"}</span>}
+      {/* withLabel（详情操作栏）：恒显「收藏」两字保持宽度一致，激活态靠颜色区分 */}
+      {withLabel && <span>收藏</span>}
     </button>
   );
 }

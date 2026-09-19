@@ -1,7 +1,8 @@
 /**
  * 用户名领域逻辑 — 查库可用性/交互校验/工具函数。
  * 规则常量、保留字与纯格式校验的单一来源在 src/lib/username-policy.ts
- * （与 src/proxy.ts 共享，勿在此处再复制一份清单）。
+ * （next.config.ts 的 rewrites 已按「真实路由优先」处理顶级路径，
+ *  保留字清单用于注册/改名校验，勿在此处再复制一份。）
  */
 import { and, eq, or } from "drizzle-orm";
 import { db } from "@/db";

@@ -87,7 +87,7 @@ export function McpPanel({ appUrl }: { appUrl: string }) {
   const cursorConfig = JSON.stringify(
     {
       mcpServers: {
-        myblogs: {
+        "comit.sh": {
           url: mcpEndpoint,
           headers: { Authorization: `Bearer ${tokenPlaceholder}` },
         },
@@ -97,7 +97,7 @@ export function McpPanel({ appUrl }: { appUrl: string }) {
     2,
   );
   const genericConfig = cursorConfig;
-  const claudeCmd = `claude mcp add --transport http myblogs ${mcpEndpoint} --header "Authorization: Bearer ${tokenPlaceholder}"`;
+  const claudeCmd = `claude mcp add --transport http comit-sh ${mcpEndpoint} --header "Authorization: Bearer ${tokenPlaceholder}"`;
 
   return (
     <div className="space-y-4">

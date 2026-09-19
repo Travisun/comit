@@ -10,6 +10,23 @@ runInstanceGuard({ log: (msg) => console.log(msg) });
 const nextConfig: NextConfig = {
   // 不对外泄露框架指纹（X-Powered-By: Next.js）
   poweredByHeader: false,
+  // 用户名主页：/{username} ⇒ /u/{username}。用 afterFiles 级 rewrites（文件
+  // 路由优先，/settings /hot 等真实页面先命中，故无需排除保留字表）；多段
+  // 路径与含点路径天然不匹配。此前用 proxy.ts(middleware) rewrite——middleware
+  // 改写携带绝对地址（经 X-Forwarded-Proto 重建为 https），Next router 对带
+  // protocol 的改写会发起真实网络代理跳转（EPROTO → 500，单段路径经反代必炸）。
+  async rewrites() {
+    return {
+      beforeFiles: [],
+      afterFiles: [
+        {
+          source: "/:username([A-Za-z0-9_-]+)",
+          destination: "/u/:username",
+        },
+      ],
+      fallback: [],
+    };
+  },
   serverExternalPackages: [
     "pg",
     "pg-boss",
@@ -37,7 +54,7 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   async headers() {
-    // 安装面安全头唯一出处（src/proxy.ts 原本重复设置的 X-Frame-Options /
+    // 安装面安全头唯一出处（历史上有 proxy.ts 重复设置的 X-Frame-Options /
     // X-Content-Type-Options / Referrer-Policy 已收敛至此；proxy 只保留 rewrite）。
     // "/(.*)" 覆盖页面、/api route handlers 与静态资源，含 matcher 被排除的
     // _next/static、api/auth/oauth、api/mcp 等路径，无死角。

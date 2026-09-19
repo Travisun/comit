@@ -4,7 +4,7 @@ import {
   ensureMcpBootstrapped,
   handleMcpRpc,
   mcpErrorResponse,
-  MCP_SERVER_INFO,
+  mcpServerInfo,
 } from "@/lib/mcp-transport";
 import { mcpTools } from "@/extensions/_boot/server";
 import { AppError } from "@/core/errors";
@@ -23,9 +23,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   await ensureMcpBootstrapped();
+  const siteName = await getSetting("site.name");
+  const info = mcpServerInfo(siteName);
   return Response.json({
-    server: MCP_SERVER_INFO.name,
-    version: MCP_SERVER_INFO.version,
+    server: info.name,
+    version: info.version,
     endpoints: "POST JSON-RPC",
     auth: "Authorization: Bearer mbt_<token>",
     protocol: "MCP (JSON-RPC 2.0), stateless — one message per POST",
@@ -61,7 +63,14 @@ export async function POST(req: Request) {
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const resolved = token ? await resolveApiToken(token) : null;
   if (!resolved) {
-    return mcpErrorResponse(401, null, -32001, "Unauthorized: missing or invalid API token");
+    const siteName = await getSetting("site.name").catch(() => "comit.sh");
+    return mcpErrorResponse(
+      401,
+      null,
+      -32001,
+      "Unauthorized: missing or invalid API token",
+      `${siteName}-mcp`,
+    );
   }
 
   // 限流键 = API token 行 id（稳定、无 PII、不用原始 token 值避免每请求哈希）。

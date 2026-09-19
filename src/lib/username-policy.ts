@@ -3,7 +3,8 @@
  *
  * 被两处共享：
  *  - src/lib/users.ts（注册/改名/查库可用性）
- *  - src/proxy.ts（/{username} → /u/{username} 重写的保留字判断）
+ *  - next.config.ts rewrites（保留字路径为真实页面，afterFiles 天然优先命中，
+ *    保留字判断仅用于注册/改名校验，防止抢注路由形状）
  *
  * ⚠️ 两处必须使用同一份保留字：历史缺陷是 proxy 硬编码了一份独立清单，
  * 与注册校验漂移后出现「sub 可注册但 /sub 被 proxy 保留 → 规范地址永久
