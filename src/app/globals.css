@@ -522,26 +522,34 @@ body {
   border-radius: 0;
 }
 .vditor-host .vditor-toolbar {
-  padding: 4px 16px;
+  /* 单行 + 横向滚动（窄屏不再折行成多行），白底与正文对齐 */
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 3px 8px;
+  line-height: 30px;
+}
+.vditor-host .vditor-toolbar::-webkit-scrollbar {
+  display: none;
+}
+.vditor-host .vditor-toolbar > * {
+  flex-shrink: 0;
+}
+.vditor-host .vditor-toolbar .vditor-toolbar__item .vditor-hint {
+  white-space: normal;
 }
 .vditor-host .vditor-ir .vditor-reset {
   padding: 8px 32px 64px;
 }
 
-/* narrow surfaces (composer sheet on phones) — one scrollable toolbar row */
+/* narrow surfaces (composer sheet on phones) — single scrollable row is now
+   the global toolbar behavior; keep only the tighter padding here */
 @media (max-width: 640px) {
   .vditor-host .vditor-toolbar {
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    scrollbar-width: none;
-    padding: 4px 8px;
-  }
-  .vditor-host .vditor-toolbar::-webkit-scrollbar {
-    display: none;
-  }
-  .vditor-host .vditor-toolbar > * {
-    flex-shrink: 0;
+    padding: 3px 6px;
   }
   .vditor-host .vditor-ir .vditor-reset {
     padding: 8px 16px 64px;

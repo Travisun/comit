@@ -344,25 +344,26 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
           </div>
         </div>
 
-        {/* fullscreen editor surface: centered writing column */}
+        {/* fullscreen editor surface: unified card = title strip on top of the
+            vditor toolbar/content, compact paddings throughout */}
         <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-4xl px-6 pt-6 md:px-10">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("editor.titlePlaceholder")}
-              maxLength={200}
-              className="reading-serif w-full bg-transparent text-3xl font-semibold text-foreground outline-none placeholder:text-muted-foreground"
-            />
-          </div>
-          <div className="mx-auto w-full max-w-4xl md:px-4">
-            <VditorEditor
-              value={content}
-              onChange={setContent}
-              onSave={() => saveDraftRef.current()}
-              placeholder={t("editor.bodyPlaceholder")}
-              className="min-h-[calc(100dvh-12rem)]"
-            />
+          <div className="mx-auto w-full max-w-4xl px-3 pt-3 md:px-6 md:pt-4">
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
+              <input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder={t("editor.titlePlaceholder")}
+                maxLength={200}
+                className="w-full bg-transparent px-6 pb-3 pt-5 text-2xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50 md:px-7 md:text-3xl"
+              />
+              <VditorEditor
+                value={content}
+                onChange={setContent}
+                onSave={() => saveDraftRef.current()}
+                placeholder={t("editor.bodyPlaceholder")}
+                className="min-h-[calc(100dvh-12rem)]"
+              />
+            </div>
           </div>
         </div>
       </div>

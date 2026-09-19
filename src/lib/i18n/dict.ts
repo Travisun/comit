@@ -112,7 +112,7 @@ export const zh = {
   "auth.oauth.cf": "使用 Cloudflare Access 登录",
 
   "editor.title": "标题",
-  "editor.titlePlaceholder": "标题（选填）",
+  "editor.titlePlaceholder": "请输入标题…",
   "editor.bodyPlaceholder": "正文支持 Markdown、LaTeX 公式（$E=mc^2$）、Mermaid 图表、GFM 表格……",
   "editor.preview": "预览",
   "editor.edit": "编辑",
@@ -557,7 +557,7 @@ export const en: Record<DictKey, string> = {
   "auth.oauth.cf": "Continue with Cloudflare Access",
 
   "editor.title": "Title",
-  "editor.titlePlaceholder": "Title (optional)",
+  "editor.titlePlaceholder": "Enter a title…",
   "editor.bodyPlaceholder":
     "Markdown, LaTeX ($E=mc^2$), Mermaid diagrams, GFM tables are all supported…",
   "editor.preview": "Preview",

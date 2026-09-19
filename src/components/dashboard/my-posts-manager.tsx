@@ -20,6 +20,7 @@ import { subscribeNoop, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 
 /**
  * "我的文章" — rich-list management for the signed-in author: every item shows
@@ -30,6 +31,7 @@ import { queryKeys } from "@/lib/query/keys";
 
 interface MyPost {
   id: string;
+  publicId: string;
   type: "article" | "short";
   title: string | null;
   summary: string;
@@ -268,7 +270,7 @@ export function MyPostsManager() {
               {/* whole item links to the detail page (works for shorts and
                   articles alike; articles redirect to their canonical slug) */}
               <Link
-                href={`/p/${post.id}`}
+                href={routes.post(post.publicId)}
                 className="flex min-w-0 flex-1 items-center gap-3"
                 title="查看详情"
               >
