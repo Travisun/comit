@@ -35,21 +35,20 @@ export async function POST(req: Request) {
     };
     const post = await getInteractablePost(postId, me, { allowExisting: existingRepost });
 
-    const removed = await db
-      .delete(reposts)
+    // 转发不可撤销（产品语义）：已存在直接幂等返回，不再支持 delete 取消
+    const [existing] = await db
+      .select({ id: reposts.id })
+      .from(reposts)
       .where(and(eq(reposts.userId, me), eq(reposts.postId, postId)))
-      .returning({ id: reposts.id });
+      .limit(1);
 
-    let reposted: boolean;
-    if (removed.length > 0) {
-      reposted = false;
-    } else {
+    const isNew = !existing;
+    if (isNew) {
       // insert now, or it already exists from a concurrent repost — either way: reposted
       await db
         .insert(reposts)
         .values({ userId: me, postId, comment: comment ?? null })
         .onConflictDoNothing();
-      reposted = true;
     }
 
     // 单条原子 SQL：UPDATE … SET repost_count = (SELECT COUNT(*) …)，
@@ -63,7 +62,7 @@ export async function POST(req: Request) {
       .returning({ repostCount: posts.repostCount });
     const n = row?.repostCount ?? 0;
 
-    if (reposted) {
+    if (isNew) {
       void emit("post:reposted", {
         postId,
         actorId: me,
@@ -71,6 +70,6 @@ export async function POST(req: Request) {
       });
     }
 
-    return ok({ reposted, count: n });
+    return ok({ reposted: true, count: n });
   });
 }

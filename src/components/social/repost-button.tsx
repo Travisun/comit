@@ -62,15 +62,17 @@ export function RepostButton({
 
   const quoteText = comment.trim();
 
-  /** 取消转发 — 仅移除转发记录（计数 -1），已发布的引用动态与评论保留 */
-  async function cancelRepost() {
-    try {
-      const r = await postJson<{ reposted: boolean; count: number }>("/api/reposts", { postId });
-      setReposted(r.reposted);
-      setCount(r.count);
-    } catch {
-      appToast.error(t("common.error"));
+  function onClick() {
+    if (!signedIn) {
+      openLoginDialog();
+      return;
     }
+    if (reposted) {
+      // 转发不可撤销：再次点击仅提示（引用动态已发布，无法收回）
+      appToast.info(t("post.forwardIrreversible"));
+      return;
+    }
+    setOpen(true);
   }
 
   /** 转发三步：引用动态 → 原文评论 → 转发记录（计数） */
@@ -104,19 +106,6 @@ export function RepostButton({
       appToast.error(err instanceof ApiError ? err.message : t("common.error"));
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  function onClick() {
-    if (!signedIn) {
-      openLoginDialog();
-      return;
-    }
-    if (reposted) {
-      // 已转发 → 点击直接取消转发
-      void cancelRepost();
-    } else {
-      setOpen(true);
     }
   }
 
