@@ -78,7 +78,7 @@ export async function verifyTotpCode(
   const [row] = await db.select().from(totpSecrets).where(eq(totpSecrets.userId, userId)).limit(1);
   if (!row) return { ok: false };
   const t = new TOTP({ ...otpOptions(), secret: row.secret });
-  const result = await t.verify(token.trim(), { epochTolerance: 30 });
+  const result = await t.verify(token.trim(), { epochTolerance: 60 });
   if (!result.valid) return { ok: false };
   // 防重放（anti-replay）：timeStep 即命中的 30s 窗口（epochTolerance ±30s ⇒
   // 实际命中 ±1 窗口，取 otplib 返回的实际命中 step）。step <= lastUsedStep ⇒

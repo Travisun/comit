@@ -136,15 +136,21 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
 
   const busy = uploading || finishMutation.pending;
 
+  // 跳过 = 持久化完成标记：否则中途离开后下次登录向导会再次出现
+  function skipStep() {
+    void finishMutation.mutate(undefined).catch(() => undefined);
+    setStep((s) => Math.min(s + 1, STEPS.length - 1));
+  }
+
   return (
     <div className="w-full">
       {/* 步骤条 */}
-      <div className="mb-6">
+      <div className="mb-6 text-center">
         <p className="font-mono text-xs uppercase tracking-widest text-muted-foreground/70">
           welcome · {initial.username}
         </p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight">欢迎加入 comit.sh</h1>
-        <div className="mt-4 flex items-center gap-1.5">
+        <h1 className="mt-2 text-2xl font-bold tracking-tight">欢迎加入我们的社区</h1>
+        <div className="mt-4 flex items-center justify-center gap-1.5">
           {STEPS.map((s, i) => (
             <div key={s.id} className="flex flex-1 items-center gap-1.5">
               <span
@@ -338,7 +344,7 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
           )}
           {step < STEPS.length - 1 ? (
             <div className="flex gap-2">
-              <Button variant="ghost" onClick={() => setStep((s) => s + 1)} disabled={busy}>
+              <Button variant="ghost" onClick={skipStep} disabled={busy}>
                 跳过
               </Button>
               <Button onClick={() => void next()} disabled={busy || (step === 0 && !displayName.trim())}>

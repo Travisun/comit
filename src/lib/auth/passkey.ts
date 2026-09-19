@@ -22,8 +22,11 @@ export async function rpFromRequest(req: Request): Promise<PasskeyRp> {
     .split(",")[0]
     .trim();
   const proto = (h.get("x-forwarded-proto") ?? "http").split(",")[0].trim();
+  // rpID 必须是全站统一的可注册域名（剥 www.）：凭据按 rpID 绑定 —— 若按
+  // 请求 host 取，www.comit.sh 与 comit.sh 会产生两套互不可见的凭据
+  const canonical = new URL(config.app.url).hostname.replace(/^www\./, "");
   return {
-    rpID: host.split(":")[0],
+    rpID: canonical,
     rpName: await getSetting("site.name"),
     origin: `${proto}://${host}`,
   };
