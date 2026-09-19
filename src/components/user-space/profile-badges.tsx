@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { BadgeChip } from "@/extensions/badges/badge-ui";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { putJsonSafe } from "@/lib/client/api";
 
 export interface ProfileBadge {
@@ -41,7 +41,7 @@ export function ProfileBadges({ initial, isSelf }: { initial: ProfileBadge[]; is
   }
 
   return (
-    <section className="mt-4">
+    <section className="mt-4 px-4">
       <h2 className="text-sm font-semibold text-foreground">
         徽章 · 荣誉墙{" "}
         <span className="text-xs font-normal text-muted-foreground">

@@ -15,6 +15,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/primitives";
 import { Toaster } from "@/components/ui/toaster";
 import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
+import { TopProgressBar } from "@/components/shell/top-progress-bar";
 
 /**
  * 全站 metadata 动态生成：站点名/描述/关键词/OG 图/robots 全部来自 admin
@@ -85,6 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
     >
       <body className="min-h-dvh flex flex-col">
+        <TopProgressBar />
         {process.env.NODE_ENV !== "production" && (
           <script
             dangerouslySetInnerHTML={{

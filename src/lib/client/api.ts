@@ -1,6 +1,7 @@
 "use client";
 
 import { routes } from "@/core/routes";
+import { startProgress, endProgress } from "./progress";
 
 /**
  * 全局客户端 fetch 层 — 所有浏览器端数据访问的唯一入口。
@@ -104,6 +105,7 @@ function withTimeout(init?: RequestInit): RequestInit {
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
+  startProgress();
   let res: Response;
   try {
     res = await fetch(url, withTimeout(init));
@@ -111,20 +113,25 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
     // abort/超时归一为 ApiError(0)：调用方与 Query 的错误处理只需面对
     // 一种错误类型（status 0 = 网络层失败，不参与 4xx 重试豁免逻辑）
     if (err instanceof Error && (err.name === "AbortError" || err.name === "TimeoutError")) {
+      endProgress();
       throw new ApiError(0, { error: "请求超时或被中断，请重试" });
     }
+    endProgress();
     throw err;
   }
   const body = await parseBody(res);
   if (!res.ok) {
+    endProgress();
     redirectIfSessionExpired(res.status, url);
     throw new ApiError(res.status, (body ?? {}) as ApiErrorBody);
   }
   if (body === null && res.status !== 204) {
     // 200 但响应体不是 JSON（网关异常页 / 代理劫持）：null 强转后下游解引用
     // 只会得到无上下文的 TypeError，这里归一为带状态码的 ApiError
+    endProgress();
     throw new ApiError(res.status, { error: "响应不是有效 JSON / Malformed JSON response" });
   }
+  endProgress();
   return body as T;
 }
 
@@ -137,6 +144,8 @@ export function apiGet<T>(url: string): Promise<T> {
 }
 
 const JSON_HEADERS = { "Content-Type": "application/json" };
+
+
 
 export function postJson<T>(url: string, body: unknown): Promise<T> {
   return request<T>(url, { method: "POST", headers: JSON_HEADERS, body: JSON.stringify(body) });

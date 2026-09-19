@@ -513,6 +513,19 @@ body {
   color: var(--muted-foreground);
 }
 
+/* 顶部请求进度条：短滑块循环滑动（请求开始出现，全部完成后淡出） */
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+  100% {
+    transform: translateX(420%);
+  }
+}
+.progress-slide {
+  animation: progress-slide 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
 /* fullscreen editor — strip Vditor chrome (borderless, full-bleed).
    .vditor-host IS the .vditor root (vditor upgrades the host element). */
 .vditor-host.vditor,
