@@ -552,6 +552,27 @@ body {
   align-items: center;
   justify-content: center;
 }
+/* 工具栏横向滚动容器会裁切 CSS 提示气泡（vditor-tooltipped::after）——
+   改为 attach 时把 aria-label 复制成原生 title 提示，永不被裁切 */
+.vditor-host .vditor-tooltipped::after,
+.vditor-host .vditor-tooltipped::before {
+  display: none !important;
+}
+/* 字数标记：Y 居中并钉在工具栏右缘 */
+.vditor-host .vditor-toolbar .vditor-counter {
+  float: none;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 0 auto;
+}
+/* 工具栏是横向滚动容器（overflow-x:auto 会裁切绝对定位的下拉面板）。
+   vditor 以视口 rect + html.scrollTop 计算面板位置 —— 本布局 html 不滚动，
+   scrollTop 恒为 0，等价于 fixed 定位，可逃出滚动裁切且位置不偏 */
+.vditor-host .vditor-toolbar .vditor-panel {
+  position: fixed;
+  z-index: 60;
+}
 /* 工具栏与正文之间的插槽（标题等），随编辑器全宽 */
 .vditor-after-toolbar-slot {
   background: var(--card);

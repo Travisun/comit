@@ -236,6 +236,14 @@ export function VditorEditor({
     host.addEventListener("keydown", onKey, true);
     host.addEventListener("blur", onBlur, true);
     createSlotAfterToolbar();
+    // 工具栏横向滚动会裁切 CSS 提示气泡 —— 用原生 title 提示替代
+    host
+      .querySelectorAll(".vditor-toolbar [aria-label]")
+      .forEach((el) => {
+        if (!el.getAttribute("title")) {
+          el.setAttribute("title", el.getAttribute("aria-label") ?? "");
+        }
+      });
   };
   const onKey = (e: KeyboardEvent) => {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
