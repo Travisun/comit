@@ -79,6 +79,10 @@ export const SETTINGS_DEFAULTS = {
       "你是社区内容审核助手。请判断以下内容是否适合发布到技术与设计博客平台。" +
       "考虑：违法违规、色情低俗、仇恨歧视、暴恐、隐私侵犯、垃圾营销。" +
       "只返回 JSON：{\"approved\": true/false, \"score\": 0-100, \"reason\": \"简短中文理由\"}",
+    /** RLCD 数据格式：对接 Qwen-2.5-RLCD 审核服务（json_schema 约束请求 +
+     *  {violation,category,severity,confidence,reason} 解析 + 置信度分级处置）。
+     *  开启后提示词由内置 RLCD_SYSTEM_PROMPT 接管（上方 prompt 不生效）。 */
+    rlcd: false as boolean,
   },
   "notify.emailEnabled": true,
   /**

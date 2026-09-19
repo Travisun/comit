@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Eye, FileText, Heart, MessageCircle, PenLine, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
+import { Eye, Heart, MessageCircle, PenLine, RotateCcw, Trash2, Search, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,33 +268,19 @@ export function MyPostsManager() {
               className="group flex items-center gap-3 px-3 py-2 transition-colors hover:bg-[var(--hover)]"
             >
               {/* whole item links to the detail page (works for shorts and
-                  articles alike; articles redirect to their canonical slug) */}
+                  articles alike) — 简洁排版：标题 + 摘要 + meta，无缩略图 */}
               <Link
                 href={routes.post(post.publicId)}
-                className="flex min-w-0 flex-1 items-center gap-3"
+                className="flex min-w-0 flex-1 flex-col gap-0.5"
                 title="查看详情"
               >
-              {/* thumbnail: cover / first image / doc placeholder */}
-              <div className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-[var(--muted)] text-muted-foreground">
-                {post.thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={post.thumb} alt="" className="size-full object-cover" loading="lazy" />
-                ) : (
-                  <FileText className="size-4" aria-hidden />
-                )}
-              </div>
-
-              {/* main: two tight lines */}
-              <div className="min-w-0 flex-1">
-                <p className="reading-serif truncate text-sm font-medium text-foreground group-hover:underline">
-                  {post.type === "article"
-                    ? post.title || "(无标题)"
-                    : postExcerpt(post)}
+                <p className="truncate text-sm font-medium text-foreground group-hover:underline">
+                  {post.type === "article" ? post.title || "(无标题)" : postExcerpt(post)}
                 </p>
-                {post.type === "article" && (
-                  <p className="reading-serif truncate text-xs text-muted-foreground">{postExcerpt(post)}</p>
+                {post.type === "article" && post.summary && (
+                  <p className="truncate text-xs text-muted-foreground">{post.summary || postExcerpt(post)}</p>
                 )}
-                <div className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-muted-foreground">
                   <span className="inline-flex shrink-0 items-center gap-1.5">
                     <span
                       className="size-1.5 rounded-full"
@@ -315,7 +301,6 @@ export function MyPostsManager() {
                     <span className="inline-flex items-center gap-0.5"><MessageCircle className="size-3" />{post.commentCount}</span>
                   </span>
                 </div>
-              </div>
               </Link>
 
               {/* actions — hover reveal on desktop, always visible on touch */}

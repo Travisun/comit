@@ -18,6 +18,8 @@ const llmSchema = z.object({
   model: z.string().max(120).optional().default(""),
   temperature: z.number().min(0).max(2),
   prompt: z.string().trim().min(1, "提示词必填 / Prompt required").max(4000),
+  /** RLCD 数据格式（Qwen-RLCD 审核服务对接） */
+  rlcd: z.boolean().optional().default(false),
 });
 
 const bodySchema = z.object({
@@ -44,6 +46,8 @@ export async function POST(req: Request) {
         model: body.llm.model,
         temperature: body.llm.temperature,
         prompt: body.llm.prompt,
+        // RLCD 数据格式开关（开启后使用内置 RLCD 提示词与 json_schema 约束）
+        rlcd: body.llm.rlcd,
         // 旧版单提供商字段原样保留（兼容回退，不再由本端点维护）
         baseURL: prev.baseURL ?? "https://api.openai.com/v1",
         apiKey: prev.apiKey ?? "",

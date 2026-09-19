@@ -118,6 +118,9 @@ export interface LlmCompleteOptions {
   timeoutMs?: number;
   /** true ⇒ 强制 JSON 响应（openai: response_format；anthropic: system 追加约束 + 客户端提取） */
   json?: boolean;
+  /** json_schema 约束输出（openai 协议；优先级高于 json，RLCD 审核服务要求） */
+  responseFormat?: "json_object" | "json_schema";
+  jsonSchema?: { name: string; schema: Record<string, unknown> };
   /** 思考档位；缺省读提供商配置 thinking */
   thinking?: LlmThinkingLevel;
   tools?: LlmTool[];
@@ -171,7 +174,12 @@ export function buildOpenAiRequest(
     body[model.startsWith("o") || model.startsWith("gpt-5") ? "max_completion_tokens" : "max_tokens"] =
       opts.maxTokens;
   }
-  if (opts.json) body.response_format = { type: "json_object" };
+  if (opts.responseFormat === "json_schema" && opts.jsonSchema) {
+    body.response_format = {
+      type: "json_schema",
+      json_schema: { name: opts.jsonSchema.name, strict: true, schema: opts.jsonSchema.schema },
+    };
+  } else if (opts.json) body.response_format = { type: "json_object" };
   if (opts.tools?.length) {
     body.tools = opts.tools.map((t) => ({
       type: "function",
@@ -556,7 +564,9 @@ export async function llmChat(opts: LlmChatOptions): Promise<string> {
     temperature: opts.temperature,
     maxTokens: opts.maxTokens,
     timeoutMs: opts.timeoutMs,
-    json: opts.json ?? true,
+    json: opts.responseFormat ? undefined : (opts.json ?? true),
+    responseFormat: opts.responseFormat,
+    jsonSchema: opts.jsonSchema,
   });
   return result.text;
 }

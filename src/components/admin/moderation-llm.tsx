@@ -21,6 +21,7 @@ interface LlmConfig {
   model: string;
   temperature: number;
   prompt: string;
+  rlcd: boolean;
 }
 
 /* -------------------------------- schema --------------------------------- */
@@ -33,6 +34,7 @@ const llmEntrySchema = z.object({
   model: z.string().optional(),
   temperature: z.number().optional(),
   prompt: z.string().optional(),
+  rlcd: z.boolean().optional(),
   hasKey: z.boolean().optional(),
 });
 
@@ -163,6 +165,7 @@ function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
     model: cfg?.model ?? "",
     temperature: cfg?.temperature ?? 0,
     prompt: cfg?.prompt ?? "",
+    rlcd: Boolean(cfg?.rlcd),
   }));
 
   // 可选模型 = 平台默认 + 各启用提供商的模型目录（与站点设置 AI 模型同源）
@@ -286,8 +289,26 @@ function LlmConfigForm({ seed }: { seed: AdminSettingsEntries }) {
                 onChange={(e) => setLlm({ ...llm, temperature: Number(e.target.value) })}
               />
             </Field>
+            <div className="flex items-center justify-between gap-4 sm:col-span-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium">RLCD 数据格式</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                  对接 Qwen-RLCD 审核服务（OpenAI 协议）：发送 json_schema
+                  约束请求，按 violation / category / severity / confidence /
+                  reason 解析，并按置信度分级处置——违规且置信 ≥0.85 自动拒绝，
+                  否则转人工复核；正常内容置信 ≥0.6 自动通过。开启后由内置
+                  RLCD 审核提示词接管（Temperature 固定 0），需先在「站点设置
+                  → AI 模型」配置该服务的提供商与模型。
+                </p>
+              </div>
+              <Switch
+                checked={llm.rlcd}
+                onCheckedChange={(v) => setLlm((prev) => ({ ...prev, rlcd: v }))}
+                aria-label="RLCD 数据格式"
+              />
+            </div>
             <div className="sm:col-span-2">
-              <Field label="审核提示词" hint="模型需返回 JSON：{approved, score, reason}">
+              <Field label="审核提示词" hint={llm.rlcd ? "RLCD 模式下由内置审核提示词接管，此处不生效" : "模型需返回 JSON：{approved, score, reason}"}>
                 <Textarea
                   rows={4}
                   value={llm.prompt}

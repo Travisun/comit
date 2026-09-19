@@ -216,7 +216,7 @@ export async function PostView({
             <Eye className="size-[18px]" />
             <span className="num tabular-nums">{post.views}</span>
           </span>
-          <BookmarkButton postId={post.id} initialBookmarked={interactions.bookmarked} />
+          <BookmarkButton postId={post.id} initialBookmarked={interactions.bookmarked} withLabel />
           {viewer && <ReportDialog targetType="post" targetId={post.id} />}
         </div>
 
