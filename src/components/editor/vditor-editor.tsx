@@ -23,8 +23,9 @@ export interface VditorEditorProps {
   onSave?: () => void;
   placeholder?: string;
   className?: string;
-  /** "slim" trims the toolbar for compact surfaces (e.g. the composer sheet). */
-  toolbar?: "full" | "slim";
+  /** "slim" trims the toolbar for compact surfaces (e.g. the composer sheet);
+   *  "none" 隐藏工具栏（沉浸写作模式）。 */
+  toolbar?: "full" | "slim" | "none";
   /**
    * Explicit height for the editor surface, e.g. "100%" to fill a flex pane
    * (forwarded to Vditor's own `height` option; default "auto").
@@ -33,6 +34,7 @@ export interface VditorEditorProps {
 }
 
 const TOOLBARS = {
+  none: [],
   full: [
     "headings",
     "bold",
@@ -210,5 +212,14 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
     valueRef.current = value;
   }, [value]);
 
-  return <div ref={hostRef} className={cn("vditor-host min-h-0", className)} />;
+  return (
+    <div
+      ref={hostRef}
+      className={cn(
+        "vditor-host min-h-0",
+        toolbar === "none" && "vditor-toolbar-none",
+        className,
+      )}
+    />
+  );
 }

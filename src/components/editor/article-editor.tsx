@@ -344,26 +344,25 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
           </div>
         </div>
 
-        {/* fullscreen editor surface: unified card = title strip on top of the
-            vditor toolbar/content, compact paddings throughout */}
+        {/* immersive writing surface: no toolbar / card / dividers — just the
+            title and the body on a clean page, edges aligned with the text */}
         <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-4xl px-3 pt-3 md:px-6 md:pt-4">
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[var(--shadow-card)]">
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={t("editor.titlePlaceholder")}
-                maxLength={200}
-                className="w-full bg-transparent px-6 pb-3 pt-5 text-2xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/50 md:px-7 md:text-3xl"
-              />
-              <VditorEditor
-                value={content}
-                onChange={setContent}
-                onSave={() => saveDraftRef.current()}
-                placeholder={t("editor.bodyPlaceholder")}
-                className="min-h-[calc(100dvh-12rem)]"
-              />
-            </div>
+          <div className="mx-auto w-full max-w-4xl px-6 md:px-8">
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={t("editor.titlePlaceholder")}
+              maxLength={200}
+              className="w-full bg-transparent pb-4 pt-6 text-3xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/40"
+            />
+            <VditorEditor
+              value={content}
+              onChange={setContent}
+              onSave={() => saveDraftRef.current()}
+              placeholder={t("editor.bodyPlaceholder")}
+              toolbar="none"
+              className="min-h-[calc(100dvh-12rem)]"
+            />
           </div>
         </div>
       </div>

@@ -521,6 +521,10 @@ body {
   box-shadow: none !important;
   border-radius: 0;
 }
+/* 沉浸写作模式：不渲染工具栏（toolbar="none"） */
+.vditor-host.vditor-toolbar-none .vditor-toolbar {
+  display: none !important;
+}
 .vditor-host .vditor-toolbar {
   /* 单行 + 横向滚动（窄屏不再折行成多行），白底与正文对齐 */
   display: flex;
