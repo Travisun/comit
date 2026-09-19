@@ -32,6 +32,11 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+
+# 隔离 dist 目录（并行 dev 调试实例）
+.next-diag/
+.next-test/
+
 !.env.example
 !.env.server.example
 

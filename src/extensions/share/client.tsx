@@ -32,7 +32,7 @@ function ShareAction(ctx: { postId: string; postType: "article" | "short"; publi
     <button
       type="button"
       onClick={() => void copyLink(ctx)}
-      className="inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm text-muted-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground"
+      className="inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm text-muted-foreground transition-colors hover:bg-hover hover:text-foreground"
       title="复制链接"
     >
       <Link2 className="size-4 shrink-0" />

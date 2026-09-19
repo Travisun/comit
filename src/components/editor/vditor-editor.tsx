@@ -193,21 +193,23 @@ export function VditorEditor({
 
     return () => {
       detach();
-      // StrictMode 卸载会摘掉插槽但实例保留 —— after()/重挂时会重建
+      // StrictMode 卸载会摘掉插槽但实例保留 —— 重挂 attach 会幂等重建
       afterToolbarSlotRef.current?.remove();
       afterToolbarSlotRef.current = null;
       setAfterToolbarSlot(null);
       // Vditor 完成异步初始化（lute wasm）之前调用 destroy 会在内部引用
-      // 尚未挂载的 DOM 而抛错 — 未就绪时直接丢弃实例即可
+      // 尚未挂载的 DOM 而抛错 — 未就绪时保留实例不 destroy、不清空
+      // vditorRef（清空会让重挂再建第二个实例，构造时清空宿主 DOM，
+      // 首实例的插槽被插进游离树 → 标题不可见），重挂路径 attach 恢复
       if (readyRef.current) {
         try {
           vd.destroy();
         } catch {
           // teardown race (unmount during init) — nothing left to clean
         }
+        vditorRef.current = null;
+        readyRef.current = false;
       }
-      vditorRef.current = null;
-      readyRef.current = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once
   }, []);

@@ -101,7 +101,7 @@ export function InvitesPanel({ data, appUrl }: { data: InvitesData; appUrl: stri
             {codes.map((c) => {
               const isUsed = Boolean(c.usedAt);
               return (
-                <li key={c.code} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)]">
+                <li key={c.code} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3 transition-colors hover:bg-hover">
                   <div className="min-w-0">
                     <p className="flex items-center gap-2 font-mono text-sm font-medium tracking-wide">
                       {c.code}

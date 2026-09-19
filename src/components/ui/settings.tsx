@@ -121,7 +121,7 @@ function SettingRow({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-lg px-3 -mx-2 py-3.5 transition-colors first:pt-0 hover:bg-[var(--hover,#f7f8f8)] sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-2 rounded-lg px-3 -mx-2 py-3.5 transition-colors first:pt-0 hover:bg-hover sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
@@ -322,7 +322,7 @@ function RadioOption({
   return (
     <label
       className={cn(
-        "flex cursor-pointer items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] first:pt-0",
+        "flex cursor-pointer items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors hover:bg-hover first:pt-0",
         className,
       )}
     >
@@ -371,7 +371,7 @@ function CheckOption({
   return (
     <label
       className={cn(
-        "flex items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors first:pt-0 hover:bg-[var(--hover,#f7f8f8)]",
+        "flex items-start gap-3 rounded-lg px-3 -mx-3 py-3.5 transition-colors first:pt-0 hover:bg-hover",
         disabled ? "cursor-default" : "cursor-pointer",
         className,
       )}

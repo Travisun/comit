@@ -10,6 +10,8 @@ runInstanceGuard({ log: (msg) => console.log(msg) });
 const nextConfig: NextConfig = {
   // 不对外泄露框架指纹（X-Powered-By: Next.js）
   poweredByHeader: false,
+  // 允许并行实例隔离构建目录（本地多实例调试用；生产不设置走 .next）
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // 用户名主页：/{username} ⇒ /u/{username}。用 afterFiles 级 rewrites（文件
   // 路由优先，/settings /hot 等真实页面先命中，故无需排除保留字表）；多段
   // 路径与含点路径天然不匹配。此前用 proxy.ts(middleware) rewrite——middleware

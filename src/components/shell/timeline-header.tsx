@@ -69,7 +69,7 @@ export function TimelineHeader({
                 ? router.back()
                 : router.push(routes.home)
             }
-            className="grid size-9 shrink-0 place-items-center rounded-full transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+            className="grid size-9 shrink-0 place-items-center rounded-full transition-colors hover:bg-hover"
           >
             <ArrowLeft className="size-[18px]" />
           </button>
@@ -114,7 +114,7 @@ export function UnderlineTabs({
           "relative grid place-items-center px-4 transition-colors",
           tab.disabled
             ? "cursor-not-allowed text-muted-foreground"
-            : "text-muted-foreground hover:bg-[var(--hover,#f7f8f8)] hover:text-foreground",
+            : "text-muted-foreground hover:bg-hover hover:text-foreground",
           tab.active && "text-foreground",
         );
         return tab.href && !tab.disabled ? (

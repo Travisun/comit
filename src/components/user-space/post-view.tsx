@@ -181,7 +181,7 @@ export async function PostView({
               <Link
                 key={t.slug}
                 href={routes.topic(t.slug)}
-                className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-[var(--hover,#f7f8f8)] hover:text-primary"
+                className="inline-flex items-center rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-hover hover:text-primary"
               >
                 # {t.name}
               </Link>

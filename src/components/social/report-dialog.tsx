@@ -92,7 +92,7 @@ export function ReportDialog({
                 "flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-sm transition-colors",
                 preset === r
                   ? "border-primary/50 bg-[var(--muted)] text-foreground"
-                  : "border-border text-muted-foreground hover:bg-[var(--hover,#f7f8f8)]",
+                  : "border-border text-muted-foreground hover:bg-hover",
               )}
             >
               <input

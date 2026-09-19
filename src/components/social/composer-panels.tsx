@@ -187,7 +187,7 @@ export function TopicPopover({
               key={t.slug}
               type="button"
               onClick={() => onPick(t.name)}
-              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors hover:bg-hover"
             >
               <span className="truncate font-medium"># {t.name}</span>
               <span className="num shrink-0 text-xs text-muted-foreground">{t.count} 条</span>
@@ -197,7 +197,7 @@ export function TopicPopover({
           <button
             type="button"
             onClick={() => onPick(query)}
-            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-primary transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-primary transition-colors hover:bg-hover"
           >
             <Plus className="size-3.5 shrink-0" aria-hidden />
             <span className="truncate">

@@ -112,7 +112,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={tp.slug}>
                 <Link
                   href={routes.topic(tp.slug)}
-                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -140,7 +140,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={it.post.id}>
                 <Link
                   href={routes.post(it.post.publicId)}
-                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-baseline gap-3 px-2.5 py-2.5 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
                 >
                   <span className="num w-4 shrink-0 text-sm text-muted-foreground">{i + 1}</span>
                   <span className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ export default async function ExplorePage({ searchParams }: Props) {
               <li key={a.username}>
                 <Link
                   href={routes.profile(a.username)}
-                  className="flex rounded-lg items-center gap-3 px-2.5 py-3 transition-colors hover:bg-[var(--hover,#f7f8f8)] focus-visible:bg-[var(--hover,#f7f8f8)] focus-visible:outline-none"
+                  className="flex rounded-lg items-center gap-3 px-2.5 py-3 transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-none"
                 >
                   <Avatar className="size-10">
                     {a.avatarPath && (

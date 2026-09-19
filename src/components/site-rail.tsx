@@ -156,7 +156,7 @@ export function SiteRail({
               <li key={tp.slug}>
                 <Link
                   href={routes.topic(tp.slug)}
-                  className="block px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+                  className="block px-4 py-2.5 transition-colors hover:bg-hover"
                  prefetch={false}>
                   <span className="block truncate text-sm font-medium">#{tp.name}</span>
                   <span className="num block text-xs text-muted-foreground">
@@ -168,7 +168,7 @@ export function SiteRail({
           </ul>
           <Link
             href={routes.explore}
-            className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+            className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-hover"
            prefetch={false}>
             查看全部 →
           </Link>
@@ -184,7 +184,7 @@ export function SiteRail({
               <li key={a.username}>
                 <Link
                   href={routes.profile(a.username)}
-                  className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+                  className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-hover"
                  prefetch={false}>
                   <Avatar className="size-10">
                     {a.avatarPath && (
@@ -207,7 +207,7 @@ export function SiteRail({
           </ul>
           <Link
             href={routes.explore}
-            className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+            className="block px-4 py-3 text-sm text-primary transition-colors hover:bg-hover"
            prefetch={false}>
             查看全部 →
           </Link>

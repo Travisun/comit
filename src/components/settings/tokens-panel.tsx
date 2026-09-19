@@ -299,7 +299,7 @@ export function ApiTokensPanel({
                 key={tk.id}
                 className={cn(
                   "flex flex-wrap items-start justify-between gap-x-6 gap-y-2 px-4 py-3 transition-colors",
-                  revoked ? "opacity-55" : "hover:bg-[var(--hover,#f7f8f8)]",
+                  revoked ? "opacity-55" : "hover:bg-hover",
                 )}
               >
                 <div className="min-w-0 flex-1">

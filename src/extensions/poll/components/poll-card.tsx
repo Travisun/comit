@@ -255,7 +255,7 @@ export function PollCard({ poll: pollPostId }: { poll: string | null }) {
                 "flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
                 pickingThis
                   ? "border-primary/60 bg-primary/5 text-foreground"
-                  : "border-border bg-card hover:border-primary/40 hover:bg-[var(--hover,#f7f8f8)]",
+                  : "border-border bg-card hover:border-primary/40 hover:bg-hover",
               )}
             >
               <span

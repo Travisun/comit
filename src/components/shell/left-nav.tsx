@@ -110,7 +110,7 @@ export function LeftNav({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-hover",
                 active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
@@ -137,7 +137,7 @@ export function LeftNav({
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-[var(--hover,#f7f8f8)]",
+                "flex items-center gap-2.5 rounded-full px-3 py-2 transition-colors hover:bg-hover",
                 active ? "font-semibold text-foreground bg-[var(--selected)]" : "text-foreground/90",
               )}
             >
@@ -164,7 +164,7 @@ export function LeftNav({
         <button
           type="button"
           onClick={openLoginDialog}
-          className="flex items-center justify-center gap-2 rounded-full p-2 text-sm font-semibold transition-colors hover:bg-[var(--hover,#f7f8f8)]"
+          className="flex items-center justify-center gap-2 rounded-full p-2 text-sm font-semibold transition-colors hover:bg-hover"
         >
           <UserIcon className="size-5 lg:hidden" />
           <span className="hidden lg:inline">登录 / 注册</span>

@@ -56,7 +56,7 @@ export function UserMenu({
           type="button"
           aria-label="账号菜单"
           className={cn(
-            "flex w-full items-center gap-2.5 rounded-full transition-colors outline-none hover:bg-[var(--hover,#f7f8f8)] focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+            "flex w-full items-center gap-2.5 rounded-full transition-colors outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
             mobile ? "p-0.5" : "p-1.5",
           )}
         >
