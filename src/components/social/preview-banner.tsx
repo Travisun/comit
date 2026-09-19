@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/primitives";
 import { deleteJson, postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
@@ -56,14 +57,15 @@ export function PreviewBanner({
     },
   );
   const busy = quickMutation.pending;
+  const confirm = useConfirmDialog();
   if (status === "published") return null;
 
   const deleted = status === "deleted";
   const label = STATUS_LABEL[status] ?? status;
 
-  function quick(action: "restore" | "purge") {
+  async function quick(action: "restore" | "purge") {
     if (busy) return;
-    if (action === "purge" && !window.confirm("彻底删除？此操作不可恢复。")) return;
+    if (action === "purge" && !(await confirm({ title: "彻底删除？此操作不可恢复。", confirmLabel: "彻底删除", danger: true }))) return;
     void quickMutation.mutate(action);
   }
 

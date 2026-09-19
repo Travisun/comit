@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /**
  * Notes-style directory tree for the article editor:
@@ -58,6 +59,7 @@ const treePostSchema = z.object({
 });
 
 export function PostTree({ activeId }: { activeId?: string | null }) {
+  const confirm = useConfirmDialog();
   const router = useRouter();
   const collectionsQ = useQuery({
     queryKey: queryKeys.collections(),
@@ -180,8 +182,8 @@ export function PostTree({ activeId }: { activeId?: string | null }) {
     void renameCollectionMut.mutate({ id, name });
   }
 
-  function deleteCollection(id: string) {
-    if (!window.confirm("删除目录？目录内文章将移至「未分类」。")) return;
+  async function deleteCollection(id: string) {
+    if (!(await confirm({ title: "删除目录？", description: "目录内文章将移至「未分类」。", confirmLabel: "删除", danger: true }))) return;
     void deleteCollectionMut.mutate(id);
   }
 

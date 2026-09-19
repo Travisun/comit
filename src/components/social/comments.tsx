@@ -30,6 +30,7 @@ import { patchJsonSafe } from "@/lib/client/api";
 import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
 import { PinnedComposer } from "@/components/social/pinned-composer";
 import { ShortContent } from "@/components/social/short-content";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export type { CommentItem };
 
@@ -277,6 +278,8 @@ export function Comments({
   );
 
   /** 博主管理评论：置顶（单槽）/标记解决方案（可多个）— PATCH 后失效列表回拉 */
+  const confirm = useConfirmDialog();
+
   async function manage(id: string, action: "pin" | "unpin" | "solve" | "unsolve") {
     const r = await patchJsonSafe(`/api/comments`, { id, action });
     if (!r.ok) {
@@ -297,8 +300,8 @@ export function Comments({
 
 
 
-  function remove(id: string) {
-    if (!window.confirm(t("post.deleteConfirm"))) return;
+  async function remove(id: string) {
+    if (!(await confirm({ title: t("post.deleteConfirm"), danger: true }))) return;
     removeMutation.mutate(id);
   }
 

@@ -28,6 +28,7 @@ import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -162,9 +163,11 @@ export default function TemplatesClient() {
     setForm(formFromRow(row));
   }, [rows]);
 
-  function selectRow(row: TemplateRow) {
+  const confirm = useConfirmDialog();
+
+  async function selectRow(row: TemplateRow) {
     if (row.key === selectedKeyRef.current) return;
-    if (dirty && !window.confirm("当前模板有未保存的修改，确定切换吗？")) return;
+    if (dirty && !(await confirm({ title: "当前模板有未保存的修改，确定切换吗？", confirmLabel: "切换" }))) return;
     selectedKeyRef.current = row.key;
     setSelectedKey(row.key);
     setForm(formFromRow(row));
@@ -207,9 +210,9 @@ export default function TemplatesClient() {
     },
   );
 
-  function reset() {
+  async function reset() {
     if (!selected) return;
-    if (!window.confirm(`确定将「${selected.name.zh}」重置为内置模板吗？`)) return;
+    if (!(await confirm({ title: `确定将「${selected.name.zh}」重置为内置模板吗？`, confirmLabel: "重置", danger: true }))) return;
     void resetMutation.mutate(selected.key);
   }
 

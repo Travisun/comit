@@ -14,6 +14,7 @@ import { DataProvider } from "@/lib/query/provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/primitives";
 import { Toaster } from "@/components/ui/toaster";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 
 /**
  * 全站 metadata 动态生成：站点名/描述/关键词/OG 图/robots 全部来自 admin
@@ -105,6 +106,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
               {/* 在 ThemeProvider 内：toast 的亮暗色跟随站点主题 */}
               <Toaster />
+              <ConfirmDialogProvider />
               <LoginDialogHost />
             </ThemeProvider>
           </DataProvider>

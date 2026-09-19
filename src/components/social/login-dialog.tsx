@@ -47,11 +47,13 @@ export function LoginDialog({
   const router = useRouter();
   const pathname = usePathname();
 
-  // 游客浏览默认弹出：每次完整页面加载至多一次；登录/注册等 /auth 页面排除；
-  // 站点没有任何可用登录方式（无 OSS 且密码登录关闭）时不弹
+  // 游客浏览默认弹出：仅首页触发（用户主页/文章等内容页不弹，避免遮挡
+  // 公开内容）；每次完整页面加载至多一次；/auth 页面排除；站点没有任何
+  // 可用登录方式（无 OSS 且密码登录关闭）时不弹
   useEffect(() => {
     if (authenticated) return;
     if (pathname.startsWith("/auth")) return;
+    if (pathname !== routes.home) return;
     if (providers.length === 0 && !passwordAuth) return;
     openDialog();
     // 仅挂载时判定一次 —— 客户端路由切换不重复打扰

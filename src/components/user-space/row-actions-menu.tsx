@@ -43,6 +43,7 @@ import { useRscRefresh } from "@/lib/client/rsc-refresh";
 import { PostRowMenuSlot } from "@/extensions/_boot/client";
 import { REPORT_REASONS } from "@/components/social/report-dialog";
 import type { FeedItemDTO } from "./types";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /**
  * 时间线行右上角「···」快捷菜单（最新/关注流）：
@@ -62,6 +63,7 @@ export function RowActionsMenu({
   href: string;
   mine?: boolean;
 }) {
+  const confirm = useConfirmDialog();
   const router = useRouter();
   const queryClient = useQueryClient();
   const scheduleRefresh = useRscRefresh();
@@ -172,8 +174,8 @@ export function RowActionsMenu({
     },
   );
 
-  function removePost() {
-    if (!window.confirm("将这篇内容移入回收站？可在「我的文章 · 回收站」恢复。")) return;
+  async function removePost() {
+    if (!(await confirm({ title: "将这篇内容移入回收站？", description: "可在「我的文章 · 回收站」恢复。", confirmLabel: "移入回收站", danger: true }))) return;
     void removeMutation.mutate(undefined);
   }
 

@@ -21,6 +21,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { timeAgo } from "@/lib/utils";
 import { apiRequest, copyText } from "./client";
 import type { WebhookView } from "./types";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const EVENT_LABELS: Record<string, string> = {
   "post:published": "文章发布 / Post published",
@@ -39,6 +40,7 @@ export function WebhooksPanel({
   initial: WebhookView[];
   availableEvents: string[];
 }) {
+  const confirm = useConfirmDialog();
   const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
@@ -91,8 +93,8 @@ export function WebhooksPanel({
     invalidate: [queryKeys.webhooks()],
   });
 
-  function remove(hook: WebhookView) {
-    if (!window.confirm(locale === "zh" ? "确定删除该 Webhook？" : "Delete this webhook?")) return;
+  async function remove(hook: WebhookView) {
+    if (!(await confirm({ title: locale === "zh" ? "确定删除该 Webhook？" : "Delete this webhook?", danger: true }))) return;
     void removeMutation.mutate(hook);
   }
 

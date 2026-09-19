@@ -18,6 +18,7 @@ import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
 import { apiRequest } from "./client";
 import { useI18n } from "@/lib/i18n/client";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /**
  * 服务端 /api/me/connections 只返回 provider/enabled/linked —— 展示文案
@@ -44,6 +45,7 @@ const PROVIDER_META: Record<Connection["provider"], { label: string; desc: { zh:
 
 /** 账号绑定 — 把 GitHub / Google 等第三方账号绑定到当前账户，或解除绑定。 */
 export function ConnectionsPanel() {
+  const confirmDialog = useConfirmDialog();
   const { locale } = useI18n();
   const zh = locale === "zh";
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export function ConnectionsPanel() {
 
   async function unbind(provider: string) {
     if (unbindMutation.pending) return;
-    if (!window.confirm(zh ? `确定解除 ${provider} 的绑定？解除后需保留其他登录方式。` : `Unlink ${provider}?`)) return;
+    if (!(await confirmDialog({ title: zh ? `确定解除 ${provider} 的绑定？` : `Unlink ${provider}?`, description: zh ? "解除后需保留其他登录方式。" : undefined, confirmLabel: zh ? "解除绑定" : "Unlink", danger: true }))) return;
     setBusyProvider(provider);
     await unbindMutation.mutate(provider);
   }

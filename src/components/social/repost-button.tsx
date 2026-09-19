@@ -79,8 +79,9 @@ export function RepostButton({
     setSubmitting(true);
     try {
       const url = `${window.location.origin}/post/${publicId}`;
-      const quote =
-        `> ${t("post.forwardFrom")}**《${originalTitle}》**\n> ${url}`;
+      // 超链接形式（与主页动态渲染一致）：转发自《标题》（点击跳原文），
+      // 不再使用引用块 + 裸地址的生硬排版
+      const quote = `${t("post.forwardFrom")} [《${originalTitle}》](${url})`;
       await postJson("/api/posts", {
         type: "short",
         content: `${quoteText}\n\n${quote}`,

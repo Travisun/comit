@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { deleteJsonSafe, patchJsonSafe } from "@/lib/client/api";
+import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /**
  * 评论右上角「···」操作菜单（评论区行内 / 个人主页动态评论行共用）：
@@ -51,6 +52,7 @@ export function CommentMenu({
   onRemove?: (id: string) => void;
   className?: string;
 }) {
+  const confirmDialog = useConfirmDialog();
   const hasManage = Boolean(comment.canManage);
   const hasVisibility = Boolean(comment.mine);
   const hasDelete = Boolean(comment.canDelete);
@@ -68,7 +70,7 @@ export function CommentMenu({
   }
 
   async function remove() {
-    if (!window.confirm("确定删除这条评论？")) return;
+    if (!(await confirmDialog({ title: "确定删除这条评论？", danger: true }))) return;
     const r = await deleteJsonSafe(`/api/comments?id=${encodeURIComponent(comment.id)}`);
     if (!r.ok) {
       toast.error(r.error ?? "删除失败，请稍后再试");
