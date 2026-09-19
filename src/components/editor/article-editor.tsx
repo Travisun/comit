@@ -23,7 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/primitives";
-import { VditorEditor } from "./vditor-editor";
+import { VditorEditor, type VditorEditorHandle } from "./vditor-editor";
 import { ImageUploader } from "./image-uploader";
 import { TopicInput } from "./topic-input";
 import { CollectionSelect } from "./collection-select";
@@ -88,6 +88,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
     sourceName: initial?.sourceName ?? "",
   });
   const [status, setStatus] = useState(initial?.status ?? "draft");
+  const vdRef = useRef<VditorEditorHandle | null>(null);
   const [saving, setSaving] = useState<SaveAction | null>(null);
   const [blocked, setBlocked] = useState<string[] | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
@@ -344,27 +345,33 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
           </div>
         </div>
 
-        {/* immersive writing surface: no toolbar / card / dividers — just the
-            title and the body on a clean page, edges aligned with the text */}
-        <div className="scrollbar-none min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-4xl px-6 md:px-8">
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder={t("editor.titlePlaceholder")}
-              maxLength={200}
-              className="w-full bg-transparent pb-4 pt-6 text-3xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/40"
-            />
-            <VditorEditor
-              value={content}
-              onChange={setContent}
-              onSave={() => saveDraftRef.current()}
-              placeholder={t("editor.bodyPlaceholder")}
-              toolbar="none"
-              className="min-h-[calc(100dvh-12rem)]"
-            />
-          </div>
-        </div>
+        {/* wide-full editor surface: flush under the page header — full-width
+            scrollable slim toolbar, then the title (portal slot), then body */}
+        <VditorEditor
+          ref={vdRef}
+          value={content}
+          onChange={setContent}
+          onSave={() => saveDraftRef.current()}
+          placeholder={t("editor.bodyPlaceholder")}
+          toolbar="slim"
+          height="100%"
+          className="min-h-0 flex-1"
+        >
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => {
+              // 回车从标题跳入正文
+              if (e.key === "Enter") {
+                e.preventDefault();
+                vdRef.current?.focus();
+              }
+            }}
+            placeholder={t("editor.titlePlaceholder")}
+            maxLength={200}
+            className="w-full border-b-0 bg-transparent px-8 pb-2 pt-5 text-2xl font-bold tracking-tight text-foreground outline-none placeholder:text-muted-foreground/40"
+          />
+        </VditorEditor>
       </div>
 
       {/* publish dialog — settings only appear here, on demand */}

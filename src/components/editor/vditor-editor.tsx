@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef, useState, type ReactNode, type Ref } from "react";
+import { createPortal } from "react-dom";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,18 @@ export interface VditorEditorProps {
    * (forwarded to Vditor's own `height` option; default "auto").
    */
   height?: string;
+  /**
+   * 渲染在工具栏与正文之间的内容（如标题输入）—— 通过 portal 插入 vditor
+   * 内部 DOM，跟随编辑器全宽贴合。
+   */
+  children?: ReactNode;
+  /** 编程式控制：聚焦正文 / 向光标处插入 markdown。 */
+  ref?: Ref<VditorEditorHandle>;
+}
+
+export interface VditorEditorHandle {
+  focus: () => void;
+  insertValue: (md: string) => void;
 }
 
 const TOOLBARS = {
@@ -85,8 +98,20 @@ const TOOLBARS = {
   ],
 } as const;
 
-export function VditorEditor({ value, onChange, onSave, placeholder, className, toolbar = "full", height }: VditorEditorProps) {
+export function VditorEditor({
+  value,
+  onChange,
+  onSave,
+  placeholder,
+  className,
+  toolbar = "full",
+  height,
+  children,
+  ref,
+}: VditorEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  // 工具栏下方的插槽容器：children（标题等）经 portal 渲染到这里
+  const [afterToolbarSlot, setAfterToolbarSlot] = useState<HTMLElement | null>(null);
   // Vditor instance lives outside React; keep refs to avoid re-init loops
   const vditorRef = useRef<Vditor | null>(null);
   // vditor's async init (lute wasm) must finish before setValue is safe;
@@ -181,7 +206,15 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
     host.addEventListener("keydown", onKey, true);
     host.addEventListener("blur", onBlur, true);
 
+    // 工具栏正下方插入插槽容器（跟随 .vditor 的 flex 列布局，全宽）
+    const slot = document.createElement("div");
+    slot.className = "vditor-after-toolbar-slot";
+    host.querySelector(".vditor-toolbar")?.insertAdjacentElement("afterend", slot);
+    setAfterToolbarSlot(slot);
+
     return () => {
+      slot.remove();
+      setAfterToolbarSlot(null);
       host.removeEventListener("keydown", onKey, true);
       host.removeEventListener("blur", onBlur, true);
       // Vditor 完成异步初始化（lute wasm）之前调用 destroy 会在内部引用
@@ -198,6 +231,31 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once
   }, []);
+
+  // 编程式句柄：标题回车聚焦正文、工具扩展插入内容
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => {
+        const el = hostRef.current?.querySelector<HTMLElement>(".vditor-reset");
+        if (!el) return;
+        el.focus();
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      },
+      insertValue: (md: string) => {
+        vditorRef.current?.insertValue(md);
+        hostRef.current?.querySelector<HTMLElement>(".vditor-reset")?.focus();
+      },
+    }),
+    [],
+  );
 
   // external value changes (e.g. async draft handoff) sync into the editor
   useEffect(() => {
@@ -220,6 +278,8 @@ export function VditorEditor({ value, onChange, onSave, placeholder, className, 
         toolbar === "none" && "vditor-toolbar-none",
         className,
       )}
-    />
+    >
+      {afterToolbarSlot && children ? createPortal(children, afterToolbarSlot) : null}
+    </div>
   );
 }
