@@ -100,7 +100,15 @@ export const routes = {
   admin: (path = "") => `/admin${path}`,
 
   // assets / data
-  media: (relativePath: string) => buildPath(TPL.media, { path: relativePath }),
+  media: (relativePath: string) =>
+    // 逐段编码、保留斜杠：媒体键（shard/shard/uuid/file.webp）天生含斜杠，
+    // 走 buildPath 会整段 encodeURIComponent 产生 %2F 形态 URL，客户端从
+    // URL 反提路径时将得到编码形态，与服务端存的裸路径精确匹配失败。
+    // catch-all [...path] 路由对两种形态都能正确解析。
+    `/api/media/file/${relativePath
+      .split("/")
+      .map((seg) => encodeURIComponent(seg))
+      .join("/")}`,
   globalRss: "/feed.xml",
   sitemap: "/sitemap.xml",
   export: "/api/export",

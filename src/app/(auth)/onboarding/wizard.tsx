@@ -92,12 +92,13 @@ export function OnboardingWizard({ initial }: { initial: Initial }) {
   async function uploadImage(file: File): Promise<string | null> {
     const fd = new FormData();
     fd.append("file", file);
-    const r = await apiUpload<{ url?: string }>("/api/media/upload", fd);
+    const r = await apiUpload<{ path?: string; url?: string }>("/api/media/upload", fd);
     if (!r.ok) {
       toast.error(r.error ?? "上传失败，请换张图片试试");
       return null;
     }
-    return r.data?.url ? mediaPathFromUrl(r.data.url) : null;
+    // 优先取响应自带的 path（存储键原样）；mediaPathFromUrl 仅作旧响应兜底
+    return r.data?.path ?? (r.data?.url ? mediaPathFromUrl(r.data.url) : null);
   }
 
   async function next() {
