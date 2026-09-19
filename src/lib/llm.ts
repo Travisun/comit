@@ -530,7 +530,23 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmResult> 
         headers: wire.headers,
         json: wire.body,
       });
-      if (!res.ok) throw new Error(`LLM HTTP ${res.status} (model=${model})`);
+      if (!res.ok) {
+        // 诊断增强：按状态码给出可操作的排查指引
+        const hint =
+          res.status === 404
+            ? "接口路径不存在——请检查 baseUrl 是否正确、后端推理服务是否正在运行"
+            : res.status === 401 || res.status === 403
+              ? "认证失败——请检查 API Key 是否正确"
+              : res.status === 429
+                ? "请求频率过高——请稍后重试"
+                : res.status >= 500
+                  ? "推理服务内部错误——请检查服务日志"
+                  : "";
+        const bodyText = await res.text().catch(() => "");
+        throw new Error(
+          `LLM HTTP ${res.status} (model=${model})${hint ? `：${hint}` : ""}${bodyText.slice(0, 200) ? ` | ${bodyText.slice(0, 200)}` : ""}`,
+        );
+      }
       const data: unknown = await res.json();
       const result =
         provider.protocol === "anthropic"
