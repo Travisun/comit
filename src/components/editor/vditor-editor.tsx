@@ -53,28 +53,23 @@ const TOOLBARS = {
     "bold",
     "italic",
     "strike",
-    "|",
     "list",
     "ordered-list",
     "check",
     "outdent",
     "indent",
-    "|",
     "quote",
     "code",
     "inline-code",
     "insert-before",
     "insert-after",
-    "|",
     "upload",
     "link",
     "table",
-    "|",
     "line-theme",
     "edit-mode",
     "both",
     "preview",
-    "|",
     "fullscreen",
     "export",
   ],
@@ -83,15 +78,12 @@ const TOOLBARS = {
     "bold",
     "italic",
     "strike",
-    "|",
     "list",
     "ordered-list",
     "check",
-    "|",
     "quote",
     "code",
     "inline-code",
-    "|",
     "upload",
     "link",
     "table",
@@ -112,6 +104,7 @@ export function VditorEditor({
   const hostRef = useRef<HTMLDivElement>(null);
   // 工具栏下方的插槽容器：children（标题等）经 portal 渲染到这里
   const [afterToolbarSlot, setAfterToolbarSlot] = useState<HTMLElement | null>(null);
+  const afterToolbarSlotRef = useRef<HTMLElement | null>(null);
   // Vditor instance lives outside React; keep refs to avoid re-init loops
   const vditorRef = useRef<Vditor | null>(null);
   // vditor's async init (lute wasm) must finish before setValue is safe;
@@ -180,6 +173,7 @@ export function VditorEditor({
         if (pending !== null && vd.getValue() !== pending) {
           vd.setValue(pending);
         }
+        createSlotAfterToolbar();
       },
       // ⌘S → save draft through the host handler
       ctrlEnter: undefined,
@@ -206,14 +200,23 @@ export function VditorEditor({
     host.addEventListener("keydown", onKey, true);
     host.addEventListener("blur", onBlur, true);
 
-    // 工具栏正下方插入插槽容器（跟随 .vditor 的 flex 列布局，全宽）
-    const slot = document.createElement("div");
-    slot.className = "vditor-after-toolbar-slot";
-    host.querySelector(".vditor-toolbar")?.insertAdjacentElement("afterend", slot);
-    setAfterToolbarSlot(slot);
+    // 工具栏正下方插入插槽容器（跟随 .vditor 的 flex 列布局，全宽）。
+    // 构造后与 wasm 就绪（after）各调一次，幂等 —— 异步初始化完成前
+    // querySelector 可能找不到工具栏元素。
+    const createSlotAfterToolbar = () => {
+      if (afterToolbarSlotRef.current) return;
+      const toolbar = host.querySelector(".vditor-toolbar");
+      if (!toolbar) return;
+      const slot = document.createElement("div");
+      slot.className = "vditor-after-toolbar-slot";
+      toolbar.insertAdjacentElement("afterend", slot);
+      afterToolbarSlotRef.current = slot;
+      setAfterToolbarSlot(slot);
+    };
+    createSlotAfterToolbar();
 
     return () => {
-      slot.remove();
+      afterToolbarSlotRef.current = null;
       setAfterToolbarSlot(null);
       host.removeEventListener("keydown", onKey, true);
       host.removeEventListener("blur", onBlur, true);

@@ -526,15 +526,25 @@ body {
   display: none !important;
 }
 .vditor-host .vditor-toolbar {
-  /* 单行 + 横向滚动，白底全宽贴合 header（无分割线） */
+  /* 单行 + 横向滚动，白底全宽贴合 header（无分隔线），图标 Y 居中且尺寸一致 */
   display: flex;
   flex-wrap: nowrap;
+  align-items: center;
   overflow-x: auto;
   scrollbar-width: none;
   background: var(--card);
   border-bottom: none;
-  padding: 3px 8px;
-  line-height: 30px;
+  padding: 2px 8px;
+  height: 36px;
+}
+.vditor-host .vditor-toolbar .vditor-toolbar__item svg {
+  width: 14px;
+  height: 14px;
+}
+.vditor-host .vditor-toolbar .vditor-toolbar__item button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 /* 工具栏与正文之间的插槽（标题等），随编辑器全宽 */
 .vditor-after-toolbar-slot {
