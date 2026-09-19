@@ -28,6 +28,10 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000
 # corepack —— 后者首跑时才下载 pnpm，容器启动会依赖外网且偶发抖动。
 RUN npm install -g pnpm@12.3.4
 RUN addgroup -S app && adduser -S app -G app
+# 存储目录预建并归属 app 用户（uid 100）：媒体落在 /app/storage/media、导出在
+# /app/storage/exports。named volume 首次挂载空卷时会继承镜像内目录的属主，
+# 不预建则 Docker 以 root 建挂载点 → 运行期 mkdir 报 EACCES，所有上传 400。
+RUN mkdir -p /app/storage/media /app/storage/exports && chown -R app:app /app/storage
 COPY --from=build --chown=app:app /app/.next ./.next
 COPY --from=build --chown=app:app /app/public ./public
 COPY --from=build --chown=app:app /app/node_modules ./node_modules

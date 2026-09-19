@@ -15,7 +15,7 @@
 #   docker compose -f docker-compose.server.yml up -d
 #   curl -fsS http://127.0.0.1:3000/api/health  # 健康探针
 #
-# 注意：host 模式下 ports 映射无效（也不需要）；uploads/exports 用命名卷持久化。
+# 注意：host 模式下 ports 映射无效（也不需要）；media/exports 用命名卷持久化。
 
 name: myblogs
 
@@ -38,7 +38,8 @@ services:
     # 公网流量必须经宝塔 nginx 反代（X-Real-IP 依赖该拓扑）
     command: ["./node_modules/.bin/next", "start", "-H", "127.0.0.1", "-p", "3000"]
     volumes:
-      - uploads:/app/storage/uploads
+      # 与代码实际写入路径一致（lib/storage/local.ts 的 STORAGE_ROOT=storage/media）
+      - media:/app/storage/media
       - exports:/app/storage/exports
     depends_on:
       migrate: { condition: service_completed_successfully }
@@ -50,5 +51,5 @@ services:
       start_period: 20s
 
 volumes:
-  uploads:
+  media:
   exports:
