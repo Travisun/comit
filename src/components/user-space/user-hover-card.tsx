@@ -89,7 +89,7 @@ export function UserHoverCard({
           onMouseEnter={() => { if (closeTimer.current) clearTimeout(closeTimer.current); }}
           onMouseLeave={closePanel}
           className={cn(
-            "absolute z-[90] w-72 rounded-xl border border-border bg-card p-4 shadow-[var(--shadow-overlay)]",
+            "absolute z-[90] w-72 rounded-xl border border-border bg-card/80 backdrop-blur-md p-4 shadow-[var(--shadow-overlay)]",
             "left-0 top-full mt-1.5 block text-left",
           )}
         >
@@ -138,7 +138,7 @@ export function UserHoverCard({
                   onClick={onMention}
                   className="inline-flex h-7 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-[var(--hover)]"
                 >
-                  <AtSign className="size-3" /> @
+                  <AtSign className="size-3" /> @TA
                 </button>
               </div>
             </>
