@@ -530,12 +530,17 @@ body {
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
+  gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
   background: var(--card);
   border-bottom: none;
   padding: 2px 8px;
   height: 36px;
+}
+.vditor-host .vditor-toolbar .vditor-toolbar__item {
+  flex-shrink: 0;
+  padding: 0 2px;
 }
 .vditor-host .vditor-toolbar .vditor-toolbar__item svg {
   width: 14px;
