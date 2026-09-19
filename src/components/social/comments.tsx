@@ -31,6 +31,7 @@ import { GuestComposerPlaceholder } from "@/components/social/login-dialog";
 import { PinnedComposer } from "@/components/social/pinned-composer";
 import { ShortContent } from "@/components/social/short-content";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
+import { BadgeChip } from "@/extensions/badges/badge-ui";
 
 export type { CommentItem };
 
@@ -354,6 +355,9 @@ export function Comments({
                       {t("comments.replyTo")} @{c.replyToUsername}
                     </span>
                   )}
+                  {c.user.badges?.map((b, i) => (
+                    <BadgeChip key={`${b.text}-${i}`} badge={b} />
+                  ))}
                   <a
                     href={`#comment-${c.id}`}
                     onClick={(e) => {

@@ -6,6 +6,7 @@ import { getT } from "@/lib/i18n";
 import { formatDate } from "@/lib/utils";
 import { getFollowState } from "@/components/user-space/queries";
 import { DetailAuthorBar } from "@/components/user-space/detail-author-bar";
+import { getWornBadgesByUsernames } from "@/extensions/badges/server";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
@@ -106,10 +107,13 @@ export async function ShortPostDetail({
   });
   const interrupted = pipeline.ctx.interrupted;
 
+  const authorBadges = (await getWornBadgesByUsernames([author.username])).get(author.username) ?? [];
+
   return (
     <div className="min-h-dvh w-full">
       {/* sticky author bar — identity + date live here（统一作者栏组件，与长文详情对齐） */}
       <DetailAuthorBar
+        badges={authorBadges}
         author={author}
         date={published}
         locale={locale}

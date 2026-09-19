@@ -25,6 +25,7 @@ const PERMISSIONS = {
   "admin.comments": ["admin", "editor"],
   "admin.reports": ["admin", "editor"],
   "admin.verification": ["admin", "editor"],
+  "admin.badges": ["admin"],
   "admin.posts": ["admin", "editor"],
   "admin.settings": ["admin"],
   "admin.users": ["admin"],

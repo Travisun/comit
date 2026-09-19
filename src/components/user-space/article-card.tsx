@@ -11,6 +11,7 @@ import { BookmarkButton } from "@/components/social/bookmark-button";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
+import { BadgeChip, BadgeChipRow } from "@/extensions/badges/badge-ui";
 
 /**
  * X-style timeline row (article flavor). Rendered from server pages and from
@@ -109,6 +110,13 @@ export function TimelineAuthorLine({
         {author.displayName}
       </Link>
       <span className="truncate text-muted-foreground">@{author.username}</span>
+      {author.badges?.length ? (
+        <span className="inline-flex shrink-0 items-center gap-1">
+          {author.badges.map((b, i) => (
+            <BadgeChip key={`${b.text}-${i}`} badge={b} />
+          ))}
+        </span>
+      ) : null}
       {date && (
         <>
           <span className="shrink-0 text-muted-foreground">·</span>

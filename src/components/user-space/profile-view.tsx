@@ -13,6 +13,7 @@ import { cn, formatDate } from "@/lib/utils";
 import { banScopeLabel } from "@/lib/banned";
 import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
+import { BadgeChipRow } from "@/extensions/badges/badge-ui";
 import { Button } from "@/components/ui/button";
 import { FollowButton } from "@/components/social/follow-button";
 import { BlockButton } from "@/components/social/block-button";
@@ -35,6 +36,8 @@ import { VerifiedBadge } from "./verified-badge";
 import { ArticleCard, FEED_ROW_CLASS } from "./article-card";
 import { ShortCard } from "./short-card";
 import { CommentActivityCard } from "./comment-activity-card";
+import { ProfileBadges } from "./profile-badges";
+import { getUserBadges } from "@/extensions/badges/server";
 import { SocialLinks } from "./sidebar-widgets";
 import type { UserStats, ViewerFollowState } from "./types";
 
@@ -57,12 +60,14 @@ export function ProfileHero({
   stats,
   viewerState,
   isSelf,
+  wornBadges,
   variant = "page",
 }: {
   user: User;
   stats: UserStats;
   viewerState: ViewerFollowState | null;
   isSelf: boolean;
+  wornBadges?: { name: string; text: string; icon: string; style: string }[];
   /** "page": normal profile hero; "site": taller banner for single-user home */
   variant?: "page" | "site";
 }) {
@@ -116,9 +121,12 @@ export function ProfileHero({
         </div>
 
         <div className="mt-2">
-          <h1 className="inline-flex items-center gap-1.5 text-xl font-normal">
+          <h1 className="inline-flex flex-wrap items-center gap-1.5 text-xl font-normal">
             {user.displayName}
             <VerifiedBadge verified={user.verified} size="md" />
+            {wornBadges && wornBadges.length > 0 && (
+              <BadgeChipRow badges={wornBadges} size="md" />
+            )}
           </h1>
           <div className="text-[15px] text-muted-foreground">@{user.username}</div>
         </div>
@@ -301,14 +309,28 @@ export async function UserProfileView({
 }) {
   const isSelf = Boolean(viewer && viewer.id === user.id);
   // 两个查询相互独立，并行省一整个 RTT
-  const [viewerState, stats] = await Promise.all([
+  const [viewerState, stats, badgeData] = await Promise.all([
     isSelf ? Promise.resolve(null) : getFollowState(viewer?.id ?? null, user.id),
     getUserStats(user.id),
+    getUserBadges(user.id).catch(() => null),
   ]);
+  const wornBadges = (badgeData?.granted ?? [])
+    .filter((g) => g.worn && g.enabled)
+    .map((g) => ({ name: g.name, text: g.text, icon: g.icon, style: g.style }));
 
   return (
     <main className="w-full">
-      <ProfileHero user={user} stats={stats} viewerState={viewerState} isSelf={isSelf} />
+      <ProfileHero
+        user={user}
+        stats={stats}
+        viewerState={viewerState}
+        isSelf={isSelf}
+        wornBadges={wornBadges}
+      />
+
+      {(badgeData?.granted.length ?? 0) > 0 && (
+        <ProfileBadges initial={badgeData!.granted} isSelf={isSelf} />
+      )}
 
       <ProfileTabs username={user.username} active={tab} />
 

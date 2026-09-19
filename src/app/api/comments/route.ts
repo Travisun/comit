@@ -13,6 +13,7 @@ import { assertNotBlocked } from "@/lib/users";
 import { getSetting } from "@/lib/settings";
 import { makeExcerpt } from "@/lib/utils";
 import { confiscateBannedUser } from "@/lib/banned";
+import { getWornBadgesByUsernames } from "@/extensions/badges/server";
 
 const createSchema = z.object({
   postId: z.uuid(),
@@ -292,6 +293,9 @@ export async function GET(req: Request) {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
 
+    // 佩戴徽章批量注入（按用户名分组）
+    const badgeMap = await getWornBadgesByUsernames(page.map((r) => r.username));
+
     let likedSet = new Set<string>();
     if (viewer && page.length > 0) {
       const likedRows = await db
@@ -330,13 +334,16 @@ export async function GET(req: Request) {
       canManage: isPostAuthor,
       pinned: Boolean(r.pinnedAt),
       solution: Boolean(r.solutionAt),
-      user: confiscateBannedUser({
-        username: r.username,
-        displayName: r.displayName,
-        avatarPath: r.avatarPath,
-        status: r.authorStatus,
-        bannedUntil: r.authorBannedUntil,
-      }),
+      user: {
+        ...confiscateBannedUser({
+          username: r.username,
+          displayName: r.displayName,
+          avatarPath: r.avatarPath,
+          status: r.authorStatus,
+          bannedUntil: r.authorBannedUntil,
+        }),
+        badges: badgeMap.get(r.username),
+      },
       replyToCommentId: r.replyToCommentId,
       replyToUsername: r.replyToUsername ?? null,
     }));

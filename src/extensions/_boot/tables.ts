@@ -8,3 +8,4 @@
  *   export * from "@/extensions/<id>/schema";
  */
 export * from "@/extensions/signature/schema";
+export * from "@/extensions/badges/schema";

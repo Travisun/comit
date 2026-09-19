@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   Ticket,
   Users,
+  Award,
 } from "lucide-react";
 import { useI18n } from "@/lib/i18n/client";
 import { ConsoleTopbar } from "@/components/dashboard/console-topbar";
@@ -43,6 +44,7 @@ export const ADMIN_NAV_ITEMS = [
   { href: "/admin/comments", labelKey: "admin.comments", icon: MessageSquare, exact: false, roles: ["admin", "editor"] },
   { href: "/admin/reports", labelKey: "admin.reports", icon: Flag, exact: false, roles: ["admin", "editor"] },
   { href: "/admin/verification", labelKey: "admin.verification", icon: BadgeCheck, exact: false, roles: ["admin", "editor"] },
+  { href: "/admin/badges", labelKey: "admin.dashboard", label: "徽章管理", icon: Award, exact: false, roles: ["admin"] },
   { href: "/admin/users", labelKey: "admin.users", icon: Users, exact: false, roles: ["admin"] },
   { href: "/admin/settings", labelKey: "admin.settings", icon: Settings, exact: false, roles: ["admin"] },
   // media / audit / invites panels (admin only); label override keeps them independent of the i18n dict
@@ -59,7 +61,7 @@ const ADMIN_NAV_SECTIONS: {
   hrefs: string[];
 }[] = [
   { label: "概览", hrefs: ["/admin", "/admin/articles"] },
-  { label: "审核", hrefs: ["/admin/moderation", "/admin/comments", "/admin/reports", "/admin/verification"] },
+  { label: "审核", hrefs: ["/admin/moderation", "/admin/comments", "/admin/reports", "/admin/verification", "/admin/badges"] },
   { label: "用户", hrefs: ["/admin/users"] },
   { label: "站点", hrefs: ["/admin/settings", "/admin/media", "/admin/audit", "/admin/invites", "/admin/ops"] },
 ];

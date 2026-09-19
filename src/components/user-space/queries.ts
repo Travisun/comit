@@ -31,6 +31,7 @@ import {
 } from "@/db/schema";
 import { confiscateBannedUser } from "@/lib/banned";
 import { renderMarkdown } from "@/lib/markdown/server";
+import { getWornBadgesByUsernames } from "@/extensions/badges/server";
 import { escapeLikePattern } from "@/lib/utils";
 import type {
   ArchiveGroup,
@@ -201,9 +202,16 @@ export async function getPublishedPosts(
     .offset(offset);
 
   const hasMore = rows.length > limit;
-  const items = (hasMore ? rows.slice(0, limit) : rows).map((r) => ({
+  const pageRows = (hasMore ? rows.slice(0, limit) : rows).map((r) => ({
     ...r,
     author: confiscateBannedUser(r.author),
+  }));
+
+  // 先发后审不影响：佩戴徽章批量注入（按 username 分组，≤3 枚）
+  const badgeMap = await getWornBadgesByUsernames(pageRows.map((r) => r.author.username));
+  const items = pageRows.map((r) => ({
+    ...r,
+    author: { ...r.author, badges: badgeMap.get(r.author.username) },
   }));
   return { items, nextOffset: hasMore ? offset + limit : null };
 }

@@ -36,11 +36,14 @@ export interface NotificationEventDef {
 /** Fixed list of user-tunable notification events. */
 export const NOTIFICATION_EVENTS: NotificationEventDef[] = [
   { key: "comment.created", label: { zh: "评论与回复", en: "Comments & replies" } },
-  { key: "follow.new", label: { zh: "新关注", en: "New followers" } },
-  { key: "message.new", label: { zh: "新私信", en: "New messages" } },
-  { key: "like.post", label: { zh: "文章获赞", en: "Post likes" } },
+  { key: "comment.reply", label: { zh: "被回复", en: "Replies to you" } },
+  { key: "follow.created", label: { zh: "新关注", en: "New followers" } },
+  { key: "message.created", label: { zh: "新私信", en: "New messages" } },
+  { key: "post.liked", label: { zh: "内容获赞", en: "Likes" } },
   { key: "moderation.rejected", label: { zh: "内容未通过审核", en: "Moderation rejections" } },
-  { key: "poll.ended", label: { zh: "投票结果", en: "Poll results" } },
+  { key: "report.resolved", label: { zh: "举报处理结果", en: "Report outcomes" } },
+  { key: "report.submitted", label: { zh: "举报已受理", en: "Report receipts" } },
+  { key: "badge.granted", label: { zh: "获得徽章", en: "Badge grants" } },
 ];
 
 export interface ChannelOption {

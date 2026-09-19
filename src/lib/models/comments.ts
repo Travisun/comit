@@ -19,6 +19,7 @@ export const commentItemSchema = z.object({
     username: z.string(),
     displayName: z.string(),
     avatarPath: z.string().nullable(),
+    badges: z.array(z.object({ name: z.string(), text: z.string(), icon: z.string(), style: z.string() })).optional(),
   }),
   replyToCommentId: z.string().nullable(),
   replyToUsername: z.string().nullable(),

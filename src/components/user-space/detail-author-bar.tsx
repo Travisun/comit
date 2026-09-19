@@ -4,6 +4,7 @@ import { timeAgo } from "@/lib/utils";
 import { FollowButton } from "@/components/social/follow-button";
 import { TimelineHeader } from "@/components/site-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
+import { BadgeChipRow } from "@/extensions/badges/badge-ui";
 
 export interface DetailAuthorBrief {
   username: string;
@@ -27,6 +28,7 @@ export function DetailAuthorBar({
   isSelf,
   following = false,
   subline,
+  badges,
 }: {
   author: DetailAuthorBrief;
   /** 帖子时间（publishedAt ?? createdAt）— 副行展示相对时间 */
@@ -39,6 +41,7 @@ export function DetailAuthorBar({
   following?: boolean;
   /** 追加在副行末尾的内容（如作者预览态的「草稿/回收站」标记） */
   subline?: React.ReactNode;
+  badges?: { text: string; icon: string; style: string }[];
 }) {
   return (
     <TimelineHeader
@@ -59,6 +62,7 @@ export function DetailAuthorBar({
             >
               {author.displayName}
             </Link>
+            {badges && <BadgeChipRow badges={badges} />}
             <span className="block truncate text-xs text-muted-foreground">
               @{author.username} · {timeAgo(date, locale)}
               {subline}

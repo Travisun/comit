@@ -6,6 +6,7 @@ import { routes } from "@/core/routes";
 import { formatDate, readingMinutes } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
+import { getWornBadgesByUsernames } from "@/extensions/badges/server";
 import { getSetting } from "@/lib/settings";
 import { LikeButton } from "@/components/social/like-button";
 import { BookmarkButton } from "@/components/social/bookmark-button";
@@ -70,6 +71,7 @@ export async function PostView({
         html: (await renderMarkdown(post.content)).html,
       });
 
+  const authorBadges = (await getWornBadgesByUsernames([author.username])).get(author.username) ?? [];
   return (
     <div className="min-h-dvh w-full">
       <script
@@ -101,6 +103,7 @@ export async function PostView({
 
       {/* sticky author bar — identity + follow live here, no duplicate row below（统一作者栏组件） */}
       <DetailAuthorBar
+              badges={authorBadges}
         author={author}
         date={date}
         viewerPresent={Boolean(viewer)}

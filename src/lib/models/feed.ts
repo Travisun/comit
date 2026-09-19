@@ -11,10 +11,20 @@ import { z } from "zod";
  * `src/components/user-space/types.ts`，不在此定义。
  */
 
+export const wornBadgeSchema = z.object({
+  name: z.string(),
+  text: z.string(),
+  icon: z.string(),
+  style: z.string(),
+});
+export type WornBadge = z.infer<typeof wornBadgeSchema>;
+
 export const userBriefSchema = z.object({
   username: z.string(),
   displayName: z.string(),
   avatarPath: z.string().nullable(),
+  /** 佩戴中的徽章（先发后审不影响；仅作者本人佩戴的 ≤3 枚） */
+  badges: z.array(wornBadgeSchema).optional(),
 });
 export type UserBrief = z.infer<typeof userBriefSchema>;
 
