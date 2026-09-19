@@ -176,7 +176,8 @@ const plugin: Plugin = {
           await db.execute(
             sql`INSERT INTO ext_badge_grants (user_id, badge_id)
                 SELECT u.id, b.id FROM users u, ext_badges b
-                WHERE b.key = 'genesis' AND u.created_at < ${GENESIS_DEADLINE_MS}
+                WHERE b.key = 'genesis'
+                  AND u.created_at < to_timestamp(${GENESIS_DEADLINE_MS} / 1000.0)
                   AND u.status = 'active'
                 ON CONFLICT DO NOTHING`,
           );
