@@ -84,6 +84,7 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
       content: item.post.type === "short" ? item.post.content : "",
       coverPath: item.post.coverPath,
       visibility: item.post.visibility,
+      status: item.post.status,
       views: item.post.views,
       likeCount: item.post.likeCount,
       commentCount: item.post.commentCount,
@@ -125,7 +126,20 @@ export async function getPublishedPosts(
   const offset = Math.max(opts.offset ?? 0, 0);
   const type = opts.type ?? (opts.excludeShort ? "article" : undefined);
 
-  const conds = [eq(posts.status, "published"), eq(posts.visibility, "public")];
+  // 先发后审的自见语义：登录作者的信息流里包含自己的 待审/未通过 内容
+  // （带状态标签仅自己可见），其他用户只见 已发布+公开
+  const viewerId = opts.viewerId ?? null;
+  const conds = [
+    viewerId
+      ? or(
+          and(eq(posts.status, "published"), eq(posts.visibility, "public")),
+          and(
+            eq(posts.authorId, viewerId),
+            inArray(posts.status, ["pending_review", "rejected"]),
+          ),
+        )!
+    : and(eq(posts.status, "published"), eq(posts.visibility, "public")),
+  ];
   if (opts.authorId) conds.push(eq(posts.authorId, opts.authorId));
   // 关注流：只看自己关注的作者（无关注则返回空流）
   if (opts.followingOf) {

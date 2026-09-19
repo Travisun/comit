@@ -239,6 +239,16 @@ export function ArticleCard({
           {showAuthor && (
             <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
           )}
+          {post.status === "pending_review" && (
+            <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+              审核中 · 仅自己可见
+            </span>
+          )}
+          {post.status === "rejected" && (
+            <span className="mb-1 inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+              未通过审核 · 仅自己可见
+            </span>
+          )}
           <h3 className="reading-serif mt-0.5 text-base font-normal leading-snug">
             <Link href={href} className="line-clamp-2 hover:underline" prefetch={false}>
               {post.title ?? post.summary?.slice(0, 40) ?? "无题"}

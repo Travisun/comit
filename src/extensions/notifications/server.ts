@@ -526,25 +526,23 @@ async function notifyModerationCompleted(p: {
       if (!comment) return;
       recipientId = comment.userId;
     }
+    // 产品语义：审核通过不通知（内容自然公开即可），仅未通过时通知作者
+    // （内容仅自己可见 + 可编辑后重新提交）
+    if (p.approved) return;
     const kindZh = p.commentId ? "评论" : post.type === "short" ? "动态" : "文章";
     const postTitle = post.title ?? `（无标题${kindZh}）`;
     const url = p.commentId
       ? `${routes.post(post.publicId)}#comment-${p.commentId}`
       : routes.post(post.publicId);
     await deliver(recipientId, {
-      key: p.approved ? "moderation.approved" : "moderation.rejected",
-      title: { zh: p.approved ? "审核通过" : "审核未通过", en: p.approved ? "Approved" : "Rejected" },
-      body: p.approved
-        ? {
-            zh: `你的${kindZh}「${postTitle}」已通过审核并发布。`,
-            en: `Your ${kindZh} "${postTitle}" has passed review and is now published.`,
-          }
-        : {
-            zh: `你的${kindZh}「${postTitle}」未通过审核。原因：${p.reason ?? "未提供"}`,
-            en: `Your ${kindZh} "${postTitle}" was rejected. Reason: ${p.reason ?? "unspecified"}`,
-          },
+      key: "moderation.rejected",
+      title: { zh: "审核未通过", en: "Rejected" },
+      body: {
+        zh: `你的${kindZh}「${postTitle}」未通过审核，当前仅自己可见。原因：${p.reason ?? "未提供"}。可编辑内容后重新提交审核。`,
+        en: `Your ${kindZh} "${postTitle}" was rejected and is visible only to you. Reason: ${p.reason ?? "unspecified"}. Edit and resubmit for another review.`,
+      },
       url,
-      payload: { postId: p.postId, commentId: p.commentId ?? null, approved: p.approved, reason: p.reason ?? null },
+      payload: { postId: p.postId, commentId: p.commentId ?? null, approved: false, reason: p.reason ?? null },
     });
   } catch (err) {
     console.error("[notify] moderation:review.completed listener failed:", err);

@@ -29,6 +29,8 @@ export const postBriefSchema = z.object({
   content: z.string(),
   coverPath: z.string().nullable(),
   visibility: z.enum(["public", "followers", "private"]),
+  /** 先发后审：作者视角下待审/未通过内容会出现在自己信息流并携带状态标签 */
+  status: z.enum(["draft", "pending_review", "published", "rejected", "deleted"]).optional(),
   views: z.number(),
   likeCount: z.number(),
   commentCount: z.number(),

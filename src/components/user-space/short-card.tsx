@@ -99,6 +99,16 @@ export function ShortCard({
         </div>
       )}
       <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
+      {post.status === "pending_review" && (
+        <span className="mb-1 inline-flex items-center gap-1 self-start rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
+          审核中 · 仅自己可见
+        </span>
+      )}
+      {post.status === "rejected" && (
+        <span className="mb-1 inline-flex items-center gap-1 self-start rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
+          未通过审核 · 仅自己可见
+        </span>
+      )}
       {badge && (
         <Badge variant={badge.tone === "destructive" ? "destructive" : "secondary"} className="mt-0.5">
           {badge.text}
