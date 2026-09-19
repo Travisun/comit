@@ -18,7 +18,12 @@ export async function POST(req: Request) {
     if (await hasConfirmedTotp(auth.user.id)) {
       throw forbidden("两步验证已绑定 / Two-factor authentication is already enabled");
     }
-    const { secret, uri } = await createTotpSetup({ id: auth.user.id, email: auth.user.email });
+    // ?force=1：用户主动要求换码（扫错 App/换手机等）——重新生成 pending 密钥
+    const force = new URL(req.url).searchParams.get("force") === "1";
+    const { secret, uri } = await createTotpSetup(
+      { id: auth.user.id, email: auth.user.email },
+      { force },
+    );
     const qrDataUrl = await QRCode.toDataURL(uri, { margin: 1, width: 240 });
     return ok({ uri, qrDataUrl, secret });
   });

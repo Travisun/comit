@@ -24,6 +24,7 @@ export function SetupForm() {
   const [setupError, setSetupError] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [codeHint, setCodeHint] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [recoveryCodes, setRecoveryCodes] = useState<string[] | null>(null);
   const [afterUrl, setAfterUrl] = useState<string | null>(null);
@@ -44,16 +45,19 @@ export function SetupForm() {
    * 传入 signal 时：卸载 abort 会取消在途请求，且 abort 后不再 setState。
    */
   const runSetup = useCallback(
-    async (signal?: AbortSignal) => {
+    async (signal?: AbortSignal, force?: boolean) => {
       setSetupError(null);
       setSetupLoading(true);
       try {
-        const r = await requestSafe<Partial<SetupResponse>>("/api/auth/2fa/setup", {
-          method: "POST",
-          headers: JSON_HEADERS,
-          body: JSON.stringify({}),
-          signal,
-        });
+        const r = await requestSafe<Partial<SetupResponse>>(
+          force ? "/api/auth/2fa/setup?force=1" : "/api/auth/2fa/setup",
+          {
+            method: "POST",
+            headers: JSON_HEADERS,
+            body: JSON.stringify({}),
+            signal,
+          },
+        );
         if (signal?.aborted) return;
         if (!r.ok) {
           setSetupError(r.error ?? t("common.error"));
@@ -143,6 +147,7 @@ export function SetupForm() {
       const r = await postJsonSafe<{ recoveryCodes?: string[]; redirect?: string }>("/api/auth/2fa/confirm", { code });
       if (!r.ok) {
         setConfirmError(r.error ?? t("common.error"));
+        setCodeHint(true);
         return;
       }
       const { recoveryCodes } = r.data;
@@ -220,6 +225,14 @@ export function SetupForm() {
         <code className="block overflow-x-auto rounded-lg border border-border bg-muted/40 px-3 py-2 font-mono text-xs break-all select-all">
           {setup.secret}
         </code>
+        <button
+          type="button"
+          onClick={() => void runSetup(undefined, true)}
+          disabled={setupLoading}
+          className="self-start text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+        >
+          扫错了或想换一个？重新生成二维码
+        </button>
       </div>
       {needsPassword && (
         <form
@@ -269,6 +282,13 @@ export function SetupForm() {
       )}
       <form onSubmit={onConfirm} className="flex flex-col gap-4">
         {confirmError ? <AuthBanner tone="error">{confirmError}</AuthBanner> : null}
+        {codeHint ? (
+          <p className="text-xs leading-5 text-muted-foreground">
+            仍然不对？请检查：① 手机系统时间是否为「自动同步」；② 输入的是否是
+            <b>本页当前二维码</b>对应的 6 位码（页面刷新后二维码可能已更新，请以最新为准）；
+            ③ 等待码刷新的下一轮再试一次。
+          </p>
+        ) : null}
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="totp-code">{t("auth.2fa.code")}</Label>
           <Input

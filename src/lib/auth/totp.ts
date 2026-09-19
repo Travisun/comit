@@ -22,8 +22,35 @@ const scrypt = promisify(_scrypt) as (
   keylen: number,
 ) => Promise<Buffer>;
 
-/** Create (or reset) a pending TOTP setup; returns secret + otpauth URI. */
-export async function createTotpSetup(user: { id: string; email: string }) {
+/**
+ * Create (or reset) a pending TOTP setup; returns secret + otpauth URI.
+ *
+ * 重要：setup 页面每次挂载都会调用本函数 —— 若每次都重置密钥，用户手机里
+ * 已扫描的旧二维码会立即失效，造成「两步验证码不对」的死循环。因此：
+ *  - 存在未确认（confirmedAt 为空）的 pending 密钥 ⇒ 原样复用，URI 按当前
+ *    邮箱重拼（换邮箱后标签保持最新）；
+ *  - 仅在「首次注册」或「重新启用已确认的 2FA」时才生成新密钥。
+ */
+export async function createTotpSetup(
+  user: { id: string; email: string },
+  opts: { force?: boolean } = {},
+) {
+  const [existing] = await db
+    .select({ secret: totpSecrets.secret, confirmedAt: totpSecrets.confirmedAt })
+    .from(totpSecrets)
+    .where(eq(totpSecrets.userId, user.id))
+    .limit(1);
+
+  if (existing && !existing.confirmedAt && existing.secret && !opts.force) {
+    const uri = await generateURI({
+      ...otpOptions(),
+      secret: existing.secret,
+      issuer: config.app.name,
+      label: user.email,
+    });
+    return { secret: existing.secret, uri };
+  }
+
   const secret = generateSecret();
   const uri = await generateURI({
     ...otpOptions(),
@@ -36,7 +63,9 @@ export async function createTotpSetup(user: { id: string; email: string }) {
     .values({ userId: user.id, secret, recoveryCodes: [] })
     .onConflictDoUpdate({
       target: totpSecrets.userId,
-      set: { secret, confirmedAt: null, recoveryCodes: [] },
+      // 重新启用：新密钥必须连带清掉旧密钥的防重放步进，否则旧 lastUsedStep
+      // 可能高于新密钥的时间步，验证会被防重放检查永久拒绝
+      set: { secret, confirmedAt: null, recoveryCodes: [], lastUsedStep: null },
     });
   return { secret, uri };
 }
