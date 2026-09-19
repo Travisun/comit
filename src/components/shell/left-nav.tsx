@@ -97,7 +97,7 @@ export function LeftNav({
       aria-label="主导航"
       className="hidden h-full w-16 shrink-0 flex-col px-2 py-3 md:flex lg:w-[208px] lg:px-3"
     >
-      <div className="mb-2 ml-1">
+      <div className="mb-2 flex justify-center">
         <BrandLink siteName={siteName} />
       </div>
 

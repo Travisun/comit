@@ -23,7 +23,7 @@ export function BrandLink({ siteName }: { siteName: string }) {
   return (
     <Link
       href={routes.home}
-      className="inline-flex items-center rounded-[10px] p-2"
+      className="inline-flex items-center justify-center rounded-[10px] p-1"
       aria-label={siteName}
     >
       {/* 收起态（<lg）：方形图标；展开态（lg）：完整字标 — SVG 优先 */}
@@ -55,7 +55,7 @@ export function ComposerTrigger({
       <button
         type="button"
         onClick={onGuestClick}
-        className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3"
+        className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:h-9 md:w-9 lg:h-8 lg:w-full lg:px-3"
       >
         <Feather className="size-3.5" />
         <span className="hidden text-[13px] lg:inline">创作</span>
@@ -67,7 +67,7 @@ export function ComposerTrigger({
       if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
       else router.push("/?compose=1");
     }}
-      className="mt-2 flex h-8 w-full items-center justify-center gap-2 rounded-full bg-primary text-[13px] font-semibold text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:size-9 md:px-0 lg:h-8 lg:w-full lg:px-3">
+      className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:h-9 md:w-9 lg:h-8 lg:w-full lg:px-3">
       <Feather className="size-3.5" />
       <span className="hidden text-[13px] lg:inline">创作</span>
     </button>
