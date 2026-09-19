@@ -165,6 +165,7 @@ export async function ShortPostDetail({
             targetId={post.id}
             initialCount={post.likeCount}
             initialLiked={liked}
+            fixedLabel
           />
           <RepostButton
             postId={post.id}
@@ -173,8 +174,9 @@ export async function ShortPostDetail({
             initialCount={post.repostCount}
             initialReposted={reposted}
             signedIn={Boolean(viewer)}
+            fixedLabel
           />
-          <BookmarkButton postId={post.id} initialBookmarked={bookmarked} />
+          <BookmarkButton postId={post.id} initialBookmarked={bookmarked} withLabel />
           {!interrupted && (
             <PostActionsSlot postId={post.id} postType={post.type} publicId={post.publicId} />
           )}
