@@ -35,7 +35,7 @@ export const TPL = {
   post: "/post/:publicId",
   topic: "/topics/:slug",
   userCollection: "/u/:username/collections/:slug",
-  userRss: "/u/:username/feed.xml",
+  userRss: "/:username/feed.xml",
   editorEdit: "/write/:postId",
   conversation: "/messages/:userId",
   resetPassword: "/auth/reset",

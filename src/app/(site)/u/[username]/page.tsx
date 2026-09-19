@@ -40,7 +40,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${user.displayName} (@${user.username})`,
     description: user.bio || `${user.displayName} 的主页`,
-    alternates: { canonical: routes.profile(user.username) },
+    alternates: {
+      canonical: routes.profile(user.username),
+      types: { "application/rss+xml": routes.userRss(user.username) },
+    },
     openGraph: { images: images?.map((url) => ({ url })) },
   };
 }

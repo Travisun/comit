@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Ban,
+  Rss,
   CalendarDays,
   FolderOpen,
   LayoutDashboard,
@@ -159,6 +160,15 @@ export function ProfileHero({
         <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
           {viewerState?.followedBy && <Badge variant="secondary">关注了你</Badge>}
           <SocialLinks user={user} size="md" />
+          {user.rssEnabled && (
+            <a
+              href={routes.userRss(user.username)}
+              className="inline-flex items-center gap-1 transition-colors hover:text-foreground hover:underline"
+              title="RSS 订阅 / RSS feed"
+            >
+              <Rss className="size-4" /> RSS
+            </a>
+          )}
           <span className="inline-flex items-center gap-1">
             <CalendarDays className="size-4" /> {formatDate(user.createdAt, "zh")} 加入
           </span>

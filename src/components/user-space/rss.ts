@@ -9,6 +9,8 @@ import type { RssPost } from "./queries";
 
 const RSS_CONTENT_TYPE = "application/rss+xml; charset=utf-8";
 
+const SITE_LOGO = absolute("/icons/logo-mark-256.png");
+
 function baseFeedOptions() {
   return {
     id: config.app.url,
@@ -16,6 +18,8 @@ function baseFeedOptions() {
     language: "zh",
     copyright: `© ${new Date().getFullYear()} ${config.app.name}`,
     generator: config.app.name,
+    image: SITE_LOGO,
+    favicon: absolute("/icons/logo-mark.svg"),
     feedLinks: {
       rss: absolute("/feed.xml"),
       atom: absolute("/feed.xml?type=atom"),
@@ -31,9 +35,11 @@ function addItems(feed: Feed, posts: RssPost[]) {
       id: link,
       link,
       description: p.summary || undefined,
-      content: p.summary || undefined,
+      // 全文 HTML（content:encoded）— 阅读器内直接阅读完整内容
+      content: p.contentHtml || p.summary || undefined,
       date: p.publishedAt,
       image: p.coverPath ? absolute(`/api/media/file/${p.coverPath}`) : undefined,
+      category: p.topics?.length ? p.topics.map((name) => ({ name })) : undefined,
       author: [{ name: p.authorName, link: absolute(`/u/${p.authorUsername}`) }],
       contributor: [{ name: p.authorName, link: absolute(`/u/${p.authorUsername}`) }],
     });
@@ -52,18 +58,20 @@ export function buildSiteFeed(siteName: string, siteDescription: string, posts: 
 }
 
 export function buildUserFeed(user: User, posts: RssPost[]): Feed {
-  const link = absolute(`/u/${user.username}`);
+  const link = absolute(routes.profile(user.username));
+  const avatar = user.avatarPath ? absolute(`/api/media/file/${user.avatarPath}`) : SITE_LOGO;
   const feed = new Feed({
     ...baseFeedOptions(),
     title: `${user.displayName} · ${config.app.name}`,
-    description: user.bio || `${user.displayName} 的文章`,
+    description: user.bio || `${user.displayName} 的文章与动态`,
     id: link,
     link,
+    image: avatar,
     author: { name: user.displayName, link },
   });
   feed.options.feedLinks = {
-    rss: absolute(`/u/${user.username}/feed.xml`),
-    atom: absolute(`/u/${user.username}/feed.xml?type=atom`),
+    rss: absolute(routes.userRss(user.username)),
+    atom: absolute(`${routes.userRss(user.username)}?type=atom`),
   };
   addItems(feed, posts);
   return feed;

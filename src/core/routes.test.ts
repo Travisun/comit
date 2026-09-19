@@ -36,8 +36,8 @@ describe("canonical 路由形状", () => {
     expect(routes.post("abc-123")).toBe("/post/abc-123");
   });
 
-  it("用户 RSS 保留 /u/{username}/feed.xml", () => {
-    expect(routes.userRss("alice")).toBe("/u/alice/feed.xml");
+  it("用户 RSS 规范化为 /{username}/feed.xml（/u/ 旧路径仍兼容）", () => {
+    expect(routes.userRss("alice")).toBe("/alice/feed.xml");
   });
 
   it("模板表覆盖关键形状（防漂移哨兵）", () => {

@@ -30,6 +30,7 @@ import {
   type User,
 } from "@/db/schema";
 import { confiscateBannedUser } from "@/lib/banned";
+import { renderMarkdown } from "@/lib/markdown/server";
 import { escapeLikePattern } from "@/lib/utils";
 import type {
   ArchiveGroup,
@@ -978,9 +979,13 @@ export function incrementPostViews(postId: string): void {
 /* --------------------------- RSS / sitemap data --------------------------- */
 
 export interface RssPost {
+  id: string;
   title: string;
   publicId: string;
   summary: string;
+  /** 渲染后的完整 HTML（content:encoded，阅读器可全文阅读） */
+  contentHtml: string;
+  topics: string[];
   coverPath: string | null;
   publishedAt: Date;
   authorUsername: string;
@@ -989,7 +994,10 @@ export interface RssPost {
 
 function rssSelection() {
   return {
+    id: posts.id,
+    type: posts.type,
     title: posts.title,
+    content: posts.content,
     publicId: posts.publicId,
     summary: posts.summary,
     coverPath: posts.coverPath,
@@ -999,23 +1007,62 @@ function rssSelection() {
   };
 }
 
-const rssConds = [eq(posts.status, "published"), eq(posts.visibility, "public"), eq(posts.type, "article")];
+const rssConds = [eq(posts.status, "published"), eq(posts.visibility, "public")];
+
+type RssSeed = Omit<RssPost, "topics" | "contentHtml"> & { content: string };
 
 function toRssPosts(
   rows: {
-    title: string | null;
+    id: string;
     publicId: string;
+    type: "article" | "short";
+    title: string | null;
+    content: string;
     summary: string;
     coverPath: string | null;
     publishedAt: Date | null;
     authorUsername: string;
     authorName: string;
   }[],
-): RssPost[] {
-  return rows.flatMap((r) =>
-    r.title && r.publishedAt
-      ? [{ ...r, title: r.title, publishedAt: r.publishedAt }]
-      : [],
+): RssSeed[] {
+  return rows.flatMap((r) => {
+    if (!r.publishedAt) return [];
+    // 短动态无标题：截取内容首行作为条目标题（微博式 feed 的通行做法）
+    const title = r.title ?? (r.content || r.summary).split("\n")[0].slice(0, 40);
+    return [{
+      id: r.id,
+      publicId: r.publicId,
+      type: r.type,
+      title,
+      content: r.content,
+      summary: r.summary,
+      coverPath: r.coverPath,
+      publishedAt: r.publishedAt,
+      authorUsername: r.authorUsername,
+      authorName: r.authorName,
+    }];
+  });
+}
+
+/** 附加话题分类与全文 HTML（RSS content:encoded，阅读器内全文可读）。 */
+async function decorateRssPosts(rows: RssSeed[]): Promise<RssPost[]> {
+  if (!rows.length) return [];
+  const ids = rows.map((r) => r.id);
+  const topicRows = await db
+    .select({ postId: postTopics.postId, name: topics.name })
+    .from(postTopics)
+    .innerJoin(topics, eq(topics.id, postTopics.topicId))
+    .where(inArray(postTopics.postId, ids));
+  const byPost = new Map<string, string[]>();
+  for (const t of topicRows) {
+    byPost.set(t.postId, [...(byPost.get(t.postId) ?? []), t.name]);
+  }
+  return Promise.all(
+    rows.map(async (r) => ({
+      ...r,
+      topics: byPost.get(r.id) ?? [],
+      contentHtml: (await renderMarkdown(r.content)).html,
+    })),
   );
 }
 
@@ -1027,7 +1074,7 @@ export async function getSiteRssPosts(limit = 40): Promise<RssPost[]> {
     .where(and(...rssConds, eq(users.status, "active")))
     .orderBy(desc(posts.publishedAt))
     .limit(limit);
-  return toRssPosts(rows);
+  return decorateRssPosts(toRssPosts(rows));
 }
 
 export async function getUserRssPosts(userId: string, limit = 40): Promise<RssPost[]> {
@@ -1038,7 +1085,7 @@ export async function getUserRssPosts(userId: string, limit = 40): Promise<RssPo
     .where(and(...rssConds, eq(posts.authorId, userId)))
     .orderBy(desc(posts.publishedAt))
     .limit(limit);
-  return toRssPosts(rows);
+  return decorateRssPosts(toRssPosts(rows));
 }
 
 /* ===================== community & brand-home queries ==================== */

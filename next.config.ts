@@ -25,6 +25,12 @@ const nextConfig: NextConfig = {
           source: "/:username([A-Za-z0-9_-]+)",
           destination: "/u/:username",
         },
+        {
+          // 用户 RSS：/{username}/feed.xml（/{username} 单段由上一条改写）；
+          // 旧 /u/{username}/feed.xml 仍是真实路由，继续可用
+          source: "/:username([A-Za-z0-9_-]+)/feed.xml",
+          destination: "/u/:username/feed.xml",
+        },
       ],
       fallback: [],
     };
