@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Globe, ExternalLink, MessageCircle } from "lucide-react";
+import { Globe, ExternalLink, MessageCircle, Rss } from "lucide-react";
 import type { User } from "@/db/schema";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
@@ -117,7 +117,7 @@ export function SocialLinks({
       )}
       {user.rssEnabled && (
         <Link href={routes.userRss(user.username)} className={cls} prefetch={false}>
-          RSS
+          <Rss className={icon} /> RSS
         </Link>
       )}
     </>
