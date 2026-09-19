@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull , sql } from "drizzle-orm";
 import { hooks } from "@/core/hooks";
 import { emit } from "@/core/events";
 import { db } from "@/db";
@@ -68,6 +68,16 @@ export async function POST(req: Request) {
       );
     }
     await assertUsernameAvailable(body.username); // throws 409 when taken/invalid
+    // 昵称全站唯一（自定义昵称时校验；默认=用户名天然唯一）
+    if (body.displayName) {
+      const lowerDn = body.displayName.toLowerCase();
+      const [dnTaken] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(sql`lower(${users.displayName}) = ${lowerDn}`)
+        .limit(1);
+      if (dnTaken) throw conflict("昵称已被使用 / Display name already in use");
+    }
 
     const inviteRequired = await getSetting("site.inviteRequired");
     const needsInvite = Boolean(body.inviteCode) || inviteRequired;

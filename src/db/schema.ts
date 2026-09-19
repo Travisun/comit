@@ -122,6 +122,8 @@ export const users = pgTable(
   (t) => [
     uniqueIndex("users_email_key").on(t.email),
     uniqueIndex("users_username_key").on(t.username),
+    // 昵称全站唯一（不区分大小写）—— @提及按昵称解析的唯一性前提
+    uniqueIndex("users_display_name_key").on(sql`lower(${t.displayName})`),
     uniqueIndex("users_subdomain_key").on(t.subdomain),
     index("users_created_at_idx").on(t.createdAt),
   ],
@@ -180,6 +182,28 @@ export const authTokens = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [uniqueIndex("auth_tokens_hash_key").on(t.tokenHash), index("auth_tokens_user_idx").on(t.userId)],
+);
+
+/** @提及记录：内容(@提及解析) → 被提及用户；内容可见后 flush 通知 */
+export const mentions = pgTable(
+  "mentions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    targetType: varchar("target_type", { length: 16 }).notNull(),
+    targetId: uuid("target_id").notNull(),
+    notifiedAt: timestamp("notified_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [
+    index("mentions_user_idx").on(t.userId),
+    index("mentions_target_idx").on(t.targetType, t.targetId),
+  ],
 );
 
 export const totpSecrets = pgTable("totp_secrets", {

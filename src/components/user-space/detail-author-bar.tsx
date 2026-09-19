@@ -62,10 +62,12 @@ export function DetailAuthorBar({
             >
               {author.displayName}
             </Link>
-            {badges && <BadgeChipRow badges={badges} />}
-            <span className="block truncate text-xs text-muted-foreground">
-              @{author.username} · {timeAgo(date, locale)}
-              {subline}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+              {badges && <BadgeChipRow badges={badges} />}
+              <span className="inline-flex items-center gap-1.5">
+                <time dateTime={new Date(date).toISOString()}>{timeAgo(date, locale)}</time>
+                {subline}
+              </span>
             </span>
           </span>
         </span>

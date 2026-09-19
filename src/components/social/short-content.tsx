@@ -22,7 +22,7 @@ type Block = ImageBlock | ParagraphBlock;
 
 const IMAGE_LINE = /^!\[([^\]]*)\]\((\S+)\)$/;
 
-const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g;
+const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g;
 
 /** 段落文本内的 markdown 链接渲染为可点击超链接（其余保持纯文本 + 换行）。 */
 function renderLine(text: string, keyBase: string): React.ReactNode[] {
@@ -32,10 +32,9 @@ function renderLine(text: string, keyBase: string): React.ReactNode[] {
     const idx = m.index ?? 0;
     if (idx > last) nodes.push(text.slice(last, idx));
     const [, label, href] = m;
-    const origin = typeof window !== "undefined" ? window.location.origin : "";
-    if (href.startsWith(origin)) {
+    if (href.startsWith("/")) {
       nodes.push(
-        <Link key={`${keyBase}-l-${idx}`} href={href.slice(origin.length)} className="text-link hover:underline">
+        <Link key={`${keyBase}-l-${idx}`} href={href} className="text-link hover:underline">
           {label}
         </Link>,
       );

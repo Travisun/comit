@@ -32,6 +32,7 @@ import {
 import { confiscateBannedUser } from "@/lib/banned";
 import { renderMarkdown } from "@/lib/markdown/server";
 import { getWornBadgesByUsernames } from "@/extensions/badges/server";
+import { expandMentionTokens } from "@/lib/mentions";
 import { escapeLikePattern } from "@/lib/utils";
 import type {
   ArchiveGroup,
@@ -207,9 +208,18 @@ export async function getPublishedPosts(
     author: confiscateBannedUser(r.author),
   }));
 
+  // 短动态正文展开 @提及（稳定引用 → 当前昵称相对链接）
+  const expanded = await Promise.all(
+    pageRows.map(async (r) =>
+      r.post.type === "short" && r.post.content
+        ? { ...r, post: { ...r.post, content: await expandMentionTokens(r.post.content) } }
+        : r,
+    ),
+  );
+
   // 先发后审不影响：佩戴徽章批量注入（按 username 分组，≤3 枚）
   const badgeMap = await getWornBadgesByUsernames(pageRows.map((r) => r.author.username));
-  const items = pageRows.map((r) => ({
+  const items = expanded.map((r) => ({
     ...r,
     author: { ...r.author, badges: badgeMap.get(r.author.username) },
   }));

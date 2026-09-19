@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db";
-import { polls, posts, type Post } from "@/db/schema";
+import { mentions, polls, posts, type Post } from "@/db/schema";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { AppError, conflict } from "@/core/errors";
@@ -8,6 +8,7 @@ import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
 import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
+import { processMentions, storeMentions } from "@/lib/mentions";
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import {
@@ -97,6 +98,9 @@ export async function POST(req: Request): Promise<Response> {
         ? `${body.content.trim()}${body.content.trim() ? "\n\n" : ""}${imageMarkdown}`
         : body.content;
 
+    // @提及：解析用户名/昵称并重写为稳定引用语法（渲染端按 userId 取最新昵称）
+    const mentionCtx = await processMentions(content, auth.user.id);
+
     if (body.collectionId) await assertCollectionOwned(body.collectionId, auth.user.id);
 
     // poll 选项/截止时间的语义校验（长度权重、2–5 项、时间窗）
@@ -148,7 +152,7 @@ export async function POST(req: Request): Promise<Response> {
           publicId: newPublicId(),
           title,
           summary,
-          content,
+          content: mentionCtx.text,
           coverPath: body.coverPath ?? null,
           collectionId: body.collectionId ?? null,
           status: body.action === "submit" ? "pending_review" : "draft",
@@ -173,6 +177,16 @@ export async function POST(req: Request): Promise<Response> {
         const [row] = await tx.insert(posts).values(payload as typeof posts.$inferInsert).returning();
 
         if (body.topicNames?.length) await syncPostTopics(tx, row.id, body.topicNames);
+        if (mentionCtx.mentionedUserIds.length) {
+          await tx.insert(mentions).values(
+            mentionCtx.mentionedUserIds.map((userId) => ({
+              userId,
+              authorId: auth.user.id,
+              targetType: "post" as const,
+              targetId: row.id,
+            })),
+          ).onConflictDoNothing();
+        }
         if (pollRow) {
           await tx.insert(polls).values({
             postId: row.id,

@@ -2,18 +2,20 @@ import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { comments, likes, posts, users } from "@/db/schema";
+import { mentions, comments, likes, posts, users } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { hooks } from "@/core/hooks";
 import { jsonBody, ok, withApi, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { processMentions } from "@/lib/mentions";
 import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
 import { getSetting } from "@/lib/settings";
 import { makeExcerpt } from "@/lib/utils";
 import { confiscateBannedUser } from "@/lib/banned";
 import { getWornBadgesByUsernames } from "@/extensions/badges/server";
+import { expandMentionTokens } from "@/lib/mentions";
 
 const createSchema = z.object({
   postId: z.uuid(),
@@ -83,12 +85,15 @@ export async function POST(req: Request) {
       replyToUsername = parent.username;
     }
 
+    // @提及：解析并重写为稳定引用语法（渲染端按 userId 同步最新昵称）
+    const mentionCtx = await processMentions(body, me.id);
+
     // 评论发布前钩子（扩展可拒绝：频控/合规/自动审核）
     const savingCtx = {
       payload: {
         postId,
         userId: me.id,
-        body,
+        body: mentionCtx.text,
         replyToCommentId: replyToCommentId ?? null,
         replyToUserId,
       } as Record<string, unknown>,
@@ -122,6 +127,19 @@ export async function POST(req: Request) {
           .update(posts)
           .set({ commentCount: sql`${posts.commentCount} + 1` })
           .where(eq(posts.id, postId));
+      }
+      if (mentionCtx.mentionedUserIds.length) {
+        await tx
+          .insert(mentions)
+          .values(
+            mentionCtx.mentionedUserIds.map((uid: string) => ({
+              userId: uid,
+              authorId: me.id,
+              targetType: "comment" as const,
+              targetId: created.id,
+            })),
+          )
+          .onConflictDoNothing();
       }
       return row;
     });
@@ -293,8 +311,9 @@ export async function GET(req: Request) {
     const hasMore = rows.length > limit;
     const page = hasMore ? rows.slice(0, limit) : rows;
 
-    // 佩戴徽章批量注入（按用户名分组）
+    // 佩戴徽章批量注入（按用户名分组）；正文展开 @提及
     const badgeMap = await getWornBadgesByUsernames(page.map((r) => r.username));
+    const expandedBodies = await Promise.all(page.map((r) => expandMentionTokens(r.body)));
 
     let likedSet = new Set<string>();
     if (viewer && page.length > 0) {
@@ -315,9 +334,9 @@ export async function GET(req: Request) {
     }
     const isPostAuthor = viewer ? viewer.user.id === post.authorId : false;
 
-    const items = page.map((r) => ({
+    const items = page.map((r, ri) => ({
       id: r.id,
-      body: r.body,
+      body: expandedBodies[ri] ?? r.body,
       status: r.status,
       visibility: r.visibility,
       createdAt: r.createdAt,

@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import { getFollowState } from "@/components/user-space/queries";
 import { DetailAuthorBar } from "@/components/user-space/detail-author-bar";
 import { getWornBadgesByUsernames } from "@/extensions/badges/server";
+import { expandMentionTokens } from "@/lib/mentions";
 import { ShortContent } from "@/components/social/short-content";
 import { LikeButton } from "@/components/social/like-button";
 import { RepostButton } from "@/components/social/repost-button";
@@ -108,6 +109,7 @@ export async function ShortPostDetail({
   const interrupted = pipeline.ctx.interrupted;
 
   const authorBadges = (await getWornBadgesByUsernames([author.username])).get(author.username) ?? [];
+  const expandedContent = await expandMentionTokens(post.content);
 
   return (
     <div className="min-h-dvh w-full">
@@ -146,7 +148,7 @@ export async function ShortPostDetail({
                 <div dangerouslySetInnerHTML={{ __html: pipeline.prependHtml }} />
               ) : null}
               {post.content.trim() ? (
-                <ShortContent content={post.content} className="text-base" />
+                <ShortContent content={expandedContent} className="text-base" />
               ) : (
                 !poll && <p className="text-sm italic text-muted-foreground">{t("feed.compose")}</p>
               )}

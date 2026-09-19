@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { AppError, unauthorized } from "@/core/errors";
 import { hooks } from "@/core/hooks";
 import { coerceProfileFields } from "@/core/capabilities/manifest";

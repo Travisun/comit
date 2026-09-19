@@ -7,6 +7,7 @@ import { formatDate, readingMinutes } from "@/lib/utils";
 import { blogPostingJsonLd, personJsonLd, safeJsonLd } from "@/lib/seo";
 import { Badge } from "@/components/ui/primitives";
 import { getWornBadgesByUsernames } from "@/extensions/badges/server";
+import { expandMentionTokens } from "@/lib/mentions";
 import { getSetting } from "@/lib/settings";
 import { LikeButton } from "@/components/social/like-button";
 import { BookmarkButton } from "@/components/social/bookmark-button";
@@ -68,7 +69,7 @@ export async function PostView({
         post,
         author: { id: author.id, username: author.username, displayName: author.displayName },
         viewer,
-        html: (await renderMarkdown(post.content)).html,
+        html: (await renderMarkdown(await expandMentionTokens(post.content))).html,
       });
 
   const authorBadges = (await getWornBadgesByUsernames([author.username])).get(author.username) ?? [];

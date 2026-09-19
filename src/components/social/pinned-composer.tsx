@@ -214,7 +214,22 @@ export function PinnedComposer({
   useEffect(() => {
     const onFocus = () => focusCaret();
     window.addEventListener("composer:focus", onFocus);
-    return () => window.removeEventListener("composer:focus", onFocus);
+    // @提及：hover 卡片的 @ 按钮派发此事件 → 插入 @昵称 到正文光标处
+    const onMention = (e: CustomEvent<{ mention: string }>) => {
+      focusCaret();
+      const el = taRef.current;
+      if (el) {
+        const pos = el.selectionStart ?? el.value.length;
+        const cur = el.value;
+        setContent(cur.slice(0, pos) + e.detail.mention + " " + cur.slice(pos));
+      }
+    };
+    window.addEventListener("composer:focus", onFocus);
+    window.addEventListener("composer:mention", onMention as EventListener);
+    return () => {
+      window.removeEventListener("composer:focus", onFocus);
+      window.removeEventListener("composer:mention", onMention as EventListener);
+    };
   }, [focusCaret]);
 
   /* --------------------------- draft autosave ---------------------------- */

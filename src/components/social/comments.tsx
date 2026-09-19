@@ -32,6 +32,7 @@ import { PinnedComposer } from "@/components/social/pinned-composer";
 import { ShortContent } from "@/components/social/short-content";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 import { BadgeChip } from "@/extensions/badges/badge-ui";
+import { UserHoverCard } from "@/components/user-space/user-hover-card";
 
 export type { CommentItem };
 
@@ -344,12 +345,14 @@ export function Comments({
               </Link>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
-                  <Link
-                    href={`/u/${c.user.username}`}
-                    className="font-medium text-foreground hover:underline"
-                  >
-                    {c.user.displayName}
-                  </Link>
+                  <UserHoverCard username={c.user.username}>
+                    <Link
+                      href={`/u/${c.user.username}`}
+                      className="font-medium text-foreground hover:underline"
+                    >
+                      {c.user.displayName}
+                    </Link>
+                  </UserHoverCard>
                   {c.replyToUsername && (
                     <span className="text-xs text-muted-foreground">
                       {t("comments.replyTo")} @{c.replyToUsername}

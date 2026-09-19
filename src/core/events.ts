@@ -71,6 +71,12 @@ export interface AppEventPayloads {
     reason?: string;
     by: "report" | "admin";
   };
+  /** 举报提交成功（通知举报人已受理 + 鼓励） */
+  "report:submitted": {
+    reportId: string;
+    reporterId: string;
+    targetType: "post" | "comment" | "user";
+  };
   /** 举报处理完毕（通知举报人处理结果） */
   "report:resolved": {
     reportId: string;

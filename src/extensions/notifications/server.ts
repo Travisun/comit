@@ -5,6 +5,7 @@ import { getSetting } from "@/lib/settings";
 import { renderMail } from "@/lib/mail";
 import { renderSystemMail, renderTemplate } from "@/lib/mail-templates";
 import { sendOperationNotification } from "@/lib/operation-notify";
+import { flushMentionNotifications } from "@/lib/mentions";
 import { channels, registerChannel, type NotificationChannel, type NotificationMessage, type Plugin, type PluginContext } from "@/core/plugins/types";
 import { routes } from "@/core/routes";
 import { broadcast } from "@/core/capabilities/broadcast";
@@ -234,6 +235,41 @@ const plugin: Plugin = {
     ctx.events.on("post:rejected", (p) => void notifyPostRejected(p));
     ctx.events.on("comment:removed", (p) => void notifyCommentRemoved(p));
     ctx.events.on("report:resolved", (p) => void notifyReportResolved(p));
+    ctx.events.on("report:submitted", (p) => void notifyReportSubmitted(p));
+    // @提及：内容可见时 flush 通知（文章发布 / 评论过审可见）
+    ctx.events.on("post:published", (p) => {
+      void (async () => {
+        const [author] = await db
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, p.authorId))
+          .limit(1);
+        await flushMentionNotifications("post", p.postId, {
+          url: routes.post(p.publicId),
+          excerpt: p.title ?? "",
+          authorName: author?.displayName ?? "有人",
+        });
+      })().catch((err) => console.error("[notify] mention flush failed:", err));
+    });
+    ctx.events.on("comment:created", (p) => {
+      void (async () => {
+        const [commenter] = await db
+          .select({ displayName: users.displayName })
+          .from(users)
+          .where(eq(users.id, p.commenterId))
+          .limit(1);
+        const [post] = await db
+          .select({ publicId: posts.publicId })
+          .from(posts)
+          .where(eq(posts.id, p.postId))
+          .limit(1);
+        await flushMentionNotifications("comment", p.commentId, {
+          url: `${routes.post(post?.publicId ?? "")}#comment-${p.commentId}`,
+          excerpt: p.excerpt ?? "",
+          authorName: commenter?.displayName ?? "有人",
+        });
+      })().catch((err) => console.error("[notify] mention flush failed:", err));
+    });
   },
 };
 
@@ -452,6 +488,28 @@ async function notifyCommentRemoved(p: {
     });
   } catch (err) {
     console.error("[notify] comment:removed listener failed:", err);
+  }
+}
+
+/** 举报提交成功：感谢举报人参与社区维护（后续处理结果另行通知）。 */
+async function notifyReportSubmitted(p: {
+  reportId: string;
+  reporterId: string;
+  targetType: "post" | "comment" | "user";
+}): Promise<void> {
+  try {
+    const targetZh = p.targetType === "post" ? "内容" : p.targetType === "comment" ? "评论" : "用户";
+    await deliver(p.reporterId, {
+      key: "report.submitted",
+      title: { zh: "举报已提交", en: "Report submitted" },
+      body: {
+        zh: `你举报的${targetZh}已提交成功，我们会尽快核实处理，处理结果将另行通知。感谢你参与维护社区环境，期待你继续贡献。`,
+        en: `Your report has been submitted and will be reviewed shortly. Thanks for helping keep the community safe!`,
+      },
+      payload: { reportId: p.reportId, targetType: p.targetType },
+    });
+  } catch (err) {
+    console.error("[notify] report:submitted listener failed:", err);
   }
 }
 

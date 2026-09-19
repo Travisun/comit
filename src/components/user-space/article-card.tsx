@@ -12,6 +12,7 @@ import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
 import { BadgeChip, BadgeChipRow } from "@/extensions/badges/badge-ui";
+import { UserHoverCard } from "./user-hover-card";
 
 /**
  * X-style timeline row (article flavor). Rendered from server pages and from
@@ -102,14 +103,15 @@ export function TimelineAuthorLine({
   const date = post?.publishedAt ? new Date(post.publishedAt) : null;
   return (
     <div className="flex min-w-0 items-center gap-1 text-[15px] leading-tight">
-      <Link
-        href={routes.profile(author.username)}
-        className="truncate font-medium hover:underline"
-        prefetch={false}
-      >
-        {author.displayName}
-      </Link>
-      <span className="truncate text-muted-foreground">@{author.username}</span>
+      <UserHoverCard username={author.username}>
+        <Link
+          href={routes.profile(author.username)}
+          className="truncate font-medium hover:underline"
+          prefetch={false}
+        >
+          {author.displayName}
+        </Link>
+      </UserHoverCard>
       {author.badges?.length ? (
         <span className="inline-flex shrink-0 items-center gap-1">
           {author.badges.map((b, i) => (

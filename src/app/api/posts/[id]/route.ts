@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { follows, posts } from "@/db/schema";
+import { mentions, follows, posts } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { preSubmitCheck } from "@/lib/moderation";
+import { clearMentions, processMentions } from "@/lib/mentions";
 import { authorize } from "@/core/capabilities/policies";
 import { updatePostWithHooks } from "../_shared";
 import {
@@ -107,10 +108,13 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     const post = await getAuthorPost(id, auth.user.id);
     const body = parseWith(updateSchema, await jsonBody(req));
 
-    const nextContent = body.content ?? post.content;
-    if (post.type === "short" && nextContent.length > SHORT_CONTENT_MAX) {
+    const nextContentRaw = body.content ?? post.content;
+    if (post.type === "short" && nextContentRaw.length > SHORT_CONTENT_MAX) {
       throw new AppError(`短动态内容不能超过 ${SHORT_CONTENT_MAX} 字`, 400, "too_long");
     }
+    // @提及：编辑内容时重新解析（旧提及记录清空后按新内容重建）
+    const mentionCtx = await processMentions(nextContentRaw, auth.user.id);
+    const nextContent = mentionCtx.text;
     if (body.title !== undefined && post.type === "article" && !body.title.trim()) {
       throw new AppError("文章必须有标题 / Articles require a title", 400, "validation_error");
     }
@@ -168,6 +172,19 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
       await db.transaction(async (tx) => {
         await syncPostTopics(tx, post.id, topicNames);
       });
+    }
+
+    // 重建提及记录（内容变更 → 新提及集合；通知在内容可见时 flush）
+    await clearMentions("post", post.id);
+    if (mentionCtx.mentionedUserIds.length) {
+      await db.insert(mentions).values(
+        mentionCtx.mentionedUserIds.map((userId) => ({
+          userId,
+          authorId: auth.user.id,
+          targetType: "post" as const,
+          targetId: post.id,
+        })),
+      ).onConflictDoNothing();
     }
 
     if (body.action === "submit" && !wasPublished) {
