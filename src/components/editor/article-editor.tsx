@@ -290,7 +290,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-3rem)] overflow-hidden md:h-dvh md:pb-0">
+    <div className="flex h-dvh overflow-hidden">
       {/* right-hand column: top strip + fullscreen editor */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <div className="flex h-13 shrink-0 items-center justify-between gap-3 border-b border-border px-3 md:px-4">
