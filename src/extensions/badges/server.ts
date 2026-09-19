@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { extBadgeGrants, extBadges, extBadgeWear, users } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
@@ -14,6 +14,9 @@ import type { Plugin } from "@/core/plugins/types";
 
 export const WEAR_LIMIT = 3;
 
+/** 创世徽章注册截止（北京时间 2026-09-26 00:00）。 */
+export const GENESIS_DEADLINE_MS = new Date("2026-09-25T16:00:00.000Z").getTime();
+
 /** 种子徽章（幂等：按 key onConflictDoNothing，后台可再编辑）。 */
 const SEED_BADGES = [
   { key: "official", name: "官方", text: "官方", icon: "shield", style: "official", sortOrder: 10,
@@ -24,6 +27,8 @@ const SEED_BADGES = [
     description: "社区管理团队成员" },
   { key: "genesis", name: "创世", text: "创世", icon: "sparkles", style: "genesis", sortOrder: 40,
     description: "创世时期加入社区的早期成员" },
+  { key: "l-lao", name: "L佬", text: "L佬", icon: "zap", style: "dev", sortOrder: 45,
+    description: "通过 Linux.do SSO 接入社区的成员" },
   { key: "cute", name: "小可爱", text: "小可爱", icon: "heart", style: "cute", sortOrder: 50,
     description: "社区活动派发的荣誉头衔" },
   { key: "writer", name: "大作家", text: "大作家", icon: "pen", style: "writer", sortOrder: 60,
@@ -115,11 +120,46 @@ export async function getUserBadges(userId: string) {
   };
 }
 
+/**
+ * 按 key 幂等授予徽章：首次授予发站内恭喜通知，重复授予静默跳过
+ * （DB 唯一约束 userId+badgeId 兜底防刷）。返回是否为「本次新授予」。
+ */
+export async function awardBadgeByKey(
+  userId: string,
+  key: string,
+  note?: string,
+): Promise<boolean> {
+  const [badge] = await db
+    .select({ id: extBadges.id, name: extBadges.name })
+    .from(extBadges)
+    .where(eq(extBadges.key, key))
+    .limit(1);
+  if (!badge) return false;
+  const inserted = await db
+    .insert(extBadgeGrants)
+    .values({ badgeId: badge.id, userId, note: note ?? null })
+    .onConflictDoNothing({ target: [extBadgeGrants.userId, extBadgeGrants.badgeId] })
+    .returning({ id: extBadgeGrants.id });
+  if (inserted.length > 0) {
+    await notifyBadgeGranted(userId, badge.name);
+    return true;
+  }
+  return false;
+}
+
 const plugin: Plugin = {
   name: "badges",
   description: "Community badge system",
   version: "1.0.0",
-  register() {
+  register(ctx) {
+    // 创世策略：截止时间前注册的用户自动获得「创世」徽章
+    if (Date.now() < GENESIS_DEADLINE_MS) {
+      ctx.events.on("user:registered", ({ userId }) => {
+        if (Date.now() >= GENESIS_DEADLINE_MS) return;
+        void awardBadgeByKey(userId, "genesis", "创世成员").catch(() => undefined);
+      });
+    }
+
     // 种子徽章：幂等（按 key 唯一冲突跳过），后台可再编辑/停用
     void (async () => {
       try {
@@ -129,6 +169,20 @@ const plugin: Plugin = {
           .onConflictDoNothing({ target: extBadges.key });
       } catch (err) {
         console.error("[badges] seed failed (non-fatal):", err);
+      }
+      // 创世回填：截止前注册的全部现存用户（幂等，静默授予不通知）
+      if (Date.now() < GENESIS_DEADLINE_MS) {
+        try {
+          await db.execute(
+            sql`INSERT INTO ext_badge_grants (user_id, badge_id)
+                SELECT u.id, b.id FROM users u, ext_badges b
+                WHERE b.key = 'genesis' AND u.created_at < ${GENESIS_DEADLINE_MS}
+                  AND u.status = 'active'
+                ON CONFLICT DO NOTHING`,
+          );
+        } catch (err) {
+          console.error("[badges] genesis backfill failed (non-fatal):", err);
+        }
       }
     })();
   },

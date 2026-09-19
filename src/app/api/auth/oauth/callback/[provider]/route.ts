@@ -10,6 +10,7 @@ import { hasConfirmedTotp } from "@/lib/auth/totp";
 import { exchangeOAuthCode, oauthEnabled } from "@/lib/auth/oauth";
 import { AppError } from "@/core/errors";
 import { findOrCreateFederatedUser } from "../../../_lib/federated";
+import { awardBadgeByKey, GENESIS_DEADLINE_MS } from "@/extensions/badges/server";
 
 export const runtime = "nodejs";
 
@@ -90,6 +91,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     }
 
     const { user } = await findOrCreateFederatedUser(profile);
+    // Linux.do SSO 首次成功：授予 L佬 徽章（幂等）；截止前注册的附带创世
+    if (provider === "linuxdo") {
+      void awardBadgeByKey(user.id, "l-lao", "Linux.do SSO 接入").catch(() => undefined);
+      if (Date.now() < GENESIS_DEADLINE_MS) {
+        void awardBadgeByKey(user.id, "genesis", "创世成员").catch(() => undefined);
+      }
+    }
     await createSession(user.id, {
       pending2fa: true,
       ip: clientIp(req),
