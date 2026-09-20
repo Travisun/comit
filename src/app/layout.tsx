@@ -105,10 +105,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <I18nProvider locale={locale}>
           <DataProvider>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-              <TooltipProvider delayDuration={200}>{children}</TooltipProvider>
+              {/* 确认框 Provider 必须包住应用树：context 只向后代传递，
+                  此前作为空兄弟节点挂载 → useConfirmDialog 全站拿到默认桩
+                  （直接 resolve false），解绑/删除等一切确认操作静默失效 */}
+              <TooltipProvider delayDuration={200}>
+                <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+              </TooltipProvider>
               {/* 在 ThemeProvider 内：toast 的亮暗色跟随站点主题 */}
               <Toaster />
-              <ConfirmDialogProvider />
               <LoginDialogHost />
             </ThemeProvider>
           </DataProvider>
