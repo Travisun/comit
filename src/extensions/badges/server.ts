@@ -1,6 +1,16 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { extBadgeGrants, extBadges, extBadgeWear, users } from "@/db/schema";
+import {
+  comments,
+  extBadgeGrants,
+  extBadges,
+  extBadgeWear,
+  invites,
+  likes,
+  posts,
+  reports,
+  users,
+} from "@/db/schema";
 import { getSetting } from "@/lib/settings";
 import { sendOperationNotification } from "@/lib/operation-notify";
 import type { Plugin } from "@/core/plugins/types";
@@ -37,6 +47,28 @@ const SEED_BADGES = [
     description: "社区活动派发的开发者荣誉" },
   { key: "designer", name: "设计师", text: "设计师", icon: "palette", style: "designer", sortOrder: 80,
     description: "社区活动派发的设计师荣誉" },
+
+  // —— 运营成就线：创作 / 互动 / 社区建设里程碑（事件驱动自动授予，幂等）——
+  { key: "first-post", name: "初试啼声", text: "初啼", icon: "rocket", style: "writer", sortOrder: 90,
+    description: "发布第一篇内容" },
+  { key: "ten-posts", name: "笔耕不辍", text: "笔耕", icon: "pen", style: "writer", sortOrder: 91,
+    description: "累计发布 10 篇内容" },
+  { key: "fifty-posts", name: "著作等身", text: "著等", icon: "book", style: "writer", sortOrder: 92,
+    description: "累计发布 50 篇内容" },
+  { key: "first-comment", name: "破冰之声", text: "破冰", icon: "star", style: "slate", sortOrder: 93,
+    description: "发表第一条评论" },
+  { key: "fifty-comments", name: "谈笑风生", text: "风生", icon: "users", style: "slate", sortOrder: 94,
+    description: "累计发表 50 条评论" },
+  { key: "hundred-likes", name: "人气满堂", text: "人气", icon: "heart", style: "cute", sortOrder: 95,
+    description: "内容累计获得 100 次点赞" },
+  { key: "solved", name: "金牌解答", text: "解答", icon: "award", style: "dev", sortOrder: 96,
+    description: "评论被帖子作者标记为解决方案" },
+  { key: "first-invite", name: "引路人", text: "引路", icon: "medal", style: "official", sortOrder: 97,
+    description: "通过邀请码成功邀请 1 位新成员" },
+  { key: "ten-invites", name: "社区大使", text: "大使", icon: "users", style: "ops", sortOrder: 98,
+    description: "通过邀请码成功邀请 10 位新成员" },
+  { key: "first-report", name: "风纪委员", text: "风纪", icon: "flag", style: "ops", sortOrder: 99,
+    description: "提交第一次社区举报，协助维护社区秩序" },
 ] as const;
 
 export interface WornBadge {
@@ -128,11 +160,12 @@ export async function awardBadgeByKey(
   userId: string,
   key: string,
   note?: string,
+  opts?: { notify?: boolean },
 ): Promise<boolean> {
   const [badge] = await db
     .select({ id: extBadges.id, name: extBadges.name })
     .from(extBadges)
-    .where(eq(extBadges.key, key))
+    .where(and(eq(extBadges.key, key), eq(extBadges.enabled, true)))
     .limit(1);
   if (!badge) return false;
   const inserted = await db
@@ -141,10 +174,89 @@ export async function awardBadgeByKey(
     .onConflictDoNothing({ target: [extBadgeGrants.userId, extBadgeGrants.badgeId] })
     .returning({ id: extBadgeGrants.id });
   if (inserted.length > 0) {
-    await notifyBadgeGranted(userId, badge.name);
+    // notify=false 仅用于启动回填等批量场景（静默授予，避免全量打扰）
+    if (opts?.notify !== false) await notifyBadgeGranted(userId, badge.name);
     return true;
   }
   return false;
+}
+
+/* ---------------------- 运营成就线（里程碑自动授予） ---------------------- */
+
+interface BadgeCounters {
+  /** 已发布内容（文章 + 短动态） */
+  posts: number;
+  /** 可见评论 */
+  comments: number;
+  /** 内容累计获赞（帖子 + 评论） */
+  likesReceived: number;
+  /** 邀请码成功注册人数 */
+  invites: number;
+  /** 提交举报次数 */
+  reports: number;
+}
+
+/** 里程碑清单：全部幂等授予，达到阈值即补齐 */
+const MILESTONE_BADGES: { key: string; note: string; reached: (c: BadgeCounters) => boolean }[] = [
+  { key: "first-post", note: "发布第一篇内容", reached: (c) => c.posts >= 1 },
+  { key: "ten-posts", note: "累计发布 10 篇内容", reached: (c) => c.posts >= 10 },
+  { key: "fifty-posts", note: "累计发布 50 篇内容", reached: (c) => c.posts >= 50 },
+  { key: "first-comment", note: "发表第一条评论", reached: (c) => c.comments >= 1 },
+  { key: "fifty-comments", note: "累计发表 50 条评论", reached: (c) => c.comments >= 50 },
+  { key: "hundred-likes", note: "内容累计获得 100 次点赞", reached: (c) => c.likesReceived >= 100 },
+  { key: "first-invite", note: "成功邀请 1 位新成员", reached: (c) => c.invites >= 1 },
+  { key: "ten-invites", note: "成功邀请 10 位新成员", reached: (c) => c.invites >= 10 },
+  { key: "first-report", note: "提交第一次社区举报", reached: (c) => c.reports >= 1 },
+];
+
+/**
+ * 评估并补齐用户的运营成就徽章（幂等；新授予且 notify!==false 时发恭喜通知）。
+ * 事件驱动调用：发文/评论/举报/邀请注册/登录完成等节点触发。
+ */
+export async function evaluateUserBadges(
+  userId: string,
+  opts?: { notify?: boolean },
+): Promise<string[]> {
+  const [[pc], [cc], [pl], [cl], [iv], [rp]] = await Promise.all([
+    db
+      .select({ n: count() })
+      .from(posts)
+      .where(and(eq(posts.authorId, userId), eq(posts.status, "published"))),
+    db
+      .select({ n: count() })
+      .from(comments)
+      .where(and(eq(comments.userId, userId), eq(comments.status, "visible"))),
+    db
+      .select({ n: count() })
+      .from(likes)
+      .innerJoin(posts, and(eq(likes.targetId, posts.id), eq(likes.targetType, "post")))
+      .where(eq(posts.authorId, userId)),
+    db
+      .select({ n: count() })
+      .from(likes)
+      .innerJoin(comments, and(eq(likes.targetId, comments.id), eq(likes.targetType, "comment")))
+      .where(eq(comments.userId, userId)),
+    db
+      .select({ n: count() })
+      .from(invites)
+      .where(and(eq(invites.createdBy, userId), isNotNull(invites.usedAt))),
+    db.select({ n: count() }).from(reports).where(eq(reports.reporterId, userId)),
+  ]);
+  const counters: BadgeCounters = {
+    posts: Number(pc?.n ?? 0),
+    comments: Number(cc?.n ?? 0),
+    likesReceived: Number(pl?.n ?? 0) + Number(cl?.n ?? 0),
+    invites: Number(iv?.n ?? 0),
+    reports: Number(rp?.n ?? 0),
+  };
+
+  const newly: string[] = [];
+  for (const m of MILESTONE_BADGES) {
+    if (!m.reached(counters)) continue;
+    const granted = await awardBadgeByKey(userId, m.key, m.note, opts).catch(() => false);
+    if (granted) newly.push(m.key);
+  }
+  return newly;
 }
 
 const plugin: Plugin = {
@@ -159,6 +271,44 @@ const plugin: Plugin = {
         void awardBadgeByKey(userId, "genesis", "创世成员").catch(() => undefined);
       });
     }
+
+    // 运营成就线：内容/互动/社区建设里程碑（事件驱动，幂等授予）
+    ctx.events.on("post:published", (p) => {
+      void evaluateUserBadges(p.authorId).catch((err) =>
+        console.error("[badges] post milestone failed:", err),
+      );
+    });
+    ctx.events.on("comment:created", (p) => {
+      void evaluateUserBadges(p.commenterId).catch((err) =>
+        console.error("[badges] comment milestone failed:", err),
+      );
+    });
+    // 学术问答氛围：评论被作者标记为解决方案 → 评估（solved 徽章 + 获赞累计）
+    ctx.events.on("comment:solved", (p) => {
+      void evaluateUserBadges(p.commentAuthorId).catch((err) =>
+        console.error("[badges] solved milestone failed:", err),
+      );
+    });
+    // 社区建设：举报（风纪委员）与邀请（引路人/社区大使）
+    ctx.events.on("report:submitted", (p) => {
+      void evaluateUserBadges(p.reporterId).catch((err) =>
+        console.error("[badges] report milestone failed:", err),
+      );
+    });
+    ctx.events.on("user:registered", (p) => {
+      // 被邀请人注册成功 → 给邀请人补算引路/大使里程碑
+      if (p.invitedByUserId) {
+        void evaluateUserBadges(p.invitedByUserId).catch((err) =>
+          console.error("[badges] invite milestone failed:", err),
+        );
+      }
+    });
+    // 登录兜底评估：兜住资料完善、历史行为补算等一切未被事件覆盖的推进
+    ctx.events.on("auth:login", (p) => {
+      void evaluateUserBadges(p.userId).catch((err) =>
+        console.error("[badges] login milestone failed:", err),
+      );
+    });
 
     // 种子徽章：幂等（按 key 唯一冲突跳过），后台可再编辑/停用
     void (async () => {
@@ -184,6 +334,16 @@ const plugin: Plugin = {
         } catch (err) {
           console.error("[badges] genesis backfill failed (non-fatal):", err);
         }
+      }
+      // 里程碑回填：为全部在册用户补算历史成就（静默授予不通知，
+      // 避免上线首日全量用户收到成串补发通知；事件驱动的后续授予照常通知）
+      try {
+        const rows = await db.select({ id: users.id }).from(users).where(eq(users.status, "active"));
+        for (const u of rows) {
+          await evaluateUserBadges(u.id, { notify: false });
+        }
+      } catch (err) {
+        console.error("[badges] milestone backfill failed (non-fatal):", err);
       }
     })();
   },
