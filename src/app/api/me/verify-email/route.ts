@@ -2,10 +2,11 @@ import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AppError, forbidden } from "@/core/errors";
+import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { routes, absolute } from "@/core/routes";
-import { ok, withUser } from "@/lib/http";
+import { ok, withApi } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { getAuth } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
 import { issueAuthToken } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
@@ -31,11 +32,17 @@ const postSchema = z.object({
  * 未验证账户被仪表盘硬门槛挡在 /auth/verify，此前没有任何改邮箱入口 ——
  * 注册时邮箱打错或 OSS 合成邮箱（收不到验证信）会永久死锁，本路由即解法。
  *
- * 限频：auth.verifyEmail 桶按用户 3 次/10 分钟（重发与换绑共用）；
+ * 鉴权注意：不能走 withUser（apiUser 对未验证会话返回 null —— 未验证用户
+ * 会话合法但仅允许触达验证相关端点），故用 withApi + getAuth 手工守卫：
+ * 要求完整会话（非 pending2fa）且邮箱未验证。
+ *
+ * 限频：auth.email.resend 桶按用户 3 次/10 分钟（重发与换绑共用）；
  * 换绑时对有密码账户额外验密，防会话被盗后静默接管邮箱。
  */
 export async function POST(req: Request) {
-  return withUser(req, async (auth) => {
+  return withApi(req, async () => {
+    const auth = await getAuth();
+    if (!auth || auth.pending2fa) throw unauthorized("请先登录 / Sign in required");
     if (auth.user.emailVerifiedAt) {
       throw new AppError("邮箱已完成验证 / Email already verified", 400, "already_verified");
     }
