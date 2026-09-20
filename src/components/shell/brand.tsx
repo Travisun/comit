@@ -25,12 +25,18 @@ export function BrandLink({ siteName }: { siteName: string }) {
       className="inline-flex items-center justify-center rounded-[10px] p-1"
       aria-label={siteName}
     >
-      {/* 左栏收窄为 110px 后字标放不下：各档位统一用方形图标 */}
+      {/* 侧栏收起态（md，52px）用方形图标；展开态（lg，110px，菜单带文字）用完整字标 */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/icons/logo-mark.svg"
         alt={siteName}
-        className="size-8 select-none rounded-md dark:invert"
+        className="size-8 select-none rounded-md dark:invert lg:hidden"
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/icons/logo-full.svg"
+        alt={siteName}
+        className="hidden h-[18px] w-auto select-none dark:invert lg:block"
       />
     </Link>
   );

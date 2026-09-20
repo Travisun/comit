@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useInfiniteQuery, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { BadgeCheck, Loader2, Lock, MessageCircle, Pin } from "lucide-react";
 import { toast } from "sonner";
@@ -102,6 +102,10 @@ export function Comments({
 
   // comment intent: focus the reply bar once it mounts (retry through the
   // portal mount + viewer resolution)
+  const searchParams = useSearchParams();
+  // 列表页「评论」按钮带 ?comment=1 进入：除聚焦外把评论区滚入视野
+  //（长文页评论区在首屏外，且路由导航后的 scroll-to-top 会盖过 focus 自带滚动）
+  const commentIntent = searchParams.get("comment") === "1";
   useEffect(() => {
     if (closed) return;
     let tries = 0;
@@ -110,13 +114,14 @@ export function Comments({
       const el = inputRef.current;
       if (el) {
         el.focus();
+        if (commentIntent) el.scrollIntoView({ block: "center", behavior: "smooth" });
         return;
       }
       if (++tries < 60) raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [closed]);
+  }, [closed, commentIntent]);
 
   function startReply(c: CommentItem) {
     setReplyTo(c);

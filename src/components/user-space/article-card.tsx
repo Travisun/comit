@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, Heart, MessageCircle, Pin, Repeat2 } from "lucide-react";
+import { Eye, MessageCircle, Pin } from "lucide-react";
 import { cn, timeAgo } from "@/lib/utils";
 import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage, Badge } from "@/components/ui/primitives";
 import { AnnotationBadge } from "@/components/posts/annotation-badge";
+import { LikeButton } from "@/components/social/like-button";
+import { RepostButton } from "@/components/social/repost-button";
 import { BookmarkButton } from "@/components/social/bookmark-button";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
@@ -151,15 +153,19 @@ export function TimelineActions({
   post,
   href,
   className,
+  signedIn = false,
 }: {
   post: FeedItemDTO["post"];
   href: string;
   className?: string;
+  /** 登录态：转发按钮游客点击直接唤起登录 dialog（点赞/收藏按钮自带 401 分流） */
+  signedIn?: boolean;
 }) {
   return (
     <div className={cn("mt-2 flex max-w-sm items-center justify-between text-muted-foreground", className)}>
+      {/* 评论 = 进详情页并自动聚焦评论框（详情页按 ?comment=1 意图聚焦） */}
       <Link
-        href={href}
+        href={`${href}?comment=1`}
         className="group/a inline-flex items-center gap-1 text-xs transition-colors hover:text-sky-500"
         aria-label="评论"
         prefetch={false}
@@ -169,24 +175,23 @@ export function TimelineActions({
         </span>
         {post.commentCount > 0 && <span className="num tabular-nums">{post.commentCount}</span>}
       </Link>
-      <span
-        className="group/l inline-flex items-center gap-1 text-xs transition-colors hover:text-rose-500"
-        aria-label="喜欢"
-      >
-        <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/l:bg-rose-500/10">
-          <Heart className="size-4" />
-        </span>
-        {post.likeCount > 0 && <span className="num tabular-nums">{post.likeCount}</span>}
-      </span>
-      <span
-        className="group/r inline-flex items-center gap-1 text-xs transition-colors hover:text-emerald-500"
-        aria-label="转发"
-      >
-        <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/r:bg-emerald-500/10">
-          <Repeat2 className="size-4" />
-        </span>
-        {post.repostCount > 0 && <span className="num tabular-nums">{post.repostCount}</span>}
-      </span>
+      {/* 点赞/转发/收藏：行内原页生效（乐观更新），不跳转 */}
+      <LikeButton
+        variant="timeline"
+        targetType="post"
+        targetId={post.id}
+        initialCount={post.likeCount}
+        initialLiked={post.liked ?? false}
+      />
+      <RepostButton
+        variant="timeline"
+        postId={post.id}
+        publicId={post.publicId}
+        originalTitle={post.title ?? post.summary?.slice(0, 40) ?? "无题"}
+        initialCount={post.repostCount}
+        initialReposted={post.reposted ?? false}
+        signedIn={signedIn}
+      />
       <BookmarkButton postId={post.id} initialBookmarked={post.bookmarked ?? null} />
       <span className="group/v inline-flex items-center gap-1 text-xs" aria-label="查看次数" title="查看次数">
         <span className="grid size-7 place-items-center rounded-full">
@@ -289,7 +294,7 @@ export function ArticleCard({
           <img src={cover} alt="" loading="lazy" className="aspect-[2/1] w-full object-cover" />
         </Link>
       )}
-      <TimelineActions post={post} href={href} />
+      <TimelineActions post={post} href={href} signedIn={Boolean(viewerUsername) || mine} />
     </TimelineRow>
   );
 }

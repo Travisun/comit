@@ -130,7 +130,7 @@ export function ShortCard({
           显示更多
         </a>
       )}
-      <TimelineActions post={post} href={href} />
+      <TimelineActions post={post} href={href} signedIn={Boolean(viewerUsername)} />
     </TimelineRow>
   );
 }

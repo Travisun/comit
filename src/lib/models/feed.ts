@@ -54,6 +54,10 @@ export const postBriefSchema = z.object({
   hasPoll: z.boolean().optional(),
   /** viewer 收藏态（登录态的 feed 下发；游客恒 false）——行内收藏按钮初始状态 */
   bookmarked: z.boolean().optional(),
+  /** viewer 点赞态（同 bookmarked，登录态 feed 下发）——行内点赞按钮初始状态 */
+  liked: z.boolean().optional(),
+  /** viewer 转发态（同上）——行内转发按钮初始状态 */
+  reposted: z.boolean().optional(),
 });
 export type PostBrief = z.infer<typeof postBriefSchema>;
 

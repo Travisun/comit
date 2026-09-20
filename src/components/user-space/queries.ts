@@ -60,8 +60,12 @@ export type FeedItem = {
   author: UserBrief;
   /** 非空 ⇒ 该帖附带投票 */
   pollId?: string | null;
-  /** viewer 已收藏（仅 getPublishedPosts 传 viewerId 时下发） */
+  /** viewer 已收藏（仅 getPublishedPosts/hot 传 viewerId 时下发） */
   bookmarked?: boolean;
+  /** viewer 已点赞（同上） */
+  liked?: boolean;
+  /** viewer 已转发（同上） */
+  reposted?: boolean;
 };
 
 const DAY = 86_400_000;
@@ -98,6 +102,8 @@ export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
       sourceName: item.post.sourceName,
       hasPoll: Boolean(item.pollId),
       bookmarked: Boolean(item.bookmarked),
+      liked: Boolean(item.liked),
+      reposted: Boolean(item.reposted),
     },
     author: item.author,
   };
@@ -186,15 +192,34 @@ export async function getPublishedPosts(
       bookmarked: opts.viewerId
         ? sql<boolean>`(${bookmarks.userId} is not null)`
         : sql<boolean>`false`,
+      liked: opts.viewerId
+        ? sql<boolean>`(${likes.userId} is not null)`
+        : sql<boolean>`false`,
+      reposted: opts.viewerId
+        ? sql<boolean>`(${reposts.userId} is not null)`
+        : sql<boolean>`false`,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .leftJoin(polls, eq(polls.postId, posts.id));
   const rows = await (opts.viewerId
-    ? baseQuery.leftJoin(
-        bookmarks,
-        and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
-      )
+    ? baseQuery
+        .leftJoin(
+          bookmarks,
+          and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
+        )
+        .leftJoin(
+          likes,
+          and(
+            eq(likes.targetId, posts.id),
+            eq(likes.targetType, "post"),
+            eq(likes.userId, opts.viewerId),
+          ),
+        )
+        .leftJoin(
+          reposts,
+          and(eq(reposts.postId, posts.id), eq(reposts.userId, opts.viewerId)),
+        )
     : baseQuery
   )
     .where(and(...conds))
@@ -521,15 +546,34 @@ export async function getTrendingPosts(opts: {
       bookmarked: opts.viewerId
         ? sql<boolean>`(${bookmarks.userId} is not null)`
         : sql<boolean>`false`,
+      liked: opts.viewerId
+        ? sql<boolean>`(${likes.userId} is not null)`
+        : sql<boolean>`false`,
+      reposted: opts.viewerId
+        ? sql<boolean>`(${reposts.userId} is not null)`
+        : sql<boolean>`false`,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .leftJoin(polls, eq(polls.postId, posts.id));
   const rows = await (opts.viewerId
-    ? baseQuery.leftJoin(
-        bookmarks,
-        and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
-      )
+    ? baseQuery
+        .leftJoin(
+          bookmarks,
+          and(eq(bookmarks.postId, posts.id), eq(bookmarks.userId, opts.viewerId)),
+        )
+        .leftJoin(
+          likes,
+          and(
+            eq(likes.targetId, posts.id),
+            eq(likes.targetType, "post"),
+            eq(likes.userId, opts.viewerId),
+          ),
+        )
+        .leftJoin(
+          reposts,
+          and(eq(reposts.postId, posts.id), eq(reposts.userId, opts.viewerId)),
+        )
     : baseQuery
   )
     .where(inArray(posts.id, pageIds));

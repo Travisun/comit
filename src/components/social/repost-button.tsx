@@ -37,6 +37,8 @@ export function RepostButton({
   signedIn = true,
   className,
   fixedLabel = false,
+  /** bar = 详情操作栏胶囊；timeline = 时间线行内紧凑圆形（无文字） */
+  variant = "bar",
 }: {
   postId: string;
   /** 原文 permalink（/post/{publicId}），引用块链接用 */
@@ -48,6 +50,8 @@ export function RepostButton({
   /** 游客点击直接唤起登录 dialog */
   signedIn?: boolean;
   className?: string;
+  /** bar = 详情操作栏胶囊；timeline = 时间线行内紧凑圆形（无文字） */
+  variant?: "bar" | "timeline";
   /** 详情操作栏模式：恒显「转发」两字（计数入 title），保证各操作宽度一致 */
   fixedLabel?: boolean;
 }) {
@@ -111,29 +115,52 @@ export function RepostButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={submitting}
-        aria-pressed={reposted}
-        title={reposted ? t("post.reposted") : t("post.repost")}
-        className={cn(
-          "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm transition-colors",
-          "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500",
-          "disabled:pointer-events-none disabled:opacity-60",
-          reposted && "text-emerald-600 hover:text-emerald-600",
-          className,
-        )}
-      >
-        <Repeat2 className="size-4 shrink-0" />
-        {fixedLabel ? (
-          <span>{t("post.repost")}</span>
-        ) : count > 0 ? (
-          <span className="tabular-nums">{count}</span>
-        ) : (
-          <span className="hidden sm:inline">{t("post.repost")}</span>
-        )}
-      </button>
+      {variant === "timeline" ? (
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={submitting}
+          aria-pressed={reposted}
+          title={reposted ? t("post.reposted") : t("post.repost")}
+          aria-label={reposted ? t("post.reposted") : t("post.repost")}
+          className={cn(
+            "group/r inline-flex items-center gap-1 text-xs transition-colors",
+            "text-muted-foreground hover:text-emerald-500",
+            "disabled:pointer-events-none disabled:opacity-60",
+            reposted && "text-emerald-600 hover:text-emerald-600",
+            className,
+          )}
+        >
+          <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/r:bg-emerald-500/10">
+            <Repeat2 className="size-4" />
+          </span>
+          {count > 0 && <span className="num tabular-nums">{count}</span>}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onClick}
+          disabled={submitting}
+          aria-pressed={reposted}
+          title={reposted ? t("post.reposted") : t("post.repost")}
+          className={cn(
+            "inline-flex min-h-8 items-center gap-1.5 rounded-full px-2 text-sm transition-colors",
+            "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-500",
+            "disabled:pointer-events-none disabled:opacity-60",
+            reposted && "text-emerald-600 hover:text-emerald-600",
+            className,
+          )}
+        >
+          <Repeat2 className="size-4 shrink-0" />
+          {fixedLabel ? (
+            <span>{t("post.repost")}</span>
+          ) : count > 0 ? (
+            <span className="tabular-nums">{count}</span>
+          ) : (
+            <span className="hidden sm:inline">{t("post.repost")}</span>
+          )}
+        </button>
+      )}
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">

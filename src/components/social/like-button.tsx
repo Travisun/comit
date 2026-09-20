@@ -15,6 +15,9 @@ interface LikeState {
   count: number;
 }
 
+/** bar = 详情操作栏胶囊；timeline = 时间线行内紧凑圆形（无文字） */
+export type LikeButtonVariant = "bar" | "timeline";
+
 export function LikeButton({
   targetType,
   targetId,
@@ -22,11 +25,14 @@ export function LikeButton({
   initialLiked,
   className,
   fixedLabel = false,
+  variant = "bar",
 }: {
   targetType: "post" | "comment";
   targetId: string;
   initialCount: number;
   initialLiked: boolean;
+  /** optional extra styling (contract superset) */
+  variant?: LikeButtonVariant;
   /** optional extra styling (contract superset) */
   className?: string;
   /** 详情操作栏模式：恒显「点赞」两字（计数入 title），保证各操作宽度一致 */
@@ -75,6 +81,31 @@ export function LikeButton({
   function toggle() {
     if (toggleMutation.pending) return;
     void toggleMutation.mutate(undefined);
+  }
+
+  if (variant === "timeline") {
+    return (
+      <button
+        type="button"
+        onClick={toggle}
+        disabled={toggleMutation.pending}
+        aria-pressed={liked}
+        title={liked ? t("post.unlike") : t("post.like")}
+        aria-label={liked ? t("post.unlike") : t("post.like")}
+        className={cn(
+          "group/l inline-flex items-center gap-1 text-xs transition-colors",
+          "text-muted-foreground hover:text-rose-500",
+          "disabled:pointer-events-none disabled:opacity-60",
+          liked && "text-rose-500 hover:text-rose-500",
+          className,
+        )}
+      >
+        <span className="grid size-7 place-items-center rounded-full transition-colors group-hover/l:bg-rose-500/10">
+          <Heart className={cn("size-4", liked && "fill-current")} />
+        </span>
+        {count > 0 && <span className="num tabular-nums">{count}</span>}
+      </button>
+    );
   }
 
   return (
