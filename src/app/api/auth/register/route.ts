@@ -172,7 +172,7 @@ export async function POST(req: Request) {
     await emit("auth:registered", { userId: user.id, email: user.email, username: user.username });
 
     const token = await issueAuthToken(user.id, "email_verify", 60 * 24);
-    const verifyUrl = absolute(`${routes.verifyEmail}?token=${encodeURIComponent(token)}`);
+    const verifyUrl = absolute(`${routes.verifyEmailApi}?token=${encodeURIComponent(token)}`);
     const mail = renderMail("verifyEmail", locale as Locale, { url: verifyUrl });
     try {
       await sendMail({ to: user.email, ...mail });

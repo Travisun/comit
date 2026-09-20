@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (!user || user.emailVerifiedAt || user.status !== "active") return ok(generic);
 
     const token = await issueAuthToken(user.id, "email_verify", 60 * 24);
-    const verifyUrl = absolute(`${routes.verifyEmail}?token=${encodeURIComponent(token)}`);
+    const verifyUrl = absolute(`${routes.verifyEmailApi}?token=${encodeURIComponent(token)}`);
     const locale = (user.locale === "en" ? "en" : "zh") as Locale;
     const mail = renderMail("verifyEmail", locale, { url: verifyUrl });
     await sendMail({ to: user.email, ...mail });

@@ -5,6 +5,7 @@ import { clientIp } from "@/lib/rate-limit";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { verifyTotpCode } from "@/lib/auth/totp";
+import { routes } from "@/core/routes";
 import { parseJsonBody } from "../../_lib/validate";
 
 export const runtime = "nodejs";
@@ -26,8 +27,12 @@ export async function POST(req: Request) {
       throw new AppError("验证码错误，请重试 / Invalid code, try again", 400, "bad_totp");
     }
     await setSessionPending2fa(auth.sessionId, false);
-    // 未完成注册引导的用户先进 onboarding
-    const redirect = auth.user.onboardedAt ? undefined : "/onboarding";
+    // 未验证邮箱先过验证关卡；未完成注册引导的再进 onboarding
+    const redirect = !auth.user.emailVerifiedAt
+      ? routes.verifyEmail
+      : auth.user.onboardedAt
+        ? undefined
+        : "/onboarding";
     return ok({ ok: true, recoveryCodes: result.recoveryCodes, redirect });
   });
 }

@@ -67,7 +67,7 @@ export async function POST(req: Request) {
     }
 
     const token = await issueAuthToken(auth.user.id, "email_verify", 60 * 24);
-    const verifyUrl = absolute(`${routes.verifyEmail}?token=${encodeURIComponent(token)}`);
+    const verifyUrl = absolute(`${routes.verifyEmailApi}?token=${encodeURIComponent(token)}`);
     const locale = (auth.user.locale === "en" ? "en" : "zh") as Locale;
     const mail = renderMail("verifyEmail", locale, { url: verifyUrl });
     await sendMail({ to: target, ...mail });

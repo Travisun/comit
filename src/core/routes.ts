@@ -60,6 +60,8 @@ export const routes = {
   login: "/auth/login",
   register: "/auth/register",
   verifyEmail: "/auth/verify",
+  /** 邮件里的验证链接指向这里（消费 token 后 302 回 /auth/verify 按状态渲染） */
+  verifyEmailApi: "/api/auth/verify",
   forgotPassword: "/auth/forgot",
   resetPassword: (token: string) =>
     `${buildPath(TPL.resetPassword)}?token=${encodeURIComponent(token)}`,

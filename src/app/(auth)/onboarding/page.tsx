@@ -14,7 +14,9 @@ export const dynamic = "force-dynamic";
  */
 export default async function OnboardingPage() {
   const auth = await getAuth();
-  if (!auth || auth.pending2fa || !auth.user.emailVerifiedAt) redirect(routes.login);
+  if (!auth || auth.pending2fa) redirect(routes.login);
+  // 未验证用户先完成邮箱验证（此前误踢回 /login，造成「2FA 后被登出」的死循环观感）
+  if (!auth.user.emailVerifiedAt) redirect(routes.verifyEmail);
   if (auth.user.onboardedAt) redirect(routes.home);
 
   return (

@@ -6,6 +6,7 @@ import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { consumeRecoveryCode, hasConfirmedTotp, verifyTotpCode } from "@/lib/auth/totp";
 import { emit } from "@/core/events";
+import { routes } from "@/core/routes";
 import { parseJsonBody } from "../../_lib/validate";
 
 export const runtime = "nodejs";
@@ -45,8 +46,12 @@ export async function POST(req: Request) {
     // 登录真正完成的时刻（2FA 通过）；ip 从会话创建时已记录
     await emit("auth:login", { userId: auth.user.id });
 
-    // 未完成注册引导的用户先进 onboarding
-    const redirect = auth.user.onboardedAt ? undefined : "/onboarding";
+    // 未验证邮箱先过验证关卡；未完成注册引导的再进 onboarding
+    const redirect = !auth.user.emailVerifiedAt
+      ? routes.verifyEmail
+      : auth.user.onboardedAt
+        ? undefined
+        : "/onboarding";
     return ok({ ok: true, redirect });
   });
 }

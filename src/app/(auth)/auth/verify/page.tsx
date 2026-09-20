@@ -33,6 +33,16 @@ export default async function VerifyPage({
   const invalid = sp.error === "1";
 
   if (verified) {
+    // 成功态 CTA 分流：已登录用户（会话内换绑/重发后验证）直接进站或回
+    // onboarding；匿名用户（点邮件链接验证）走原「继续登录」。
+    const auth = await getAuth();
+    const authed = Boolean(auth && !auth.pending2fa);
+    const ctaHref = authed
+      ? auth!.user.onboardedAt
+        ? routes.home
+        : "/onboarding"
+      : routes.login;
+    const ctaLabel = authed ? t("auth.verifyEmail.enterSite") : t("auth.verifyEmail.continue");
     return (
       <AuthCard title={t("auth.verifyEmail.title")}>
         <div className="flex flex-col items-center gap-3 py-4 text-center">
@@ -40,7 +50,7 @@ export default async function VerifyPage({
           <p className="text-lg font-semibold text-foreground">{t("auth.verifyEmail.success")}</p>
           <p className="text-sm text-muted-foreground">{t("auth.verifyEmail.verifiedHint")}</p>
           <Button asChild className="mt-2 w-full">
-            <Link href={routes.login}>{t("auth.verifyEmail.continue")}</Link>
+            <Link href={ctaHref}>{ctaLabel}</Link>
           </Button>
         </div>
       </AuthCard>
