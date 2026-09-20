@@ -15,6 +15,23 @@ import { awardBadgeByKey, GENESIS_DEADLINE_MS } from "@/extensions/badges/server
 export const runtime = "nodejs";
 
 const PROVIDERS = new Set(["github", "google", "x", "linuxdo"]);
+
+/**
+ * Linux.do 接入勋章（登录与账号绑定两条路径都授予；幂等，失败记日志不吞）：
+ *  - l-lao：Linux.do 身份接入即授予；
+ *  - genesis：仅账号创建时间在创世截止前的用户（与启动回填口径一致，
+ *    此前按「回调发生在截止前」判定会让截止后注册的新号也拿到创世）。
+ */
+function awardLinuxdoBadges(userId: string, createdAt: Date | null) {
+  void awardBadgeByKey(userId, "l-lao", "Linux.do SSO 接入").catch((err) =>
+    console.error("[oauth] l-lao badge failed:", err),
+  );
+  if (!createdAt || createdAt.getTime() < GENESIS_DEADLINE_MS) {
+    void awardBadgeByKey(userId, "genesis", "创世成员").catch((err) =>
+      console.error("[oauth] genesis badge failed:", err),
+    );
+  }
+}
 const STATE_COOKIE = "mb_oauth_state";
 const LINK_COOKIE = "mb_oauth_link";
 const VERIFIER_COOKIE = "mb_oauth_verifier";
@@ -87,17 +104,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
           providerAccountId: profile.providerAccountId,
         })
         .onConflictDoNothing();
+      // 绑定成功与登录路径同权益：接入勋章照发（此前绑定路径不授予，
+      // 已有账号绑定 L 站后拿不到 L佬 徽章）
+      if (provider === "linuxdo") awardLinuxdoBadges(linkUserId, auth.user.createdAt);
       return flowExit(absolute(`/settings/connections?linked=${provider}`));
     }
 
     const { user } = await findOrCreateFederatedUser(profile);
-    // Linux.do SSO 首次成功：授予 L佬 徽章（幂等）；截止前注册的附带创世
-    if (provider === "linuxdo") {
-      void awardBadgeByKey(user.id, "l-lao", "Linux.do SSO 接入").catch(() => undefined);
-      if (Date.now() < GENESIS_DEADLINE_MS) {
-        void awardBadgeByKey(user.id, "genesis", "创世成员").catch(() => undefined);
-      }
-    }
+    // Linux.do SSO 接入勋章（幂等）：L佬 + 截止前创建的账号附带创世
+    if (provider === "linuxdo") awardLinuxdoBadges(user.id, user.createdAt);
     await createSession(user.id, {
       pending2fa: true,
       ip: clientIp(req),
