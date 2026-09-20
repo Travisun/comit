@@ -51,6 +51,12 @@ export interface ChannelOption {
   label: LocalizedText;
 }
 
+/**
+ * 用户未保存过偏好时的默认渠道（与 notifications 扩展的实际发送行为一致）：
+ * 站内 + 邮件都开。webhook 等扩展渠道不默认开启。
+ */
+export const DEFAULT_NOTIFICATION_CHANNELS = ["database", "mail"];
+
 export interface SessionView {
   id: string;
   ip: string | null;

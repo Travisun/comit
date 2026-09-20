@@ -3,17 +3,24 @@ import Link from "next/link";
 import { CircleCheck, CircleX } from "lucide-react";
 import { routes } from "@/core/routes";
 import { getT } from "@/lib/i18n";
+import { getAuth } from "@/lib/auth/session";
+import { maskEmail } from "@/app/api/me/_shared";
 import { AuthCard, AuthBanner } from "../_components/auth-card";
 import { ResendForm } from "./resend-form";
+import { SessionVerifyActions } from "./session-verify-actions";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "验证邮箱 / Verify email" };
 
 /**
- * 邮箱验证落地页三态：
- *  - ?verified=1 → 成功态：获得感反馈（图标 + 标语）+「继续登录」主 CTA
- *  - ?error=1    → 失效态：明确报错（链接无效或已过期）+ 重发表单 + 回登录引导
- *  - 无参数      → 提示态：等待用户去邮箱点击链接
+ * 邮箱验证落地页四态：
+ *  - ?verified=1          → 成功态：获得感反馈（图标 + 标语）+「继续登录」主 CTA
+ *  - ?error=1             → 失效态：明确报错（链接无效或已过期）+ 重发表单 + 回登录引导
+ *  - 已登录且邮箱未验证    → 会话态：展示当前邮箱 + 重发 + 验证前换绑
+ *                           （仪表盘硬门槛把未验证用户重定向到本页，见
+ *                           (dashboard)/layout.tsx —— 此前该页只有匿名表单，
+ *                           注册邮箱填错或 OSS 合成邮箱会永久死锁）
+ *  - 无参数且未登录       → 提示态：等待用户去邮箱点击链接
  */
 export default async function VerifyPage({
   searchParams,
@@ -49,6 +56,19 @@ export default async function VerifyPage({
           {t("auth.verifyEmail.invalidHint")}
         </p>
         <ResendForm />
+      </AuthCard>
+    );
+  }
+
+  // 会话态：登录 + 2FA 已完成的未验证用户（/auth/verify 硬门槛的落点）
+  const auth = await getAuth();
+  if (auth && !auth.pending2fa && !auth.user.emailVerifiedAt) {
+    return (
+      <AuthCard title={t("auth.verifyEmail.title")} description={t("auth.verifyEmail.pendingDesc")}>
+        <SessionVerifyActions
+          email={maskEmail(auth.user.email)}
+          hasPassword={Boolean(auth.user.passwordHash)}
+        />
       </AuthCard>
     );
   }

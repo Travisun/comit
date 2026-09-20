@@ -14,7 +14,7 @@ import {
 import { useI18n } from "@/lib/i18n/client";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiRequest } from "./client";
-import { NOTIFICATION_EVENTS, type ChannelOption } from "./types";
+import { NOTIFICATION_EVENTS, DEFAULT_NOTIFICATION_CHANNELS, type ChannelOption } from "./types";
 
 export function NotificationsPanel({
   channels,
@@ -27,13 +27,13 @@ export function NotificationsPanel({
   const [prefs, setPrefs] = useState<Record<string, string[]>>(() => {
     const base: Record<string, string[]> = {};
     for (const e of NOTIFICATION_EVENTS) {
-      base[e.key] = initialPrefs[e.key] ?? ["database"];
+      base[e.key] = initialPrefs[e.key] ?? DEFAULT_NOTIFICATION_CHANNELS;
     }
     return base;
   });
   const dirty = NOTIFICATION_EVENTS.some((e) => {
     const cur = [...(prefs[e.key] ?? [])].sort().join(",");
-    const init = [...(initialPrefs[e.key] ?? ["database"])].sort().join(",");
+    const init = [...(initialPrefs[e.key] ?? DEFAULT_NOTIFICATION_CHANNELS)].sort().join(",");
     return cur !== init;
   });
 

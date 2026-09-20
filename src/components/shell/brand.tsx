@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Feather } from "lucide-react";
-import { LogoFull } from "@/components/brand/logo";
 import { cn } from "@/lib/utils";
 import { routes } from "@/core/routes";
 
@@ -26,20 +25,22 @@ export function BrandLink({ siteName }: { siteName: string }) {
       className="inline-flex items-center justify-center rounded-[10px] p-1"
       aria-label={siteName}
     >
-      {/* 收起态（<lg）：方形图标；展开态（lg）：完整字标 — SVG 优先 */}
+      {/* 左栏收窄为 110px 后字标放不下：各档位统一用方形图标 */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/icons/logo-mark.svg"
         alt={siteName}
-        className="size-8 select-none rounded-md dark:invert lg:hidden"
+        className="size-8 select-none rounded-md dark:invert"
       />
-      <LogoFull className="hidden lg:block" height={22} />
     </Link>
   );
 }
 
 /** 创作 trigger — on the home page it pings the pinned composer to expand
  * and focus; anywhere else it routes home with ?compose=1. */
+const triggerClass =
+  "mt-2 flex h-9 w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-primary text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:h-9 md:w-9 lg:h-8 lg:w-full lg:px-3";
+
 export function ComposerTrigger({
   login,
   onGuestClick,
@@ -52,11 +53,7 @@ export function ComposerTrigger({
   const pathname = usePathname();
   if (login) {
     return (
-      <button
-        type="button"
-        onClick={onGuestClick}
-        className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:h-9 md:w-9 lg:h-8 lg:w-full lg:px-3"
-      >
+      <button type="button" onClick={onGuestClick} className={triggerClass}>
         <Feather className="size-3.5" />
         <span className="hidden text-[13px] lg:inline">创作</span>
       </button>
@@ -66,8 +63,7 @@ export function ComposerTrigger({
     <button type="button" onClick={() => {
       if (pathname === "/") window.dispatchEvent(new CustomEvent("composer:focus"));
       else router.push("/?compose=1");
-    }}
-      className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-none transition-opacity hover:opacity-90 md:h-9 md:w-9 lg:h-8 lg:w-full lg:px-3">
+    }} className={triggerClass}>
       <Feather className="size-3.5" />
       <span className="hidden text-[13px] lg:inline">创作</span>
     </button>

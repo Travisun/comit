@@ -24,6 +24,8 @@ export async function POST(req: Request) {
     // 无 user.id 可作限流主体 → 保持按 IP 限流，防邮件轰炸/枚举
     await rateLimitBucket("auth.email", clientIp(req));
     const body = await parseJsonBody(req, schema);
+    // 第二道：按邮箱地址冷却（3 次/10 分钟），攻击者换 IP 也无法对同一地址高频轰炸
+    await rateLimitBucket("auth.email.resend", `addr:${body.email}`);
     const generic = { ok: true, message: "如果该邮箱存在，验证邮件已重新发送 / If that email exists, a verification email has been resent" };
 
     const [user] = await db.select().from(users).where(eq(users.email, body.email)).limit(1);

@@ -95,7 +95,7 @@ export function LeftNav({
   return (
     <nav
       aria-label="主导航"
-      className="hidden h-full w-[52px] shrink-0 flex-col px-1.5 py-3 md:flex lg:w-[172px] lg:px-2.5"
+      className="hidden h-full w-[52px] shrink-0 flex-col px-1.5 py-3 md:flex lg:w-[110px] lg:px-2.5"
     >
       <div className="mb-2 flex justify-center">
         <BrandLink siteName={siteName} />
@@ -167,7 +167,7 @@ export function LeftNav({
           className="flex items-center justify-center gap-2 rounded-full p-2 text-sm font-semibold transition-colors hover:bg-hover"
         >
           <UserIcon className="size-5 lg:hidden" />
-          <span className="hidden lg:inline">登录 / 注册</span>
+          <span className="hidden whitespace-nowrap lg:inline">登录 / 注册</span>
         </button>
       )}
     </nav>

@@ -44,6 +44,13 @@ export const RATE_BUCKETS = [
     en: "Email change (per user) + verification resend (per IP)",
   },
   {
+    name: "auth.email.resend",
+    limit: 3,
+    windowSec: 600,
+    zh: "重发验证邮件（按用户 / 按邮箱地址）",
+    en: "Verification resend (per user / per email address)",
+  },
+  {
     name: "auth.twofa",
     limit: 10,
     windowSec: 60,

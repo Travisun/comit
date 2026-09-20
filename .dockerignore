@@ -1,0 +1,12 @@
+# 构建上下文瘦身:Dockerfile 的 `COPY . .` 会把整个仓库送进 build 阶段
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.server.example
+tsconfig.tsbuildinfo
+storage/uploads
+storage/exports
+ComitDocuments
+docs

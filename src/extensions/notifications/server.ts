@@ -11,6 +11,7 @@ import { routes } from "@/core/routes";
 import { broadcast } from "@/core/capabilities/broadcast";
 import type { Locale } from "@/lib/i18n";
 import { setNotificationDispatcher } from "@/core/capabilities/jobs";
+import { DEFAULT_NOTIFICATION_CHANNELS } from "@/components/settings/types";
 
 /**
  * Notifications plugin (Laravel-style multi-channel):
@@ -20,7 +21,8 @@ import { setNotificationDispatcher } from "@/core/capabilities/jobs";
  * plugin registers 'webhook'. New channels can be added by any plugin.
  */
 
-export const DEFAULT_CHANNELS = ["database", "mail"];
+/** 未保存偏好时的默认渠道 — 出处与设置 UI 共用（settings/types）。 */
+export const DEFAULT_CHANNELS = DEFAULT_NOTIFICATION_CHANNELS;
 
 async function userChannels(userId: string, key: string): Promise<string[]> {
   const { users } = await import("@/db/schema");

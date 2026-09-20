@@ -69,12 +69,12 @@ export async function findOrCreateFederatedUser(
     return { user: existing, created: false };
   }
 
-  // 3. auto-register —— provider 明确验证过邮箱，或邮箱是 provider 侧的合成
-  //    noreply 地址（emailSynthetic，如 X：身份由 provider 证明、验证邮件
-  //    不可能送达）才写 emailVerifiedAt，否则留 null（走常规邮箱验证流程）。
-  //    按邮箱自动绑定不受此影响：仍由 profile.emailVerified 单独门控，
-  //    合成邮箱（emailVerified=false）永远不允许绑入既有账户。
-  const emailRecognized = profile.emailVerified === true || profile.emailSynthetic === true;
+  // 3. auto-register —— 统一不写 emailVerifiedAt：OSS 注册与密码注册一样必须
+  //    通过站内邮箱验证关卡（/auth/verify）。provider 已验证 / 合成 noreply
+  //    邮箱都不再直接视为已验证；合成邮箱收不到验证信，用户在验证页先换绑
+  //    真实邮箱再完成验证（会话内换绑走 POST /api/me/verify-email）。
+  //    按邮箱自动绑入既有账户不受此影响：仍由 profile.emailVerified 单独门控
+  //    （合成邮箱 emailVerified=false 永远不允许绑入既有账户）。
   const username = await pickAvailableUsername(profile.username || email.split("@")[0] || "user");
   const [user] = await db
     .insert(users)
@@ -82,7 +82,7 @@ export async function findOrCreateFederatedUser(
       email,
       username,
       displayName: (profile.displayName || username).slice(0, 80),
-      emailVerifiedAt: emailRecognized ? new Date() : null,
+      emailVerifiedAt: null,
       locale: "zh",
     })
     .returning();

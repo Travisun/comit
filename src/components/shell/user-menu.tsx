@@ -35,7 +35,7 @@ export function UserMenu({
 }: {
   user: ShellUser;
   isAdmin: boolean;
-  /** mobile avatar-only trigger vs desktop full chip */
+  /** 移动端顶栏触发（菜单向下展开、右对齐）；桌面左栏底部触发（向上展开、左对齐） */
   mobile?: boolean;
   siteName: string;
   locale: "zh" | "en";
@@ -56,8 +56,10 @@ export function UserMenu({
           type="button"
           aria-label="账号菜单"
           className={cn(
-            "flex w-full items-center gap-2.5 rounded-full transition-colors outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
-            mobile ? "p-0.5" : "p-1.5",
+            "flex w-full items-center rounded-full transition-colors outline-none hover:bg-hover focus-visible:ring-2 focus-visible:ring-[var(--ring)]",
+            mobile
+              ? "p-0.5"
+              : "justify-center p-1 lg:justify-start lg:pl-3 lg:pr-2",
           )}
         >
           <Avatar className="size-8 border border-border">
@@ -66,17 +68,13 @@ export function UserMenu({
             )}
             <AvatarFallback>{user.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
           </Avatar>
-          {!mobile && (
-            <span className="min-w-0 flex-1 text-left">
-              <span className="block truncate text-sm font-semibold leading-tight">
-                {user.displayName}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">@{user.username}</span>
-            </span>
-          )}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" side={mobile ? "bottom" : "top"} className="w-56">
+      <DropdownMenuContent
+        side={mobile ? "bottom" : "top"}
+        align={mobile ? "end" : "start"}
+        className="w-56"
+      >
         <DropdownMenuLabel>
           <div className="text-sm font-semibold text-foreground">{user.displayName}</div>
           <div className="text-xs text-muted-foreground">@{user.username}</div>
