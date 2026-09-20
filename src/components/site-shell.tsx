@@ -92,7 +92,7 @@ export function SiteShell({
 
       {/* two columns: icon/text nav | main zone. The main zone's panel spans
           to the container's right edge and splits into content | rail. */}
-      <div className="mx-auto flex h-full w-full max-w-[1200px]">
+      <div className="mx-auto flex h-full w-full max-w-[1280px]">
         <LeftNav user={user} isAdmin={isAdmin} siteName={siteName} locale={locale} unread={localUnread} />
 
         <main className="min-w-0 flex-1 pb-16 md:flex md:h-full md:pb-0">

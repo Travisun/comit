@@ -17,8 +17,11 @@ import { mentions, users } from "@/db/schema";
  */
 
 const MENTION_TOKEN = /\[@([^\]]+)\]\(mention:([0-9a-f-]{36})\)/g;
-/** @候选：字母/数字/_/-/中文，1-40 位（不含空白与 @） */
-const MENTION_CANDIDATE = /(^|[\s(（>「])@([A-Za-z0-9_\-\u4e00-\u9fff][A-Za-z0-9_\-\u4e00-\u9fff.]{0,60})/g;
+/** @候选：字母/数字/_/-/中文，1-40 位（不含空白与 @）。
+ *  边界用 lookbehind：@ 前不能是英数/_/@/.（排除邮箱 a@b.com 等误伤），
+ *  但允许 CJK/标点紧跟 —— 中文社区普遍「你好@昵称」无空格输入，
+ *  旧边界（仅空白/括号）会把这类提及整体漏掉。 */
+const MENTION_CANDIDATE = /(?<![A-Za-z0-9_@.])@([A-Za-z0-9_\-\u4e00-\u9fff][A-Za-z0-9_\-\u4e00-\u9fff.]{0,60})/g;
 
 export interface ProcessedMentions {
   /** 重写后的文本（含稳定 mention 引用语法） */
@@ -33,7 +36,7 @@ export async function processMentions(
 ): Promise<ProcessedMentions> {
   const candidates = new Set<string>();
   for (const m of text.matchAll(MENTION_CANDIDATE)) {
-    candidates.add(m[2]);
+    candidates.add(m[1]);
   }
   if (candidates.size === 0) return { text, mentionedUserIds: [] };
 

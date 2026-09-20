@@ -1,4 +1,4 @@
-import { eq , inArray } from "drizzle-orm";
+import { and, eq , inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, posts, users, comments } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
@@ -273,6 +273,31 @@ const plugin: Plugin = {
           authorName: commenter?.displayName ?? "有人",
         });
       })().catch((err) => console.error("[notify] mention flush failed:", err));
+    });
+    // 首次登录欢迎（System 官方账号消息）：auth:login 每次成功登录触发，
+    // 按 notifications.key = welcome 幂等去重，只有第一条会真正落库
+    ctx.events.on("auth:login", (p) => {
+      void (async () => {
+        const [existing] = await db
+          .select({ id: notifications.id })
+          .from(notifications)
+          .where(and(eq(notifications.userId, p.userId), eq(notifications.key, "welcome")))
+          .limit(1);
+        if (existing) return;
+        await sendOperationNotification(p.userId, {
+          key: "welcome",
+          title: {
+            zh: "欢迎加入 comit.sh 🎉",
+            en: "Welcome to comit.sh 🎉",
+          },
+          body: {
+            zh: "欢迎你！本社区的宗旨是和平、友好、理性沟通，打造学术和技术氛围浓厚的社区。请在沟通和发表过程中务必遵守社区规定。点击本条消息即可查看《社区规定》全文。",
+            en: "Welcome! This community is built on peaceful, friendly and rational communication, with a strong academic and technical atmosphere. Please follow the community guidelines when posting and commenting. Click this message to read the full Community Guidelines.",
+          },
+          url: routes.legal.terms,
+          payload: { type: "welcome" },
+        });
+      })().catch((err) => console.error("[notify] welcome failed:", err));
     });
   },
 };

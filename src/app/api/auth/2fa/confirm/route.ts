@@ -5,6 +5,7 @@ import { clientIp } from "@/lib/rate-limit";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth, setSessionPending2fa } from "@/lib/auth/session";
 import { verifyTotpCode } from "@/lib/auth/totp";
+import { emit } from "@/core/events";
 import { routes } from "@/core/routes";
 import { parseJsonBody } from "../../_lib/validate";
 
@@ -27,6 +28,8 @@ export async function POST(req: Request) {
       throw new AppError("验证码错误，请重试 / Invalid code, try again", 400, "bad_totp");
     }
     await setSessionPending2fa(auth.sessionId, false);
+    // 登录真正完成的时刻（首次 2FA 设置成功 = 首次登录完成）；触发欢迎通知等
+    await emit("auth:login", { userId: auth.user.id });
     // 未验证邮箱先过验证关卡；未完成注册引导的再进 onboarding
     const redirect = !auth.user.emailVerifiedAt
       ? routes.verifyEmail
