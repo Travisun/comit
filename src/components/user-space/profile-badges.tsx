@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { Check } from "lucide-react";
 import { BadgeChip } from "@/extensions/badges/badge-ui";
 import { cn } from "@/lib/utils";
 import { putJsonSafe } from "@/lib/client/api";
@@ -64,11 +65,19 @@ export function ProfileBadges({ initial, isSelf }: { initial: ProfileBadge[]; is
               busyId === b.id && "opacity-50",
             )}
           >
-            <BadgeChip
-              badge={b}
-              size="md"
-              className={cn(b.worn ? "ring-2 ring-primary/40" : "opacity-60 grayscale-[0.4]")}
-            />
+            <span className="relative inline-block">
+              <BadgeChip
+                badge={b}
+                size="md"
+                className={cn(b.worn ? "" : "opacity-60 grayscale-[0.4]")}
+              />
+              {/* 佩戴中标识：右下角对勾角标 */}
+              {b.worn && (
+                <span className="absolute -bottom-1 -right-1 grid size-4 place-items-center rounded-full bg-primary text-primary-foreground ring-2 ring-background">
+                  <Check className="size-2.5" strokeWidth={3} />
+                </span>
+              )}
+            </span>
           </button>
         ))}
       </div>

@@ -140,10 +140,12 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
             sourceName: post.sourceName,
           });
 
-    // published posts keep status/publishedAt — content-only update
+    // 审核闭环：已发布内容的任何编辑都必须重新走审核管线
+    //（防过审后改文绕审）；重审期间回到 pending_review（他人暂不可见），
+    // 过审后恢复发布并照常触发 post:published（提及通知/徽章评估等下游）
     const wasPublished = post.status === "published";
     const nextStatus = wasPublished
-      ? "published"
+      ? "pending_review"
       : body.action === "submit"
         ? "pending_review"
         : (body.status ?? post.status);
@@ -160,8 +162,7 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
         coverPath: body.coverPath !== undefined ? (body.coverPath ?? null) : post.coverPath,
         status: nextStatus,
         ...labelColumns,
-        rejectReason:
-          body.action === "submit" || body.status === "draft" ? null : post.rejectReason,
+        rejectReason: nextStatus === "pending_review" ? null : post.rejectReason,
         updatedAt: new Date(),
       },
       { id: auth.user.id, username: auth.user.username, role: auth.user.role },
@@ -187,8 +188,9 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
       ).onConflictDoNothing();
     }
 
-    if (body.action === "submit" && !wasPublished) {
-      // reviewMode=off → moderation plugin publishes immediately
+    // 重新进入审核队列（草稿首次提审 / 过审后编辑重审）：
+    // reviewMode=off 时 moderation 插件会立即发布
+    if (nextStatus === "pending_review") {
       await emit("post:submitted", {
         postId: post.id,
         authorId: auth.user.id,

@@ -37,7 +37,7 @@ const SEED_BADGES = [
     description: "社区管理团队成员" },
   { key: "genesis", name: "创世", text: "创世", icon: "sparkles", style: "genesis", sortOrder: 40,
     description: "创世时期加入社区的早期成员" },
-  { key: "l-lao", name: "L佬", text: "L佬", icon: "zap", style: "dev", sortOrder: 45,
+  { key: "l-lao", name: "LD大佬", text: "LD大佬", icon: "zap", style: "dev", sortOrder: 45,
     description: "通过 Linux.do SSO 接入社区的成员" },
   { key: "cute", name: "小可爱", text: "小可爱", icon: "heart", style: "cute", sortOrder: 50,
     description: "社区活动派发的荣誉头衔" },
@@ -320,27 +320,26 @@ const plugin: Plugin = {
       } catch (err) {
         console.error("[badges] seed failed (non-fatal):", err);
       }
-      // 创世回填：截止前注册的全部现存用户（幂等，静默授予不通知）
+      // 创世回填：截止前注册的全部现存用户（幂等；新授予发恭喜通知）
       if (Date.now() < GENESIS_DEADLINE_MS) {
         try {
-          await db.execute(
-            sql`INSERT INTO ext_badge_grants (user_id, badge_id)
-                SELECT u.id, b.id FROM users u, ext_badges b
-                WHERE b.key = 'genesis'
-                  AND u.created_at < to_timestamp(${GENESIS_DEADLINE_MS} / 1000.0)
-                  AND u.status = 'active'
-                ON CONFLICT DO NOTHING`,
-          );
+          const members = await db
+            .select({ id: users.id })
+            .from(users)
+            .where(and(eq(users.status, "active"), sql`created_at < to_timestamp(${GENESIS_DEADLINE_MS} / 1000.0)`));
+          for (const m of members) {
+            await awardBadgeByKey(m.id, "genesis", "创世成员");
+          }
         } catch (err) {
           console.error("[badges] genesis backfill failed (non-fatal):", err);
         }
       }
-      // 里程碑回填：为全部在册用户补算历史成就（静默授予不通知，
-      // 避免上线首日全量用户收到成串补发通知；事件驱动的后续授予照常通知）
+      // 里程碑回填：为全部在册用户补算历史成就（新授予的逐一发恭喜通知；
+      // 幂等 —— 已授予过的用户不会重复通知）
       try {
         const rows = await db.select({ id: users.id }).from(users).where(eq(users.status, "active"));
         for (const u of rows) {
-          await evaluateUserBadges(u.id, { notify: false });
+          await evaluateUserBadges(u.id);
         }
       } catch (err) {
         console.error("[badges] milestone backfill failed (non-fatal):", err);
