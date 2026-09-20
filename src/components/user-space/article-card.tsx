@@ -53,7 +53,10 @@ export function TimelineRow({
 
   function activate(e: React.MouseEvent | React.KeyboardEvent) {
     if (!href) return;
-    if (e.target instanceof HTMLElement && e.target.closest("a,button,input,textarea,[role='button']")) return;
+    // 注意用 Element 而非 HTMLElement：点赞/收藏等图标是 <svg>（SVGElement），
+    // HTMLElement 守卫会被图标点击绕过 → 整行跳转抢走按钮点击
+    const target = e.target instanceof Element ? e.target : null;
+    if (target?.closest("a,button,input,textarea,[role='button'],[data-no-row-nav]")) return;
     router.push(href);
   }
 
@@ -68,7 +71,8 @@ export function TimelineRow({
       onKeyDown={
         interactive
           ? (e) => {
-              if (e.key === "Enter" && !(e.target instanceof HTMLElement && e.target.closest("a,button"))) activate(e);
+              const kTarget = e.target instanceof Element ? e.target : null;
+              if (e.key === "Enter" && !(kTarget?.closest("a,button,[data-no-row-nav]"))) activate(e);
             }
           : undefined
       }
@@ -162,7 +166,10 @@ export function TimelineActions({
   signedIn?: boolean;
 }) {
   return (
-    <div className={cn("mt-2 flex max-w-sm items-center justify-between text-muted-foreground", className)}>
+    <div
+      data-no-row-nav
+      className={cn("mt-2 flex max-w-sm items-center justify-between text-muted-foreground", className)}
+    >
       {/* 评论 = 进详情页并自动聚焦评论框（详情页按 ?comment=1 意图聚焦） */}
       <Link
         href={`${href}?comment=1`}
