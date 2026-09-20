@@ -26,7 +26,7 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog";
  * 响应模型在边界用 zod 收敛（apiQueryOptions）。
  */
 const connectionSchema = z.object({
-  provider: z.enum(["github", "google", "linuxdo"]),
+  provider: z.enum(["github", "google", "linuxdo", "x"]),
   enabled: z.boolean(),
   linked: z.boolean(),
 });
@@ -41,6 +41,7 @@ const PROVIDER_META: Record<Connection["provider"], { label: string; desc: { zh:
   github: { label: "GitHub", desc: { zh: "使用 GitHub 账号登录", en: "Sign in with GitHub" } },
   google: { label: "Google", desc: { zh: "使用 Google 账号登录", en: "Sign in with Google" } },
   linuxdo: { label: "Linux.do", desc: { zh: "使用 Linux.do 账号登录（L 站社区账号）", en: "Sign in with your Linux.do account" } },
+  x: { label: "X", desc: { zh: "使用 X（推特）账号登录", en: "Sign in with X" } },
 };
 
 /** 账号绑定 — 把 GitHub / Google 等第三方账号绑定到当前账户，或解除绑定。 */
@@ -105,8 +106,15 @@ export function ConnectionsPanel() {
             : "Link third-party accounts to sign in with them. Linking opens the provider's authorization page."
         }
       />
+      {connections.filter((conn) => conn.enabled || conn.linked).length === 0 && (
+        <p className="py-6 text-sm text-muted-foreground">
+          {zh ? "站点未启用任何第三方登录方式。" : "No third-party sign-in methods are enabled."}
+        </p>
+      )}
       <SettingsPanelList>
-        {connections.map((conn) => (
+        {connections
+          .filter((conn) => conn.enabled || conn.linked)
+          .map((conn) => (
           <SettingsPanelRow
             key={conn.provider}
             icon={<ProviderIcon provider={conn.provider} />}

@@ -9,10 +9,16 @@ import { getSetting } from "@/lib/settings";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const PROVIDERS = ["github", "google", "linuxdo"] as const;
+const PROVIDERS = ["github", "google", "linuxdo", "x"] as const;
 
-function ssoKey(provider: string): "sso.github" | "sso.google" | "sso.linuxdo" {
-  return provider === "google" ? "sso.google" : provider === "linuxdo" ? "sso.linuxdo" : "sso.github";
+function ssoKey(provider: string): "sso.github" | "sso.google" | "sso.linuxdo" | "sso.x" {
+  return provider === "google"
+    ? "sso.google"
+    : provider === "linuxdo"
+      ? "sso.linuxdo"
+      : provider === "x"
+        ? "sso.x"
+        : "sso.github";
 }
 
 /** GET /api/me/connections — 各 OAuth 登录方式的启用与绑定状态。
