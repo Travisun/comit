@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq , inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, posts, users, comments } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
@@ -236,6 +236,8 @@ const plugin: Plugin = {
     ctx.events.on("comment:removed", (p) => void notifyCommentRemoved(p));
     ctx.events.on("report:resolved", (p) => void notifyReportResolved(p));
     ctx.events.on("report:submitted", (p) => void notifyReportSubmitted(p));
+    // 新待审内容 → 通知管理员/编辑（邮件 + 站内）
+    ctx.events.on("post:submitted", (p) => void notifyPendingReview(p));
     // @提及：内容可见时 flush 通知（文章发布 / 评论过审可见）
     ctx.events.on("post:published", (p) => {
       void (async () => {
@@ -488,6 +490,49 @@ async function notifyCommentRemoved(p: {
     });
   } catch (err) {
     console.error("[notify] comment:removed listener failed:", err);
+  }
+}
+
+/** 新待审内容 → 通知所有 admin/editor 用户（站内 + 邮件）。 */
+async function notifyPendingReview(p: {
+  postId: string;
+  authorId: string;
+  title: string;
+}): Promise<void> {
+  try {
+    // 查作者昵称 + 帖子类型
+    const [author] = await db
+      .select({ displayName: users.displayName, type: posts.type })
+      .from(users)
+      .innerJoin(posts, eq(posts.id, p.postId))
+      .where(eq(users.id, p.authorId))
+      .limit(1);
+    const kindZh = author?.type === "short" ? "动态" : "文章";
+    const authorName = author?.displayName ?? "未知用户";
+
+    // 查 admin + editor 用户（站内通知 + 邮件收件人）
+    const admins = await db
+      .select({ id: users.id, email: users.email })
+      .from(users)
+      .where(inArray(users.role, ["admin", "editor"]));
+    if (!admins.length) return;
+
+    for (const admin of admins) {
+      // 不通知提交者自己（如果作者恰好是管理员）
+      if (admin.id === p.authorId) continue;
+      await deliver(admin.id, {
+        key: "moderation.pending",
+        title: { zh: "新内容待审核", en: "New content pending review" },
+        body: {
+          zh: `${authorName} 发布了一篇${kindZh}「${p.title || "(无标题)"}」，正在等待审核。`,
+          en: `${authorName} published a ${kindZh} "${p.title || "(untitled)"}" awaiting review.`,
+        },
+        url: "/admin/moderation",
+        payload: { postId: p.postId, authorId: p.authorId },
+      });
+    }
+  } catch (err) {
+    console.error("[notify] post:submitted listener failed:", err);
   }
 }
 
