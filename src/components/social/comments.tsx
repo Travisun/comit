@@ -238,7 +238,7 @@ export function Comments({
         // 审核模式下 pending 评论不计入公开计数（与后端 commentCount 推迟自增一致）
         if (created.status !== "pending_review") setCount((c) => c + 1);
         if (created.status === "pending_review") {
-          toast.success("评论已提交，审核通过后其他人可见");
+          toast.success("评论已发布");
         }
         setReplyTo(null);
         setViewerOverride((v) => v ?? "signed-in");
@@ -385,16 +385,6 @@ export function Comments({
                           <BadgeCheck className="size-2.5" aria-hidden /> 解决方案
                         </span>
                       )}
-                    </span>
-                  )}
-                  {c.status === "pending_review" && (
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-                      审核中 · 仅自己可见
-                    </span>
-                  )}
-                  {c.status === "rejected" && (
-                    <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-                      未通过审核 · 仅自己可见
                     </span>
                   )}
                   {c.visibility === "private" && (

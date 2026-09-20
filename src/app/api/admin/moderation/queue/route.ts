@@ -18,6 +18,7 @@ export async function GET(req: Request) {
     const items = await db
       .select({
         id: posts.id,
+        publicId: posts.publicId,
         title: posts.title,
         summary: posts.summary,
         content: posts.content,

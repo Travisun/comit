@@ -9,6 +9,7 @@ import { Badge, Skeleton } from "@/components/ui/primitives";
 import { EmptyState } from "@/components/admin/bits";
 import { RejectDialog } from "@/components/admin/post-actions";
 import { timeAgo } from "@/lib/utils";
+import { routes } from "@/core/routes";
 import { useI18n } from "@/lib/i18n/client";
 import { postJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
@@ -19,6 +20,7 @@ import { queryKeys } from "@/lib/query/keys";
 
 const queueItemSchema = z.object({
   id: z.string(),
+  publicId: z.string().optional(),
   title: z.string().nullable(),
   summary: z.string(),
   content: z.string(),
@@ -121,7 +123,7 @@ export function ModerationQueueTab() {
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <a
-                    href={`/p/${item.id}`}
+                    href={routes.post(item.publicId ?? item.id)}
                     target="_blank"
                     rel="noreferrer"
                     className="font-semibold hover:underline"
