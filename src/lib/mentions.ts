@@ -26,7 +26,7 @@ const MENTION_CANDIDATE = /(?<![A-Za-z0-9_@.])@([A-Za-z0-9_\-\u4e00-\u9fff][A-Za
 export interface ProcessedMentions {
   /** 重写后的文本（含稳定 mention 引用语法） */
   text: string;
-  /** 去重后的被提及用户 id（不含作者本人） */
+  /** 去重后的被提及用户 id（含作者本人） */
   mentionedUserIds: string[];
 }
 
@@ -57,10 +57,10 @@ export async function processMentions(
     .where(inArray(sql`lower(${users.displayName})`, lowerList));
   for (const r of byName) resolved.push(r);
 
-  // id 去重 + 排除作者
+  // id 去重（含作者本人：自己 @ 自己同样落记录并发通知）
   const byId = new Map<string, (typeof resolved)[number]>();
   for (const r of resolved) {
-    if (r.id !== authorId && !byId.has(r.id)) byId.set(r.id, r);
+    if (!byId.has(r.id)) byId.set(r.id, r);
   }
 
   if (byId.size === 0) return { text, mentionedUserIds: [] };

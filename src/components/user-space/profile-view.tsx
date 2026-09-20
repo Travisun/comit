@@ -385,6 +385,7 @@ function ProfileTabs({ username, active }: { username: string; active: ProfileTa
           <Link
             key={t.id}
             href={`${routes.profile(username)}?tab=${t.id}`}
+            prefetch={false}
             aria-current={active === t.id ? "page" : undefined}
             className={cn(
               "relative grid place-items-center px-1 py-3.5 text-sm transition-colors",
