@@ -105,6 +105,15 @@ export interface LlmResult {
   usage?: { input: number; output: number };
   providerId: string;
   model: string;
+  /** 逐 token logprobs（仅 openai 协议 + opts.logprobs 开启时返回） */
+  logprobsContent?: LlmLogprobToken[];
+}
+
+/** 单 token 的 logprob 及其 top 候选（用于受约束输出的真实概率提取）。 */
+export interface LlmLogprobToken {
+  token: string;
+  logprob: number;
+  topLogprobs: { token: string; logprob: number }[];
 }
 
 export interface LlmCompleteOptions {
@@ -121,6 +130,10 @@ export interface LlmCompleteOptions {
   /** json_schema 约束输出（openai 协议；优先级高于 json，RLCD 审核服务要求） */
   responseFormat?: "json_object" | "json_schema";
   jsonSchema?: { name: string; schema: Record<string, unknown> };
+  /** 返回逐 token logprobs（仅 openai 协议；RLCD 真实概率校准用） */
+  logprobs?: boolean;
+  /** logprobs 的 top 候选数（默认 20） */
+  topLogprobs?: number;
   /** 思考档位；缺省读提供商配置 thinking */
   thinking?: LlmThinkingLevel;
   tools?: LlmTool[];
@@ -180,6 +193,10 @@ export function buildOpenAiRequest(
       json_schema: { name: opts.jsonSchema.name, strict: true, schema: opts.jsonSchema.schema },
     };
   } else if (opts.json) body.response_format = { type: "json_object" };
+  if (opts.logprobs) {
+    body.logprobs = true;
+    body.top_logprobs = opts.topLogprobs ?? 20;
+  }
   if (opts.tools?.length) {
     body.tools = opts.tools.map((t) => ({
       type: "function",
@@ -213,11 +230,23 @@ export function parseOpenAiResponse(data: unknown, model: string, providerId: st
   const d = data as {
     choices?: {
       message?: OpenAiWireMessage;
+      logprobs?: {
+        content?: {
+          token?: string;
+          logprob?: number;
+          top_logprobs?: { token?: string; logprob?: number }[];
+        }[];
+      };
     }[];
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
   const msg = d.choices?.[0]?.message;
   if (!msg) throw new Error("LLM 响应缺少 choices[0].message");
+  const logprobsContent = (d.choices?.[0]?.logprobs?.content ?? []).map((t) => ({
+    token: t.token ?? "",
+    logprob: t.logprob ?? 0,
+    topLogprobs: (t.top_logprobs ?? []).map((c) => ({ token: c.token ?? "", logprob: c.logprob ?? 0 })),
+  }));
   return {
     text: msg.content ?? "",
     reasoning: msg.reasoning_content ?? undefined,
@@ -231,6 +260,7 @@ export function parseOpenAiResponse(data: unknown, model: string, providerId: st
       : undefined,
     providerId,
     model,
+    logprobsContent: logprobsContent.length ? logprobsContent : undefined,
   };
 }
 

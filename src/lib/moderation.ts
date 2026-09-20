@@ -4,7 +4,12 @@ import { comments, keywords, posts, type Comment, type Post } from "@/db/schema"
 import { getSetting } from "@/lib/settings";
 import { emit } from "@/core/events";
 import { makeExcerpt, markdownToPlain } from "@/lib/utils";
-import { llmAvailable, llmChat } from "@/lib/llm";
+import {
+  llmAvailable,
+  llmChat,
+  llmComplete,
+  type LlmLogprobToken,
+} from "@/lib/llm";
 
 /**
  * Content moderation pipeline:
@@ -36,6 +41,8 @@ export interface LlmReviewResult {
   approved: boolean;
   score?: number;
   reason?: string;
+  /** logprobs 提取的真实 P(violation)（0-1；替代模型自报 confidence） */
+  pViolation?: number;
   /** RLCD 处置动作：auto_reject 拒绝 / human_review 转人工 / auto_pass 通过 */
   action?: RlcdAction;
   /** RLCD 违规类别（normal/porn/violence/gambling/fraud/contraband/abuse/politics/spam/circumvention） */
@@ -45,46 +52,150 @@ export interface LlmReviewResult {
 }
 
 
-/* ---------------------- Qwen-RLCD 审核服务对接 ----------------------------
- * 对接 ../Qwen-2.5-1B-RLCD 审核服务（OpenAI 兼容协议 + JSON Schema 约束输出）。
- * 接口规格（与 client/moderation_schema.py 严格对齐）：
- *   响应 content 解析为
- *   { violation, category(10 类), severity(4 级), confidence(0-1), reason(≤30字) }
- *   处置策略（client/moderate.py apply_policy 同款阈值）：
- *     violation ∧ confidence ≥ 0.85 → auto_reject（自动拒绝）
- *     violation ∧ confidence < 0.85 → human_review（转人工复核）
- *     ¬violation ∧ confidence ≥ 0.60 → auto_pass（自动通过）
- *     ¬violation ∧ confidence < 0.60 → human_review（转人工复核）
+/* ---------------------- Qwen-RLCD 审核服务对接（v7.3） ----------------------
+ * 对接 ../Qwen-2.5-1B-RLCD 审核逻辑（与 client/moderation_schema.py v7.3 对齐）。
+ *  - 中篇提示词：要点规则 + 紧凑对比示例（RLCD 对比范式，~700 tokens）
+ *  - 真实概率：logprobs 提取 P(violation)（true/false 候选子集 softmax），
+ *    替代模型自报 confidence（实测恒虚高 0.9+，不可信）
+ *  - 多证据处置路由（宁转人工、不误杀、不漏判）：
+ *      violation ∧ 交易型类别 ∧ P≥0.95 ∧ 词表命中 ∧ 非通报语境 → auto_reject
+ *      violation 其余（灰区 / abuse·violence·politics 解读型类别）→ human_review
+ *      ¬violation ∧ 词表命中（黑话盲区）                         → human_review
+ *      ¬violation ∧ 无词表命中                                   → auto_pass
  */
-export const RLCD_SYSTEM_PROMPT = "你是社交平台与自媒体文章的内容安全审核系统。对用户提交的内容做违规判定，只输出一个 JSON 对象。\n\n分类标准（category，十选一）：\n- normal: 正常内容。新闻转述、警方通报、法律条文科普、天气预报、学术/技术讨论、求助咨询、心理援助、文艺创作讨论、商品正常买卖等。即使话题涉及违规现象（如反诈宣传、报道赌博案、讲VPN技术原理），只要不是发布、推广、教唆或交易，就是 normal\n- porn: 色情低俗、招嫖（含表述含蓄的\"上门服务/约\"）、约炮交友、福利视频群、成人资源/写真售卖分发\n- violence: 暴力恐怖。血腥视频、打架/伤害手法教学、教唆报复、约死自残、虐待动物/儿童、恐怖组织宣传招募、美化恐怖袭击、暴恐音视频\n- gambling: 赌博。赌场开户揽客、百家乐/时时彩/六和彩平台、竞彩票跟单合买、德扑现金局返水、棋牌房卡代理、麻将透视开挂——只要出现赌博玩法、平台、跟单、返水任一要素，就归 gambling，即使同时承诺\"稳赚/月入过万\"（那只是揽客话术）\n- fraud: 诈骗、传销、刷单兼职骗局、虚假中奖领奖链接、冒充客服/领导诱导转账办事、原始股/虚拟币骗局——以\"编造身份或利益、骗取钱财\"为核心且无赌博要素\n- contraband: 毒品（含隐语\"四件套/原料\"）、枪支仿真武器、管制刀具弩箭、处方药滥用（曲马多/止咳水）、公民个人信息（开房记录/定位）买卖\n- abuse: 纯语言性攻击：辱骂、地域歧视、仇恨言论、恶意诅咒、人肉开盒、线下堵门威胁\n- politics: 涉政有害。政治谣言（\"官方隐瞒/真相被压\"类阴谋论、囤盐式恐慌煽动）、煽动线下聚集堵门、恶毒攻击英烈、煽动分裂、伪造官方文件/红头文件、\"境外势力\"名单类阴谋论传播\n- spam: 垃圾广告、代刷量、迷信转发诅咒链、论文代写、招聘打字员等引流刷屏（不涉欺诈）\n- circumvention: 仅限翻墙工具本身的售卖/推广：明确提到 VPN 账号买卖、\"机场\"节点订阅、翻墙APP安装包、科学上网服务收费带教。注意：普通的软件下载、教程视频、课程推荐、硬件买卖都不是 circumvention；不含\"翻墙/VPN/机场/节点/科学上网\"字样就绝不判此类\n\n判定优先级（从高到低）：\n1. 涉性交易/色情资源/约炮 → porn（即使同时在售卖）\n2. 恐怖主义宣传、虐待动物/儿童、伤害教学、约死 → violence\n3. 出现赌博玩法/平台/跟单/返水要素 → gambling（优先于 fraud）\n4. 政治谣言/煽动/攻击英烈/伪造公文 → politics（纯骂人无政治要素才是 abuse）\n5. 冒充身份诱导转账、刷单、虚假中奖、传销 → fraud\n6. 明确的翻墙工具售卖（VPN/机场/节点/梯子）→ circumvention\n7. 违禁品实物或个人信息交易 → contraband\n8. 只有纯辱骂诅咒 → abuse；只有纯广告刷量 → spam\n\nseverity（违规严重度）: normal 内容必须为 \"none\"；违规内容按 low / medium / high 判断，涉刑案类(porn、violence、gambling、fraud、contraband、circumvention、分裂国家)不得低于 \"medium\"。\n\nconfidence 为 0 到 1 的小数，表示判定把握。reason 用不超过 30 字说明判定依据。\n\n示例：\n内容: \"周末爬山拍了好多照片，山顶风景太美了，下次带爸妈一起来\"\n{\"violation\": false, \"category\": \"normal\", \"severity\": \"none\", \"confidence\": 0.98, \"reason\": \"日常生活分享，无违规\"}\n\n内容: \"警方通报破获一起刷单诈骗案，提醒群众切勿轻信兼职刷单\"\n{\"violation\": false, \"category\": \"normal\", \"severity\": \"none\", \"confidence\": 0.95, \"reason\": \"警方反诈通报，非诈骗发布\"}\n\n内容: \"加薇 xxx88 每天稳定500，导师一对一带你做任务，日结秒到\"\n{\"violation\": true, \"category\": \"fraud\", \"severity\": \"high\", \"confidence\": 0.9, \"reason\": \"典型刷单兼职诈骗话术\"}\n\n内容: \"网盘资源合集，高清完整版，学生妹资源，看头像私我\"\n{\"violation\": true, \"category\": \"porn\", \"severity\": \"high\", \"confidence\": 0.9, \"reason\": \"售卖色情资源归porn\"}\n\n内容: \"上门服务本人180有腹肌，预约微聊，价格面议\"\n{\"violation\": true, \"category\": \"porn\", \"severity\": \"high\", \"confidence\": 0.85, \"reason\": \"含蓄招嫖话术归porn\"}\n\n内容: \"足球内部稳胆消息，跟单十中九，输了包赔，进群上车\"\n{\"violation\": true, \"category\": \"gambling\", \"severity\": \"high\", \"confidence\": 0.9, \"reason\": \"赌球揽客，博彩链条归gambling\"}\n\n内容: \"转发：某地的事官方根本没报，真相被压着，别信媒体，懂的都懂\"\n{\"violation\": true, \"category\": \"politics\", \"severity\": \"medium\", \"confidence\": 0.8, \"reason\": \"政治谣言阴谋论调\"}\n\n内容: \"求推荐适合初学者的吉他教程，最好有视频的那种\"\n{\"violation\": false, \"category\": \"normal\", \"severity\": \"none\", \"confidence\": 0.98, \"reason\": \"正常课程求推荐\"}\n\n内容: \"澳门赌场线上开户，首存优惠，百家乐龙虎斗，秒提现\"\n{\"violation\": true, \"category\": \"gambling\", \"severity\": \"high\", \"confidence\": 0.9, \"reason\": \"赌场开户揽客，有博彩平台要素\"}\n\n内容: \"高速稳定机场推荐，不限流包月30，附各平台下载教程\"\n{\"violation\": true, \"category\": \"circumvention\", \"severity\": \"high\", \"confidence\": 0.9, \"reason\": \"售卖翻墙机场订阅\"}";
+export const RLCD_SYSTEM_PROMPT = `你是社交平台内容安全审核系统，判断内容是否违规并分类，只输出JSON。
+类别：porn 色情招嫖与性资源买卖；violence 暴力恐怖/虐待/传授伤害/教唆自残约死；gambling 赌博博彩/赌场开户/赌球跟单/赌博外挂；fraud 诈骗/传销/刷单兼职骗局/虚假中奖/冒充诱导转账；contraband 毒品/武器/管制器具/处方药滥用/个人信息买卖；abuse 辱骂歧视/仇恨诅咒/人肉威胁；politics 政治谣言/煽动聚集/攻击英烈/分裂/伪造公文；spam 垃圾广告/代刷量/迷信转发；circumvention 售卖翻墙工具(VPN/机场/节点/梯子)；normal 正常内容。
+判定要点：
+1. 色情资源买卖归 porn；有博彩要素归 gambling 优先于 fraud；翻墙售卖归 circumvention；违禁品实物交易归 contraband
+2. severity: normal 必为 none；涉刑案类(porn/violence/gambling/fraud/contraband/circumvention)不低于 medium
+3. 对话与短文本：疑问/反问/追问/澄清/敷衍/无指向情绪宣泄都是 normal；abuse 必须有明确侮辱歧视诅咒词汇
+4. 新闻/警方通报/法律科普/影评/游戏测评/心理援助等讨论敏感话题的正常内容是 normal
+5. reason 不超过15字
+示例：
+内容：网盘资源合集，高清完整版，学生妹资源，看头像私我
+{"violation": true, "category": "porn", "severity": "high", "reason": "售卖色情资源"}
+内容：高速稳定机场推荐，不限流包月30，附各平台下载教程
+{"violation": true, "category": "circumvention", "severity": "high", "reason": "售卖翻墙机场订阅"}
+内容：加薇 xxx88 每天稳定500，导师一对一带你做任务，日结秒到
+{"violation": true, "category": "fraud", "severity": "high", "reason": "刷单诈骗话术"}
+内容：澳门赌场线上开户，首存优惠，百家乐龙虎斗，秒提现
+{"violation": true, "category": "gambling", "severity": "high", "reason": "赌场开户揽客"}
+内容：出售处方药曲马多和止咳水，散装零售均可，发货隐蔽
+{"violation": true, "category": "contraband", "severity": "high", "reason": "违禁处方药交易"}
+内容：全网最低价代刷粉丝点赞，十万粉只要三天，需要私聊
+{"violation": true, "category": "spam", "severity": "medium", "reason": "代刷垃圾广告"}
+内容：警方通报破获一起刷单诈骗案，提醒群众切勿轻信兼职刷单
+{"violation": false, "category": "normal", "severity": "none", "reason": "警方反诈通报"}
+内容：我并没有说什么啊，你到底说的什么呢？
+{"violation": false, "category": "normal", "severity": "none", "reason": "对话澄清追问"}
+内容：你到底，你说啥？
+{"violation": false, "category": "normal", "severity": "none", "reason": "不耐烦追问，无辱骂"}
+内容：我来试试吧。
+{"violation": false, "category": "normal", "severity": "none", "reason": "正常交流"}`;
 
-export const RLCD_JSON_SCHEMA = {"type": "object", "properties": {"violation": {"type": "boolean"}, "category": {"type": "string", "enum": ["normal", "porn", "violence", "gambling", "fraud", "contraband", "abuse", "politics", "spam", "circumvention"]}, "severity": {"type": "string", "enum": ["none", "low", "medium", "high"]}, "confidence": {"type": "number"}, "reason": {"type": "string"}}, "required": ["violation", "category", "severity", "confidence", "reason"], "additionalProperties": false};
+export const RLCD_JSON_SCHEMA = {
+  type: "object",
+  properties: {
+    violation: { type: "boolean" },
+    category: {
+      type: "string",
+      enum: ["normal", "porn", "violence", "gambling", "fraud", "contraband", "abuse", "politics", "spam", "circumvention"],
+    },
+    severity: { type: "string", enum: ["none", "low", "medium", "high"] },
+    reason: { type: "string" },
+  },
+  required: ["violation", "category", "severity", "reason"],
+  additionalProperties: false,
+};
 
-export const RLCD_AUTO_REJECT_CONFIDENCE = 0.85;
-export const RLCD_AUTO_PASS_CONFIDENCE = 0.6;
+/** 自动拒绝概率门槛（logprobs 真实 P(violation)，在标注集上标定） */
+export const RLCD_T_REJECT = 0.95;
 
-export type RlcdAction = "auto_reject" | "human_review" | "auto_pass";
+/** 各类别确定性标记词：auto_reject 的证据门槛（命中词表 ∩ 模型判定才机器处置） */
+const CATEGORY_MARKERS: Record<string, string[]> = {
+  abuse: ["操你", "草你", "妈的", "他妈", "傻逼", "煞笔", "傻B", "傻b", "脑残", "白痴", "废物", "滚蛋", "滚吧", "去死", "该死", "找死", "打死你", "弄死你", "全家", "畜生", "贱人", "婊", "杂种", "断子绝孙", "不得好死", "暴毙", "人肉", "开盒", "查他住址", "堵他", "滚出", "丑逼", "蠢货", "低能", "弱智"],
+  violence: ["炸弹", "爆炸装置", "自制土炸", "枪支出售", "砍人", "捅穿", "处刑", "砍头", "教你打", "失去反抗", "约死", "一起跳", "自残方法", "虐待动物", "虐猫", "虐童", "活剥", "圣战", "恐怖组织", "殉教", "发动袭击", "招募兄弟", "报复渣男", "毁掉他的生活", "让他生不如死", "验伤都验不出", "血腥处刑"],
+  politics: ["官方根本没报", "官方隐瞒", "真相被压", "别信媒体", "煽动", "线下聚集", "市政府门口", "攻击英烈", "分裂分子", "捐款通道", "境外势力", "红头文件", "伪造", "囤粮囤盐", "慢性投毒", "政府隐瞒", "把事情闹大"],
+  gambling: ["百家乐", "时时彩", "六和彩", "六合彩", "赌球", "跟单", "押注", "外围", "返水", "竞彩", "德扑", "棋牌代理", "房卡代理", "开挂", "透视", "注册送体验金", "开户", "赌场", "倍投", "稳胆", "博彩", "赌资", "下注"],
+  fraud: ["刷单", "垫付", "佣金", "中奖", "安全账户", "保证金", "原始股", "带做任务", "日结", "资金盘", "拉人头", "返利", "钓鱼链接", "冒充客服", "我是你领导", "虚拟币搬砖", "入门费", "包过", "代考", "解冻金", "稳赚不赔"],
+  porn: ["无码", "粉嫩", "上门服务", "约炮", "一夜情", "福利姬", "福利视频", "成人APP", "破解版免费", "私密舞", "招嫖", "嫖", "写真私人订制", "资源打包", "学生妹"],
+  contraband: ["曲马多", "止咳水", "处方药", "仿真枪", "弩", "开锁工具", "开房记录", "定位查询", "四件套", "烟弹", "毒品", "冰毒", "摇头丸", "迷药", "出售枪"],
+  circumvention: ["VPN", "vpn", "机场推荐", "机场订阅", "节点订阅", "梯子", "科学上网", "翻墙", "Clash", "clash", "加速器账号", "跨境加速"],
+  spam: ["代刷", "涨粉", "互赞", "互关", "锦鲤", "转发这条", "代写", "论文代发", "流量卡免费送", "扣1", "评论区扣", "招代理", "一件代发"],
+};
 
-/** RLCD 响应 → 统一审核结果（含处置动作）；非法形状返回 null。 */
-export function normalizeRlcdReview(parsed: Record<string, unknown>): LlmReviewResult | null {
+/** 自动拒绝仅限交易型类别（证据可词表化）；解读型类别一律人工 */
+const AUTO_REJECT_CATEGORIES = new Set(["porn", "gambling", "fraud", "contraband", "circumvention", "spam"]);
+
+/** 新闻/通报/科普语境线索：命中则抑制自动拒绝（通报含"刷单"命中词表属假证据） */
+const REPORT_CUES = ["警方通报", "警方提示", "警方破获", "新闻报道", "记者", "据报道", "通报", "科普", "普法", "法律咨询", "律师", "提醒群众", "预警", "答疑", "反诈宣传", "禁毒宣传", "纪录片", "影评", "测评", "倡议书"];
+
+function hasMarker(text: string, markers: string[]): boolean {
+  return markers.some((m) => text.includes(m));
+}
+
+function matchedCategories(text: string): string[] {
+  return Object.entries(CATEGORY_MARKERS)
+    .filter(([, markers]) => hasMarker(text, markers))
+    .map(([cat]) => cat);
+}
+
+/**
+ * 从 logprobs 提取真实 P(violation)：找到第一个同时含 true/false 候选的位置，
+ * 在两候选上做子集 softmax（受约束解码下即校准概率）。无 logprobs 时返回 null。
+ */
+export function extractViolationProbability(logprobs?: LlmLogprobToken[]): number | null {
+  for (const tok of logprobs ?? []) {
+    const lps = new Map(tok.topLogprobs.map((c) => [c.token, c.logprob] as const));
+    const lt = lps.get("true");
+    const lf = lps.get("false");
+    if (lt !== undefined && lf !== undefined) {
+      const m = Math.max(lt, lf);
+      const et = Math.exp(lt - m);
+      const ef = Math.exp(lf - m);
+      return et / (et + ef);
+    }
+  }
+  return null;
+}
+
+/** RLCD 响应 + 真实概率 → 统一审核结果（v7.3 处置路由）；非法形状返回 null。 */
+export function normalizeRlcdReview(
+  parsed: Record<string, unknown>,
+  text: string,
+  p: number,
+): LlmReviewResult | null {
   if (typeof parsed.violation !== "boolean") return null;
-  const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0));
-  const action: RlcdAction = parsed.violation
-    ? confidence >= RLCD_AUTO_REJECT_CONFIDENCE
-      ? "auto_reject"
-      : "human_review"
-    : confidence >= RLCD_AUTO_PASS_CONFIDENCE
-      ? "auto_pass"
-      : "human_review";
+  const violation = parsed.violation;
+  const category = typeof parsed.category === "string" ? parsed.category : "normal";
+  const severity = typeof parsed.severity === "string" ? parsed.severity : undefined;
+  const reason = typeof parsed.reason === "string" ? parsed.reason : undefined;
+
+  let action: RlcdAction;
+  if (violation) {
+    action =
+      AUTO_REJECT_CATEGORIES.has(category) &&
+      p >= RLCD_T_REJECT &&
+      hasMarker(text, CATEGORY_MARKERS[category] ?? []) &&
+      !REPORT_CUES.some((cue) => text.includes(cue))
+        ? "auto_reject"
+        : "human_review";
+  } else {
+    action = matchedCategories(text).length > 0 ? "human_review" : "auto_pass";
+  }
+
   return {
     approved: action === "auto_pass",
     action,
-    score: confidence,
-    category: typeof parsed.category === "string" ? parsed.category : undefined,
-    severity: typeof parsed.severity === "string" ? parsed.severity : undefined,
-    reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
+    score: violation ? p : 1 - p,
+    pViolation: p,
+    category,
+    severity,
+    reason,
   };
 }
+
+export type RlcdAction = "auto_reject" | "human_review" | "auto_pass";
 
 export async function llmReview(text: string): Promise<LlmReviewResult | null> {
   const cfg = await getSetting("moderation.llm");
@@ -92,37 +203,49 @@ export async function llmReview(text: string): Promise<LlmReviewResult | null> {
   // （llm.providers）维护，这里只做模型选择（providerId/model，空 = 平台
   // 默认）与提示词；providers 全未配置时回退旧版 moderation.llm 凭证，
   // 两侧都不可用则视为"LLM 不可用"。
-  if (!(await llmAvailable(cfg.providerId || undefined))) return null;
+  if (!(await llmAvailable(cfg.providerId || undefined))) {
+    return null;
+  }
   const rlcd = Boolean((cfg as { rlcd?: boolean }).rlcd);
   try {
+    if (rlcd) {
+      // RLCD v7.3：受约束输出 + logprobs 真实概率（温度必须 0）
+      const result = await llmComplete({
+        messages: [
+          { role: "system", content: RLCD_SYSTEM_PROMPT },
+          { role: "user", content: `内容：${text.slice(0, 8000)}` },
+        ],
+        providerId: cfg.providerId || undefined,
+        model: cfg.model || undefined,
+        temperature: 0,
+        maxTokens: 200,
+        responseFormat: "json_schema",
+        jsonSchema: { name: "moderation_result", schema: RLCD_JSON_SCHEMA },
+        logprobs: true,
+        topLogprobs: 20,
+      });
+      const parsed = JSON.parse(result.text || "{}") as Record<string, unknown>;
+      const p =
+        extractViolationProbability(result.logprobsContent) ??
+        (typeof parsed.violation === "boolean" && parsed.violation ? 1 : 0);
+      return normalizeRlcdReview(parsed, text, p);
+    }
     const content = await llmChat({
-      messages: rlcd
-        ? [
-            { role: "system", content: RLCD_SYSTEM_PROMPT },
-            { role: "user", content: `审核以下内容：\n${text.slice(0, 8000)}` },
-          ]
-        : [
-            { role: "system", content: cfg.prompt },
-            { role: "user", content: `请审核以下内容并只返回 JSON：\n\n${text.slice(0, 8000)}` },
-          ],
+      messages: [
+        { role: "system", content: cfg.prompt },
+        { role: "user", content: `请审核以下内容并只返回 JSON：\n\n${text.slice(0, 8000)}` },
+      ],
       providerId: cfg.providerId || undefined,
       model: cfg.model || undefined,
-      // RLCD 服务规格要求 temperature=0 的受约束输出
-      temperature: rlcd ? 0 : cfg.temperature,
-      maxTokens: rlcd ? 120 : undefined,
-      ...(rlcd
-        ? { responseFormat: "json_schema" as const, jsonSchema: { name: "moderation_result", schema: RLCD_JSON_SCHEMA } }
-        : { json: true }),
+      json: true,
     });
     const parsed = JSON.parse(content || "{}") as Record<string, unknown>;
-    return (
-      normalizeRlcdReview(parsed) ?? {
-        // 旧版通用格式 {approved, score, reason}
-        approved: Boolean(parsed.approved),
-        score: parsed.score as number | undefined,
-        reason: parsed.reason as string | undefined,
-      }
-    );
+    // 旧版通用格式 {approved, score, reason}
+    return {
+      approved: Boolean(parsed.approved),
+      score: parsed.score as number | undefined,
+      reason: parsed.reason as string | undefined,
+    };
   } catch (err) {
     console.error("[moderation] llm review failed:", err);
     return null;
