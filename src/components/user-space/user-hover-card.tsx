@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, AtSign, Clock } from "lucide-react";
+import { CalendarDays, Clock } from "lucide-react";
 import { apiGet } from "@/lib/client/api";
 import { FollowButton } from "@/components/social/follow-button";
 import { BadgeChip } from "@/extensions/badges/badge-ui";
@@ -138,7 +138,7 @@ export function UserHoverCard({
                   onClick={onMention}
                   className="inline-flex h-7 items-center gap-1 rounded-full border border-border px-3 text-xs font-medium text-foreground transition-colors hover:bg-[var(--hover)]"
                 >
-                  <AtSign className="size-3" /> @TA
+                  @TA
                 </button>
               </div>
             </>

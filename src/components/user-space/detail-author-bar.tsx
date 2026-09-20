@@ -5,6 +5,7 @@ import { FollowButton } from "@/components/social/follow-button";
 import { TimelineHeader } from "@/components/site-shell";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { BadgeChipRow } from "@/extensions/badges/badge-ui";
+import { UserHoverCard } from "@/components/user-space/user-hover-card";
 
 export interface DetailAuthorBrief {
   username: string;
@@ -49,19 +50,23 @@ export function DetailAuthorBar({
       rowClassName="py-3"
       title={
         <span className="flex items-center gap-2.5 whitespace-normal">
-          <Avatar className="size-9 shrink-0 border border-border">
-            {author.avatarPath && (
-              <AvatarImage src={routes.media(author.avatarPath)} alt={author.displayName} />
-            )}
-            <AvatarFallback>{author.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
-          </Avatar>
+          <UserHoverCard username={author.username}>
+            <Avatar className="size-9 shrink-0 border border-border cursor-pointer">
+              {author.avatarPath && (
+                <AvatarImage src={routes.media(author.avatarPath)} alt={author.displayName} />
+              )}
+              <AvatarFallback>{author.displayName.slice(0, 1).toUpperCase()}</AvatarFallback>
+            </Avatar>
+          </UserHoverCard>
           <span className="min-w-0 leading-tight">
-            <Link
-              href={routes.profile(author.username)}
-              className="block truncate text-[15px] font-medium text-foreground hover:underline"
-            >
-              {author.displayName}
-            </Link>
+            <UserHoverCard username={author.username}>
+              <Link
+                href={routes.profile(author.username)}
+                className="block truncate text-[15px] font-medium text-foreground hover:underline"
+              >
+                {author.displayName}
+              </Link>
+            </UserHoverCard>
             <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
               {badges && <BadgeChipRow badges={badges} />}
               <span className="inline-flex items-center gap-1.5">
