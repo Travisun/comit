@@ -8,11 +8,11 @@
 
 | 入口 | 地址 | 可以体验什么 |
 | --- | --- | --- |
-| 社区时间线 | [comit.sh/feed](https://comit.sh/feed) | 长文与短动态混排、点赞/转发/书签、投票帖、@提及与评论线程 |
-| 探索与话题 | [comit.sh/explore](https://comit.sh/explore) · [comit.sh/topics](https://comit.sh/topics) | 全站热门、话题聚合、作者发现 |
-| 长文排版 | 时间线内点进任意一篇 | KaTeX 公式、Shiki 高亮、Mermaid 图表、目录与阅读进度 |
+| 社区时间线 | [comit.sh/feed](https://comit.sh/feed) | 长文与短动态混排、点赞/转发/收藏、@提及与评论线程 |
+| 发现与热门 | [comit.sh/explore](https://comit.sh/explore) · [comit.sh/hot](https://comit.sh/hot) | 全站热门排序、作者发现；话题页 `/topics/{slug}` 随文章标签自动生成 |
+| 长文排版 | 时间线内点进任意一篇 | GFM、KaTeX 公式、Shiki 高亮、Mermaid 图表、目录与阅读进度（演示站当前只有短动态，长文示例需发布后查看） |
 | 作者主页 | [comit.sh/u/yohan](https://comit.sh/u/yohan)（即上图） | 个人主页、徽章荣誉墙、动态/文章/收藏/合集、订阅 RSS |
-| 写作台 | [comit.sh/write](https://comit.sh/write) | Markdown 实时预览、封面与图片管线、发布/定时与审核流转 |
+| 写作台 | [comit.sh/write](https://comit.sh/write)（需登录） | Markdown 实时预览、封面与图片管线、发布/定时与审核流转 |
 | 内容分发 | [comit.sh/feed.xml](https://comit.sh/feed.xml) | 站点与作者两级 RSS，外加 `sitemap.xml` / `robots.txt` 与 Open Graph 元数据 |
 | 机器接口 | `comit.sh/api/mcp`（Bearer 令牌） | 经 MCP 读写自己的内容，见 [docs/api.md](docs/api.md) 的 MCP 章节 |
 
@@ -177,7 +177,7 @@ pnpm dev                             # http://localhost:3000
 - **出站**：统一 http-client 带 IPv4/IPv6 SSRF 守卫（云 metadata/私网/保留段，逐跳复检）；LLM/webhook 默认过守卫
 - **文件**：上传 MIME 白名单 + sharp 归一 WebP + 服务端 nanoid 命名 + 恒定 `Content-Type: image/webp`；本地存储驱动做 storage-root 包含校验
 
-安全响应头（CSP/XFO/nosniff/Referrer-Policy/Permissions-Policy/HSTS）由 `next.config.ts` 统一下发。已知残余风险（如 CSP 暂含 `unsafe-eval` 以兼容 mermaid）如实记录于 [SECURITY.md](SECURITY.md)。
+安全响应头（CSP/XFO/nosniff/Referrer-Policy/Permissions-Policy/HSTS）由 `next.config.ts` 与 `src/proxy.ts` 统一下发：CSP 的 `script-src` 为 `'self' 'nonce-…' 'strict-dynamic'`，生产环境不含 `unsafe-inline`/`unsafe-eval`（后者仅 dev）。漏洞响应与已知边界见 [SECURITY.md](SECURITY.md)。
 
 ## 文档索引
 
