@@ -1,34 +1,109 @@
 # comit.sh — Commit your ideas.
 
-## 在线体验
+**[comit.sh](https://comit.sh) 是一个正在运行的中文个人主页社交网络**：写长文、发动态、被看见。用 GitHub 或 Linux.do 账号登录 **[https://comit.sh](https://comit.sh)**，你的主页 `comit.sh/u/你的用户名` 当场可用——不必先部署，不必等审批。
 
-**[https://comit.sh](https://comit.sh)** —— 官方演示环境跑的就是本仓库的代码，不必先部署：匿名可直接浏览，注册后即可体验从写作到分发的完整链路。
+本仓库是它的**全部源代码**（MIT 开源，没有另外的"正式版"）：想自己起一站、换主题、接自己的域名、改任何一行逻辑，都可以。
 
 [![comit.sh 作者主页（浅色主题）：封面与头像、徽章荣誉墙、动态流与右侧社区概览](docs/assets/screenshot-profile-light.webp)](https://comit.sh)
 
-| 入口 | 地址 | 可以体验什么 |
-| --- | --- | --- |
-| 社区时间线 | [comit.sh/feed](https://comit.sh/feed) | 长文与短动态混排、点赞/转发/收藏、@提及与评论线程 |
-| 发现与热门 | [comit.sh/explore](https://comit.sh/explore) · [comit.sh/hot](https://comit.sh/hot) | 全站热门排序、作者发现；话题页 `/topics/{slug}` 随文章标签自动生成 |
-| 长文排版 | 时间线内点进任意一篇 | GFM、KaTeX 公式、Shiki 高亮、Mermaid 图表、目录与阅读进度（演示站当前只有短动态，长文示例需发布后查看） |
-| 作者主页 | [comit.sh/u/yohan](https://comit.sh/u/yohan)（即上图） | 个人主页、徽章荣誉墙、动态/文章/收藏/合集、订阅 RSS |
-| 写作台 | [comit.sh/write](https://comit.sh/write)（需登录） | Markdown 实时预览、封面与图片管线、发布/定时与审核流转 |
-| 内容分发 | [comit.sh/feed.xml](https://comit.sh/feed.xml) | 站点与作者两级 RSS，外加 `sitemap.xml` / `robots.txt` 与 Open Graph 元数据 |
-| 机器接口 | `comit.sh/api/mcp`（Bearer 令牌） | 经 MCP 读写自己的内容，见 [docs/api.md](docs/api.md) 的 MCP 章节 |
-
-演示站是**真实公开环境**：发帖、评论、上传都会进入审核并对外可见，请勿用于测试含个人信息的内容。
-想跑自己的实例，见[快速开始](#快速开始)。
-
 > 提交，是技术世界最古老的仪式——从 1956 年 MIT 主机上的 COMIT 语言，到你指尖的每一次 `git commit`。comit.sh 把这个仪式，变成你的个人主页。
 
-comit.sh 是为技术极客、设计师、科学家与领域学子打造的个人主页社交网络：记录科研日志、技术学习过程、研究发布与项目动态。简历风味浓厚的学术与技术交流聚集地，拥抱 AI 的下一代个人品牌内容发布与运营平台。
+## 它解决什么
 
-**命名语源**：COMIT（1956, MIT，最早的字符串处理语言之一）× `git commit`（每个工程师的日常动作）× COMIT Network（Web3 开源跨链路由协议）× Datacom COMIT（大型机 Datacom 数据库的事务提交命令）——四个时代的「提交」，一个域名。
+技术写作者的主页通常只有两种结局：躺在某个平台的信息流里再也翻不到，或者是一个精心搭好、三个月没更新的静态站。comit.sh 想做第三种——**一个你每天真会发两句的地方，同时它就是你最好的那一面**。
 
-多用户写作与社交平台：深度 Markdown 排版、公式/图表渲染、独立子域名、RSS 分发、强制 2FA、LLM 内容审核、MCP 开放接口、插件化博客主题系统、角色与认证体系。
+- **长文和动态住在同一条时间线**：深度内容不被碎片淹没，日常记录也不必因为"不够正式"而无处安放。主页自动按 动态 / 文章 / 收藏 / 合集 分流。
+- **排版为技术写作而生**：GFM、KaTeX 公式、Shiki 代码高亮、Mermaid 图表与思维导图、标题锚点与代码块一键复制——公式和图表是正文的一部分，不是截图。
+- **主页即个人品牌**：封面与头像、徽章荣誉墙、代表作置顶、认证标识与合集归档，外加每个作者都能被订阅的 RSS。
+- **内容永远是你的**：用户子域名（可锁定）、单用户模式下首页就是你的站；一键导出 Markdown + 按日期归档的媒体 ZIP，随时带走。
+- **机器也读得懂**：`/api/mcp` 用 Bearer 令牌读写你自己的内容，Webhook 订阅事件（HMAC-SHA256 签名重试投递），REST 接口与 Open Graph / JSON-LD / sitemap 齐备（见 [docs/api.md](docs/api.md)）。
+- **安全是默认值，不是选项**：强制 2FA（TOTP + 恢复码）、Passkey/WebAuthn、全站唯一服务端净化管线、出站 SSRF 守卫、三级限流桶。详见[安全模型](#安全模型摘要)。
 
-> ⚠️ 发布前请补充：首页社区时间线与个人主页的深色模式截图，同样存放于 `docs/assets/` 并在此引用。
-> 系统设计与持续演进的完整文档见 [docs/](docs/README.md)（品牌 / 架构 / 并发 / 主题 / 权限 / 通知 / 运维 / API / 路线图）。
+**适合谁**：技术极客、设计师、科学家与领域学子——记录科研日志、学习过程、研究发布与项目动态的地方。
+
+## 两种开始方式
+
+| 我想要…… | 怎么做 |
+| --- | --- |
+| 立刻有一个能写的家 | 打开 **[https://comit.sh](https://comit.sh)**，用 GitHub / Linux.do 登录，发第一条动态。社区公开可浏览；内容走正常审核链路，通过后对全站可见。 |
+| 自己经营一片地方 | 照[快速开始](#快速开始)走：`docker compose up -d` 起 PostgreSQL，五条命令跑通本地站。生产形态见[部署](#部署)。 |
+
+## 名字由来
+
+**COMIT**（1956, MIT，最早的字符串处理语言之一）× `git commit`（每个工程师的日常动作）× COMIT Network（Web3 开源跨链路由协议）× Datacom COMIT（大型机 Datacom 数据库的事务提交命令）——四个时代的「提交」，一个域名。
+
+## 关键产品能力
+
+- 多用户/单用户双模式（后台切换，单用户模式下首页即博主主页）
+- 文章 + 短动态（无标题图文流）；合集（分类）与话题（每文 ≤5）；投票/PK 组件
+- Markdown 深度渲染：GFM、KaTeX 公式、Shiki 代码高亮、Mermaid 图表/思维导图、净化后的受限 HTML
+- 编辑器：粘贴/拖拽图片自动上传转 WebP、工具栏、实时预览、⌘S 保存
+- 审核：关键词硬拦截（提交前提示）→ LLM 审核或人工审核 → 发布/驳回（含通知邮件）
+- 社交：关注/拉黑、点赞、评论、转发、@提及、互关私信（图片私信）、徽章系统
+- 强制 2FA（TOTP + 恢复码）、Passkey/WebAuthn、邮箱验证、找回密码、GitHub/Google/X/Linux.do/Discourse/Cloudflare 登录自动注册
+- 邀请码注册（自动关注邀请人）、用户子域名（可锁定）、RSS/Atom（主站/用户/子域名）
+- Webhook 订阅（HMAC-SHA256 签名重试投递）、MCP 令牌管理内容
+- GDPR：全量导出 ZIP（Markdown + 按日期归档媒体）、账户删除（内容匿名化或彻底删除）
+- SEO：metadata/OG/JSON-LD、sitemap/robots；外链 nofollow + 新窗口 + 离站确认
+- 主题系统：CSS 变量 Token、深浅色全站一致、博客主题插件化
+
+## 快速开始
+
+### 前置依赖
+
+| 依赖 | 版本 | 说明 |
+| --- | --- | --- |
+| Node.js | **24.x**（生产镜像用 `node:24-alpine`；≥20.19 亦可运行） | [nvm](https://github.com/nvm-sh/nvm) / [fnm](https://github.com/Schniz/fnm) 管理 |
+| pnpm | 12.x | 项目用 corepack：`corepack enable && corepack install` 即自动锁定 `pnpm@12.3.4` |
+| Docker | 20.10+ | 仅用于本地起 PostgreSQL + Mailpit（也可用自备 PG） |
+
+### 启动
+
+```bash
+git clone https://github.com/Travisun/comit.sh.git && cd comit.sh
+corepack enable                      # 启用 pnpm（若未装）
+docker compose up -d                 # PostgreSQL(:5433, 仅回环) + Mailpit(:8025 收信 UI, 仅回环)
+pnpm install                         # 依赖安装（pnpm 自动应用 patches/ 下的 next 补丁）
+cp .env.example .env                 # 默认值即为本地可用值，开箱即用
+pnpm db:migrate                      # 应用数据库迁移
+pnpm db:seed                         # 管理员 + 演示数据（仅本地开发！见下）
+pnpm dev                             # http://localhost:3000
+```
+
+- 种子管理员 `admin@myblogs.local` 的口令来自 `ADMIN_PASSWORD` / `SEED_ADMIN_PASSWORD` 环境变量；交互式开发未提供时随机生成一次性口令并打印在终端。**生产环境禁止 `db:seed`**（脚本会硬性拒绝）。
+- 演示用户/内容（alice、bob 等）仅在你显式 `pnpm db:seed --demo` 时创建。
+- 开发邮件全部落在 Mailpit：http://localhost:8025（注册验证、找回密码、通知邮件都在那里）。
+- 子域名模式本地测试：`lvh.me:3000` / `alice.lvh.me:3000`（或 hosts 里加 `*.localhost`）。
+- 第三方登录 / LLM 审核 / R2 存储均为可选项：不配置对应 env 时功能自动隐藏，核心写作/社交链路不依赖它们。
+
+### 常用脚本
+
+| 命令 | 作用 |
+| --- | --- |
+| `pnpm dev` / `pnpm build` / `pnpm start` | 开发 / 构建 / 单进程生产启动 |
+| `pnpm start:cluster` | 生产集群：按核数 fork 多 worker（`WEB_CONCURRENCY` 控制） |
+| `pnpm test` | vitest 全量测试 |
+| `pnpm lint` | ESLint（提交前的质量门禁之一） |
+| `pnpm db:generate` | schema 变更后生成 SQL 迁移 |
+| `pnpm db:migrate` / `db:studio` / `db:seed` | 应用迁移 / Drizzle Studio / 幂等种子 |
+| `pnpm ext` | 扩展脚手架脚本（`scripts/ext.ts`） |
+
+## 部署
+
+> 生产形态的完整步骤（Compose 全容器 / 宝塔反代复用宿主机 PG+Redis / 裸进程集群）见 [docs/deploy-baota.md](docs/deploy-baota.md) 与 [docs/concurrency.md](docs/concurrency.md)；启动前必读 [SECURITY.md](SECURITY.md) 的硬性要求。
+
+| 场景 | 方式 |
+| --- | --- |
+| 单机全容器（PG/Redis 一起容器化） | `docker compose -f docker-compose.prod.yml up -d --build` |
+| 宿主机已有 PG/Redis + 宝塔 nginx 反代 | 见 [docs/deploy-baota.md](docs/deploy-baota.md)（`docker-compose.server.yml`，app 只绑 `127.0.0.1:3000`） |
+| 裸进程集群（多 worker + 队列竞争消费） | `pnpm build && WEB_CONCURRENCY=4 pnpm start:cluster`，细节见 [docs/concurrency.md](docs/concurrency.md) |
+
+**部署安全硬性要求**（不完整列表见 [SECURITY.md](SECURITY.md)）：
+
+1. 应用端口只绑回环，公网流量必须经 nginx/CDN 反代——否则按 IP 限流可被伪造头绕过；
+2. `TRUST_PROXY` 与真实拓扑一致（直连 = `direct`）；
+3. 生产强制 HTTPS + 随机 `AUTH_SECRET`（≥32 字符，启动时 fail-fast 校验）；
+4. 媒体存储 `storage/` 与 `.env` 不入 git、不由 Web 直出。
 
 ## 技术栈
 
@@ -76,64 +151,6 @@ src/
 
 **扩展点**：扩展可注册通知频道、MCP 工具、侧边栏组件、管理面板区块、渲染钩子（`post:render`）、队列作业。领域事件（`post:published`、`comment:created`…）是所有副作用（通知/Webhook/审核）的唯一触发源。扩展点开发指南见 [docs/extensions.md](docs/extensions.md)。
 
-## 快速开始
-
-### 前置依赖
-
-| 依赖 | 版本 | 说明 |
-| --- | --- | --- |
-| Node.js | **24.x**（生产镜像用 `node:24-alpine`；≥20.19 亦可运行） | [nvm](https://github.com/nvm-sh/nvm) / [fnm](https://github.com/Schniz/fnm) 管理 |
-| pnpm | 12.x | 项目用 corepack：`corepack enable && corepack install` 即自动锁定 `pnpm@12.3.4` |
-| Docker | 20.10+ | 仅用于本地起 PostgreSQL + Mailpit（也可用自备 PG） |
-
-### 启动
-
-```bash
-git clone https://github.com/Travisun/comit.git && cd comit
-corepack enable                      # 启用 pnpm（若未装）
-docker compose up -d                 # PostgreSQL(:5433, 仅回环) + Mailpit(:8025 收信 UI, 仅回环)
-pnpm install                         # 依赖安装（pnpm 自动应用 patches/ 下的 next 补丁）
-cp .env.example .env                 # 默认值即为本地可用值，开箱即用
-pnpm db:migrate                      # 应用数据库迁移
-pnpm db:seed                         # 管理员 + 演示数据（仅本地开发！见下）
-pnpm dev                             # http://localhost:3000
-```
-
-- 种子管理员 `admin@myblogs.local` 的口令来自 `ADMIN_PASSWORD` / `SEED_ADMIN_PASSWORD` 环境变量；交互式开发未提供时随机生成一次性口令并打印在终端。**生产环境禁止 `db:seed`**（脚本会硬性拒绝）。
-- 演示用户/内容（alice、bob 等）仅在你显式 `pnpm db:seed --demo` 时创建。
-- 开发邮件全部落在 Mailpit：http://localhost:8025（注册验证、找回密码、通知邮件都在那里）。
-- 子域名模式本地测试：`lvh.me:3000` / `alice.lvh.me:3000`（或 hosts 里加 `*.localhost`）。
-- 第三方登录 / LLM 审核 / R2 存储均为可选项：不配置对应 env 时功能自动隐藏，核心写作/社交链路不依赖它们。
-
-### 常用脚本
-
-| 命令 | 作用 |
-| --- | --- |
-| `pnpm dev` / `pnpm build` / `pnpm start` | 开发 / 构建 / 单进程生产启动 |
-| `pnpm start:cluster` | 生产集群：按核数 fork 多 worker（`WEB_CONCURRENCY` 控制） |
-| `pnpm test` | vitest 全量测试 |
-| `pnpm lint` | ESLint（提交前的质量门禁之一） |
-| `pnpm db:generate` | schema 变更后生成 SQL 迁移 |
-| `pnpm db:migrate` / `db:studio` / `db:seed` | 应用迁移 / Drizzle Studio / 幂等种子 |
-| `pnpm ext` | 扩展脚手架脚本（`scripts/ext.ts`） |
-
-## 部署
-
-> 生产形态的完整步骤（Compose 全容器 / 宝塔反代复用宿主机 PG+Redis / 裸进程集群）见 [docs/deploy-baota.md](docs/deploy-baota.md) 与 [docs/concurrency.md](docs/concurrency.md)；启动前必读 [SECURITY.md](SECURITY.md) 的硬性要求。
-
-| 场景 | 方式 |
-| --- | --- |
-| 单机全容器（PG/Redis 一起容器化） | `docker compose -f docker-compose.prod.yml up -d --build` |
-| 宿主机已有 PG/Redis + 宝塔 nginx 反代 | 见 [docs/deploy-baota.md](docs/deploy-baota.md)（`docker-compose.server.yml`，app 只绑 `127.0.0.1:3000`） |
-| 裸进程集群（多 worker + 队列竞争消费） | `pnpm build && WEB_CONCURRENCY=4 pnpm start:cluster`，细节见 [docs/concurrency.md](docs/concurrency.md) |
-
-**部署安全硬性要求**（不完整列表见 [SECURITY.md](SECURITY.md)）：
-
-1. 应用端口只绑回环，公网流量必须经 nginx/CDN 反代——否则按 IP 限流可被伪造头绕过；
-2. `TRUST_PROXY` 与真实拓扑一致（直连 = `direct`）；
-3. 生产强制 HTTPS + 随机 `AUTH_SECRET`（≥32 字符，启动时 fail-fast 校验）；
-4. 媒体存储 `storage/` 与 `.env` 不入 git、不由 Web 直出。
-
 ## 环境变量
 
 完整注释版见 [.env.example](.env.example)（本地）与 [.env.server.example](.env.server.example)（服务器形态）。核心项：
@@ -152,20 +169,6 @@ pnpm dev                             # http://localhost:3000
 | `STORAGE_DRIVER` `R2_*` | — | 媒体驱动 `local` / `r2`（Cloudflare R2 / S3 兼容） |
 | `WEB_CONCURRENCY` `PGPOOL_MAX` `QUEUE_CONCURRENCY` | — | 集群与队列并发 |
 | `LLM_ALLOW_INTERNAL_BASEURL` | — | 仅本机推理服务（Ollama 等）置 1，否则 LLM 出站过 SSRF 守卫 |
-
-## 关键产品能力
-
-- 多用户/单用户双模式（后台切换，单用户模式下首页即博主主页）
-- 文章 + 短动态（无标题图文流）；合集（分类）与话题（每文 ≤5）；投票/PK 组件
-- Markdown 深度渲染：GFM、KaTeX 公式、Shiki 代码高亮、Mermaid 图表/思维导图、净化后的受限 HTML
-- 编辑器：粘贴/拖拽图片自动上传转 WebP、工具栏、实时预览、⌘S 保存
-- 审核：关键词硬拦截（提交前提示）→ LLM 审核或人工审核 → 发布/驳回（含通知邮件）
-- 社交：关注/拉黑、点赞、评论、转发、互关私信（图片私信）、徽章系统
-- 强制 2FA（TOTP + 恢复码）、Passkey/WebAuthn、邮箱验证、找回密码、GitHub/Google/X/Linux.do/Discourse/Cloudflare 登录自动注册
-- 邀请码注册（自动关注邀请人）、用户子域名（可锁定）、RSS/Atom（主站/用户/子域名）
-- Webhook 订阅（HMAC-SHA256 签名重试投递）、MCP 令牌管理内容
-- GDPR：全量导出 ZIP（Markdown + 按日期归档媒体）、账户删除（内容匿名化或彻底删除）
-- SEO：metadata/OG/JSON-LD、sitemap/robots；外链 nofollow + 新窗口 + 离站确认
 
 ## 安全模型（摘要）
 
@@ -195,3 +198,7 @@ pnpm dev                             # http://localhost:3000
 本项目基于 [MIT License](LICENSE) 开源。
 
 **请务必阅读**：这是一个仍在演进中的个人项目，虽经系统性安全审计，但**不能保证不存在未被发现的安全漏洞或缺陷**。MIT 协议第五条以「原样（AS IS）」提供本软件、不作任何担保并把风险全部转移给使用者——凡将本项目部署到公网、存储真实用户数据或用于任何生产用途，即视为你已充分理解并接受：需自行完成部署加固（HTTPS、反向代理、防火墙、备份、监控）、自行评估所在司法辖区的合规义务（个人信息保护、内容审查等），并独自承担因使用或无法使用本软件产生的全部后果。强烈建议在对公网开放前，将本仓库完整交给你的安全团队或审计工具再做一轮评审。
+
+---
+
+如果这个项目让你想开始写点什么，**给个 Star** 是对它最实在的鼓励；想看看它跑起来是什么样子，就来 **[comit.sh](https://comit.sh)** 发一条动态。
