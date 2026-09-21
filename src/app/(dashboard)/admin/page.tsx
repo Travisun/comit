@@ -24,6 +24,7 @@ import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 
 // 就地 zod schema：/api/admin/stats 响应无现成 schema，进缓存前校验把关
 const statsResponseSchema = z.object({
@@ -47,6 +48,7 @@ const statsResponseSchema = z.object({
   recentPosts: z.array(
     z.object({
       id: z.string(),
+      publicId: z.string(),
       title: z.string().nullable(),
       type: z.string(),
       status: z.string(),
@@ -182,7 +184,7 @@ export default function AdminOverviewPage() {
                       <tr key={u.id}>
                         <td>
                           <Link
-                            href={`/u/${u.username}`}
+                            href={routes.profile(u.username)}
                             target="_blank"
                             className="flex items-center gap-2.5 hover:underline"
                           >
@@ -230,7 +232,7 @@ export default function AdminOverviewPage() {
                       <tr key={p.id}>
                         <td className="max-w-64">
                           <Link
-                            href={`/p/${p.id}`}
+                            href={routes.post(p.publicId)}
                             target="_blank"
                             className="block truncate font-medium hover:underline"
                           >

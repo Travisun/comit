@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { routes } from "@/core/routes";
 import { CalendarPlus, Copy, HardDrive, Images, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -205,7 +206,7 @@ function MediaGrid({
                 <p>
                   归属：
                   <a
-                    href={`/u/${viewing.ownerUsername}`}
+                    href={routes.profile(viewing.ownerUsername)}
                     target="_blank"
                     rel="noreferrer"
                     className="text-foreground hover:underline"

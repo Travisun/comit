@@ -38,6 +38,7 @@ export async function GET(req: Request) {
       db
         .select({
           id: posts.id,
+          publicId: posts.publicId,
           title: posts.title,
           type: posts.type,
           status: posts.status,

@@ -31,6 +31,12 @@ const nextConfig: NextConfig = {
           source: "/:username([A-Za-z0-9_-]+)/feed.xml",
           destination: "/u/:username/feed.xml",
         },
+        {
+          // 旧帖子短链 /p/{id} → /post/{id}（历史外链兼容；canonical 是
+          // /post/{publicId}，/p/ 路由本身已移除）
+          source: "/p/:id",
+          destination: "/post/:id",
+        },
       ],
       fallback: [],
     };

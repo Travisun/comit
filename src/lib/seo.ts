@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { config } from "@/core/config";
+import { absolute, routes } from "@/core/routes";
 import { getSiteBrand, type SiteBrand } from "@/lib/settings";
 import type { User, Post } from "@/db/schema";
 
@@ -154,7 +155,7 @@ export function personJsonLd(user: Pick<User, "displayName" | "bio" | "username"
     "@type": "Person",
     name: user.displayName,
     description: user.bio || undefined,
-    url: `${config.app.url}/u/${user.username}`,
+    url: absolute(routes.profile(user.username)),
     image: user.avatarPath ? `${config.app.url}/api/media/file/${user.avatarPath}` : undefined,
     sameAs: [
       user.github ? `https://github.com/${user.github}` : null,
@@ -181,7 +182,7 @@ export function blogPostingJsonLd(opts: {
     author: {
       "@type": "Person",
       name: opts.author.displayName,
-      url: `${config.app.url}/u/${opts.author.username}`,
+      url: absolute(routes.profile(opts.author.username)),
     },
     keywords: opts.topics?.join(", "),
     mainEntityOfPage: opts.url,

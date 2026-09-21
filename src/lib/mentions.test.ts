@@ -32,7 +32,7 @@ describe("expandMentionTokens", () => {
   it("展开规范存储形态 @[昵称](mention:id) 为最新昵称资料页链接", async () => {
     rows.current = [{ id: UID, username: "rui", displayName: "Rui" }];
     expect(await expandMentionTokens(`加油 @[旧的名字](mention:${UID})！`)).toBe(
-      "加油 [@Rui](/u/rui)！",
+      "加油 [@Rui](/rui)！",
     );
   });
 
@@ -44,7 +44,7 @@ describe("expandMentionTokens", () => {
   it("同一 token 内多次出现全部展开；无 token 文本原样返回", async () => {
     rows.current = [{ id: UID, username: "rui", displayName: "Rui" }];
     const twice = `@[Rui](mention:${UID}) 和 @[Rui](mention:${UID})`;
-    expect(await expandMentionTokens(twice)).toBe("[@Rui](/u/rui) 和 [@Rui](/u/rui)");
+    expect(await expandMentionTokens(twice)).toBe("[@Rui](/rui) 和 [@Rui](/rui)");
     expect(await expandMentionTokens("普通文本 @not-a-token")).toBe("普通文本 @not-a-token");
   });
 
@@ -175,10 +175,10 @@ describe("生产端与消费端正则同源", () => {
     expect([...produced.matchAll(mentionTokenRe())].map((m) => m.groups?.mentionId)).toEqual([UID]);
 
     const expanded = await expandMentionTokens(produced);
-    expect(expanded).toBe("你好 [@武林高萝卜](/u/yohan)，看看");
+    expect(expanded).toBe("你好 [@武林高萝卜](/yohan)，看看");
     expect(parseInlineSegments(expanded)).toEqual([
       { type: "text", text: "你好 " },
-      { type: "link", text: "@武林高萝卜", href: "/u/yohan" },
+      { type: "link", text: "@武林高萝卜", href: "/yohan" },
       { type: "text", text: "，看看" },
     ]);
   });

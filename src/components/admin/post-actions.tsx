@@ -23,6 +23,7 @@ import { Textarea } from "@/components/ui/input";
 import { deleteJson, postJson, requestJson } from "@/lib/client/api";
 import { useApiMutation } from "@/lib/query/mutation";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 
 /* ----------------------------- reject dialog ---------------------------- */
 
@@ -127,6 +128,8 @@ export function ConfirmDialog({
 
 interface PostLike {
   id: string;
+  /** canonical permalink 用的数字短 ID（/post/{publicId}） */
+  publicId: string;
   title: string | null;
   status: string;
 }
@@ -163,7 +166,7 @@ export function PostRowActions({ post }: { post: PostLike }) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuItem onSelect={() => window.open(`/p/${post.id}`, "_blank")}>
+          <DropdownMenuItem onSelect={() => window.open(routes.post(post.publicId), "_blank")}>
             <ExternalLink /> 查看
           </DropdownMenuItem>
           <DropdownMenuItem

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { routes } from "@/core/routes";
 import {
   MessageSquareWarning,
   RotateCcw,
@@ -294,7 +295,7 @@ export default function AdminUsersPage() {
                 <tr key={u.id}>
                   <td>
                     <a
-                      href={`/u/${u.username}`}
+                      href={routes.profile(u.username)}
                       target="_blank"
                       rel="noreferrer"
                       className="flex items-center gap-2.5 hover:underline"

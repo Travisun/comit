@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { routes } from "@/core/routes";
 import { Eye, Heart, MessageSquare, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -25,6 +26,7 @@ import { useI18n } from "@/lib/i18n/client";
 // 就地 zod schema：/api/admin/posts 响应无现成 schema，进缓存前校验把关
 const postItemSchema = z.object({
   id: z.string(),
+  publicId: z.string(),
   title: z.string().nullable(),
   type: z.enum(["article", "short"]),
   status: z.enum(["draft", "pending_review", "published", "rejected", "deleted"]),
@@ -108,7 +110,7 @@ function ArticleList({
             <tr key={p.id}>
               <td className="max-w-72">
                 <a
-                  href={`/p/${p.id}`}
+                  href={routes.post(p.publicId)}
                   target="_blank"
                   rel="noreferrer"
                   className="block truncate font-medium text-foreground hover:underline"

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { apiGet, postJson } from "@/lib/client/api";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 
 /**
  * Console header — belongs to the RIGHT content area only (the sidebar is a
@@ -145,7 +146,7 @@ export function ConsoleTopbar({
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link href={`/u/${username}`} target="_blank">
+              <Link href={routes.profile(username)} target="_blank">
                 <UserRound />
                 个人主页
               </Link>

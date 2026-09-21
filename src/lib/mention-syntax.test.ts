@@ -13,7 +13,13 @@ import {
 const UID = "345e139d-ad67-4469-83c3-f71e580ac548";
 
 describe("parseInlineSegments", () => {
-  it("展开后的 @提及链接成链（label 保留 @）", () => {
+  it("展开后的 @提及链接成链（label 保留 @；canonical /{username} 与旧 /u/ 形态皆可）", () => {
+    expect(parseInlineSegments("看看 [@武林高萝卜](/yohan) 说的")).toEqual([
+      { type: "text", text: "看看 " },
+      { type: "link", text: "@武林高萝卜", href: "/yohan" },
+      { type: "text", text: " 说的" },
+    ]);
+    // 旧路径兼容：历史内容/导出物里的 /u/ 形态同样成链
     expect(parseInlineSegments("看看 [@武林高萝卜](/u/yohan) 说的")).toEqual([
       { type: "text", text: "看看 " },
       { type: "link", text: "@武林高萝卜", href: "/u/yohan" },
@@ -45,9 +51,9 @@ describe("parseInlineSegments", () => {
   });
 
   it("换行属于文本段，原样保留（消费方按行/段落自行排版）", () => {
-    expect(parseInlineSegments("第一行\n第二行 [@Rui](/u/rui)\n")).toEqual([
+    expect(parseInlineSegments("第一行\n第二行 [@Rui](/rui)\n")).toEqual([
       { type: "text", text: "第一行\n第二行 " },
-      { type: "link", text: "@Rui", href: "/u/rui" },
+      { type: "link", text: "@Rui", href: "/rui" },
       { type: "text", text: "\n" },
     ]);
   });
@@ -67,9 +73,9 @@ describe("parseInlineSegments", () => {
 });
 
 describe("mentionSyntaxToPlainText", () => {
-  it("两种形态都拉平为 @昵称（未展开引用 + 已展开链接）", () => {
-    const both = `@[旧名](mention:${UID}) 与 [@武林高萝卜](/u/yohan) 和 @路过的文本`;
-    expect(mentionSyntaxToPlainText(both)).toBe("@旧名 与 @武林高萝卜 和 @路过的文本");
+  it("三种形态都拉平为 @昵称（未展开引用 + canonical 链接 + 旧 /u/ 链接）", () => {
+    const all = `@[旧名](mention:${UID}) 与 [@武林高萝卜](/yohan) 和 [@旧链](/u/yohan) 和 @路过的文本`;
+    expect(mentionSyntaxToPlainText(all)).toBe("@旧名 与 @武林高萝卜 和 @旧链 和 @路过的文本");
   });
 
   it("非提及链接不被动（本函数的职责只有 mention 语法）", () => {

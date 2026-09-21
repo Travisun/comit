@@ -18,6 +18,7 @@ import { cn, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, isAuthError, mediaUrl, postJson } from "@/lib/client/api";
 import { findCommentEl } from "@/lib/client/comment-anchor";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 import { useApiMutation } from "@/lib/query/mutation";
 import {
   commentsPageSchema,
@@ -347,7 +348,7 @@ export function Comments({
                   />
                 </div>
               )}
-              <Link href={`/u/${c.user.username}`} className="shrink-0" aria-label={c.user.displayName}>
+              <Link href={routes.profile(c.user.username)} className="shrink-0" aria-label={c.user.displayName}>
                 <Avatar className="size-8 border border-border">
                   {c.user.avatarPath && (
                     <AvatarImage src={mediaUrl(c.user.avatarPath)} alt={c.user.displayName} />
@@ -361,7 +362,7 @@ export function Comments({
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm">
                   <UserHoverCard username={c.user.username}>
                     <Link
-                      href={`/u/${c.user.username}`}
+                      href={routes.profile(c.user.username)}
                       className="font-medium text-foreground hover:underline"
                     >
                       {c.user.displayName}

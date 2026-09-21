@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { routes } from "@/core/routes";
 import { CheckCircle2, CircleDashed, Copy, Search, Ticket } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -141,7 +142,7 @@ function InvitesTable({
                   </button>
                 </td>
                 <td className="text-sm">
-                  <a href={`/u/${inv.creatorUsername}`} target="_blank" rel="noreferrer" className="hover:underline">
+                  <a href={routes.profile(inv.creatorUsername)} target="_blank" rel="noreferrer" className="hover:underline">
                     {inv.creatorDisplayName}
                   </a>
                   <span className="text-muted-foreground"> @{inv.creatorUsername}</span>

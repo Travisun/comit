@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { LogoFull } from "@/components/brand/logo";
 import { postJson } from "@/lib/client/api";
+import { routes } from "@/core/routes";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import {
   DropdownMenu,
@@ -124,7 +125,7 @@ export function SiteHeader({
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href={`/u/${user.username}`}>
+                    <Link href={routes.profile(user.username)}>
                       <UserIcon /> {locale === "zh" ? "我的主页" : "My profile"}
                     </Link>
                   </DropdownMenuItem>

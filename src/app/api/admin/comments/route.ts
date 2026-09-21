@@ -23,6 +23,7 @@ export async function GET(req: Request) {
           body: comments.body,
           status: comments.status,
           postId: comments.postId,
+          postPublicId: posts.publicId,
           postTitle: posts.title,
           createdAt: comments.createdAt,
           author: { username: users.username, displayName: users.displayName },

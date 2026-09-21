@@ -15,6 +15,7 @@ import {
   TableWrap,
 } from "@/components/admin/bits";
 import { ConfirmDialog } from "@/components/admin/post-actions";
+import { routes } from "@/core/routes";
 import { useApiMutation } from "@/lib/query/mutation";
 import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
@@ -28,6 +29,7 @@ const commentItemSchema = z.object({
   body: z.string(),
   status: z.string(),
   postId: z.string(),
+  postPublicId: z.string(),
   postTitle: z.string().nullable(),
   createdAt: z.string(),
   author: z.object({ username: z.string(), displayName: z.string() }),
@@ -135,7 +137,7 @@ function CommentList({
                 <td className="whitespace-nowrap text-muted-foreground">@{c.author.username}</td>
                 <td className="max-w-44">
                   <a
-                    href={`/p/${c.postId}`}
+                    href={routes.post(c.postPublicId)}
                     target="_blank"
                     rel="noreferrer"
                     className="block truncate text-foreground hover:underline"

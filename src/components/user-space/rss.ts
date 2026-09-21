@@ -40,8 +40,8 @@ function addItems(feed: Feed, posts: RssPost[]) {
       date: p.publishedAt,
       image: p.coverPath ? absolute(`/api/media/file/${p.coverPath}`) : undefined,
       category: p.topics?.length ? p.topics.map((name) => ({ name })) : undefined,
-      author: [{ name: p.authorName, link: absolute(`/u/${p.authorUsername}`) }],
-      contributor: [{ name: p.authorName, link: absolute(`/u/${p.authorUsername}`) }],
+      author: [{ name: p.authorName, link: absolute(routes.profile(p.authorUsername)) }],
+      contributor: [{ name: p.authorName, link: absolute(routes.profile(p.authorUsername)) }],
     });
   }
 }

@@ -16,6 +16,7 @@ import { timeAgo } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/client";
 import { apiQueryOptions } from "@/lib/query/options";
 import { queryKeys } from "@/lib/query/keys";
+import { routes } from "@/core/routes";
 
 /* -------------------------------- schema --------------------------------- */
 
@@ -25,6 +26,8 @@ const auditItemSchema = z.object({
   targetType: z.string(),
   targetId: z.string().nullable(),
   targetUsername: z.string().nullable(),
+  // post 目标的 canonical permalink 用（/post/{publicId}；uuid 已不兼容）
+  targetPublicId: z.string().nullable(),
   note: z.string().nullable(),
   createdAt: z.string(),
   adminId: z.string().nullable(),
@@ -86,13 +89,17 @@ function TargetCell({ row }: { row: AuditItem }) {
     return (
       <span className="text-xs">
         <span className="text-muted-foreground">post · </span>
-        <Link
-          href={`/p/${row.targetId}`}
-          target="_blank"
-          className="font-mono text-primary hover:underline"
-        >
-          {short}
-        </Link>
+        {row.targetPublicId ? (
+          <Link
+            href={routes.post(row.targetPublicId)}
+            target="_blank"
+            className="font-mono text-primary hover:underline"
+          >
+            {short}
+          </Link>
+        ) : (
+          <span className="font-mono">{short}</span>
+        )}
       </span>
     );
   }
@@ -102,7 +109,7 @@ function TargetCell({ row }: { row: AuditItem }) {
         <span className="text-muted-foreground">user · </span>
         {row.targetUsername ? (
           <Link
-            href={`/u/${row.targetUsername}`}
+            href={routes.profile(row.targetUsername)}
             target="_blank"
             className="text-primary hover:underline"
           >

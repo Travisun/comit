@@ -24,8 +24,10 @@ const IMAGE_SRC = String.raw`!\[(?<imageAlt>[^\]]*)\]\((?<imageSrc>${HREF_SRC})\
 // 只剩一个 `!`），稳定引用先于链接（其 href 不在白名单内，但依赖顺序而非白名单）。
 const INLINE_TOKEN = new RegExp(`${IMAGE_SRC}|${MENTION_SRC}|${LINK_SRC}`, "g");
 
-/** 展开后的提及链接：`[@昵称](/u/用户名)`（expandMentionTokens 的产物形态）。 */
-const MENTION_LINK = /\[@([^\]]+)\]\(\/u\/[^\s)]*\)/g;
+/** 展开后的提及链接：`[@昵称](/用户名)`（expandMentionTokens 的产物形态，
+ *  canonical 主页即 /{username}；历史内容里已展开的 `[@昵称](/u/用户名)`
+ *  同样命中——/u/ 前缀按旧路径兼容保留）。 */
+const MENTION_LINK = /\[@([^\]]+)\]\((?:\/u\/|\/)([A-Za-z0-9_-]+)\)/g;
 
 /** 每次给出新实例：/g 正则有 lastIndex 状态，共享实例会在 test/exec 之间串味。 */
 export function mentionTokenRe(): RegExp {

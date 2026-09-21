@@ -7,7 +7,7 @@ import { posts, exportJobs, users, postTopics, topics, collections, media } from
 import { readMediaFile } from "@/lib/media";
 import { asStorageTag, type StorageTag } from "@/lib/storage";
 import { expandMentionTokens } from "@/lib/mentions";
-import { config } from "@/core/config";
+import { absolute, routes } from "@/core/routes";
 import type { Plugin } from "@/core/plugins/types";
 
 /**
@@ -96,7 +96,7 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
 
     const mediaDir = path.join(dir, "media");
     // 导出物是 markdown（归档后可再导入）：mention 稳定引用展成合法链接
-    // `[@昵称](/u/用户名)`，而不是漏出 `@[x](mention:id)` 这种内部语法
+    // `[@昵称](/用户名)`，而不是漏出 `@[x](mention:id)` 这种内部语法
     let body = await expandMentionTokens(post.content);
     for (const rel of mediaRefs) {
       const local = await copyMedia(rel, mediaDir);
@@ -118,7 +118,7 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
       collectionName ? `collection: ${JSON.stringify(collectionName)}` : null,
       postTopicNames.length ? `topics: [${postTopicNames.map((n) => JSON.stringify(n)).join(", ")}]` : null,
       post.coverPath ? `cover: media/${path.basename(post.coverPath)}` : null,
-      `url: ${config.app.url}/u/${user.username}/posts/${slug}`,
+      `url: ${absolute(routes.post(post.publicId))}`,
       "---",
     ]
       .filter(Boolean)

@@ -29,9 +29,10 @@ export function buildPath(
 
 /** 动态路由模板 — URL 形状的唯一出处（结构变更只改这里）。 */
 export const TPL = {
-  /** 个人主页：/{username}（proxy 把单段路径 rewrite 到 /u/{username}） */
+  /** 个人主页：/{username}（next.config rewrites 把单段路径 rewrite 到 /u/{username}） */
   userProfile: "/:username",
-  /** 帖子 permalink：/post/{publicId}（17 位左右数字串，短动态与长文统一；uuid/slug 旧链接兼容解析） */
+  /** 帖子 permalink：/post/{publicId}（17 位左右数字串，短动态与长文统一；
+   *  仅接受数字 publicId——uuid/slug 兼容已按产品决策移除；旧 /p/ 短链由 rewrites 兜底） */
   post: "/post/:publicId",
   topic: "/topics/:slug",
   userCollection: "/u/:username/collections/:slug",
@@ -71,7 +72,7 @@ export const routes = {
   oauthCallback: (provider: string) => buildPath(TPL.oauthCallback, { provider }),
   discourseSso: "/api/auth/sso/discourse",
 
-  // user space —— canonical 主页即 /{username}（proxy rewrite 到 /u/{username}，
+  // user space —— canonical 主页即 /{username}（rewrites 改写到 /u/{username}，
   // /u/… 直链继续可用；页面 canonical metadata 统一指向短形态）
   profile: (username: string) => buildPath(TPL.userProfile, { username }),
   profileTab: (username: string, tab: "posts" | "short" | "collections" | "about") =>

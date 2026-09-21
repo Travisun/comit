@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { cn } from "@/lib/utils";
+import { routes } from "@/core/routes";
 import {
   apiGet,
   apiUpload,
@@ -245,7 +246,7 @@ export function ChatClient({ other }: { other: ChatPartner }) {
         >
           <ArrowLeft className="size-4" />
         </Button>
-        <Link href={`/u/${other.username}`} className="flex min-w-0 items-center gap-2.5">
+        <Link href={routes.profile(other.username)} className="flex min-w-0 items-center gap-2.5">
           <Avatar className="size-8 border border-border">
             {other.avatarPath && (
               <AvatarImage src={mediaUrl(other.avatarPath)} alt={other.displayName} />

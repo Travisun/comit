@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
+import { routes } from "@/core/routes";
 import {
   Check,
   ExternalLink,
@@ -255,7 +256,7 @@ function ReportDetail({
       <div className="flex items-center gap-2 text-sm">
         <span className="text-muted-foreground">举报人：</span>
         <Link
-          href={`/u/${report.reporter.username}`}
+          href={routes.profile(report.reporter.username)}
           target="_blank"
           className="font-medium hover:underline"
         >

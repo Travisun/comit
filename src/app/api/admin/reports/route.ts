@@ -1,6 +1,7 @@
 import { and, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, posts, reports, users } from "@/db/schema";
+import { routes } from "@/core/routes";
 import { ok } from "@/lib/http";
 import { mentionTokensToPlainText } from "@/lib/mentions";
 import { withPermission } from "@/lib/permissions";
@@ -80,11 +81,11 @@ export async function GET(req: Request) {
 
     const postMap = new Map<
       string,
-      { title: string | null; excerpt: string; status: string; username: string | null }
+      { title: string | null; excerpt: string; status: string; username: string | null; publicId: string }
     >();
     const commentMap = new Map<
       string,
-      { postId: string; body: string; postTitle: string | null; username: string | null }
+      { postId: string; postPublicId: string; body: string; postTitle: string | null; username: string | null }
     >();
     const userMap = new Map<
       string,
@@ -105,6 +106,7 @@ export async function GET(req: Request) {
         ? db
             .select({
               id: posts.id,
+              publicId: posts.publicId,
               title: posts.title,
               content: posts.content,
               status: posts.status,
@@ -119,6 +121,7 @@ export async function GET(req: Request) {
                   excerpt: makeExcerpt(r.content, 500),
                   status: r.status,
                   username: r.username,
+                  publicId: r.publicId,
                 }),
               ),
             )
@@ -128,6 +131,7 @@ export async function GET(req: Request) {
             .select({
               id: comments.id,
               postId: comments.postId,
+              postPublicId: posts.publicId,
               body: comments.body,
               postTitle: posts.title,
               username: users.username,
@@ -142,6 +146,7 @@ export async function GET(req: Request) {
               for (const r of rs) {
                 commentMap.set(r.id, {
                   postId: r.postId,
+                  postPublicId: r.postPublicId,
                   body: await mentionTokensToPlainText(r.body),
                   postTitle: r.postTitle,
                   username: r.username,
@@ -182,7 +187,7 @@ export async function GET(req: Request) {
     const items = rows.map((r) => {
       let preview: ReportTargetPreview = {
         kind: "post",
-        url: `/p/${r.targetId}`,
+        url: routes.post(r.targetId),
         title: "（已删除 / deleted）",
         missing: true,
       };
@@ -191,7 +196,7 @@ export async function GET(req: Request) {
         preview = p
           ? {
               kind: "post",
-              url: `/p/${r.targetId}`,
+              url: routes.post(p.publicId),
               title: p.title ?? "（无标题）",
               excerpt: p.excerpt,
               postStatus: p.status,
@@ -204,7 +209,7 @@ export async function GET(req: Request) {
         preview = c
           ? {
               kind: "comment",
-              url: `/p/${c.postId}`,
+              url: routes.post(c.postPublicId),
               title: truncate(c.body, 80),
               excerpt: truncate(c.body, 300),
               postId: c.postId,
@@ -218,7 +223,7 @@ export async function GET(req: Request) {
         preview = u
           ? {
               kind: "user",
-              url: `/u/${u.username}`,
+              url: routes.profile(u.username),
               title: `${u.displayName} (@${u.username})`,
               username: u.username,
               displayName: u.displayName,

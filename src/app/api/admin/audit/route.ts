@@ -1,6 +1,6 @@
 import { and, count, desc, eq, inArray, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { modLogs, users } from "@/db/schema";
+import { modLogs, posts, users } from "@/db/schema";
 import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { optionalUuid, pagination } from "@/app/api/admin/_shared";
@@ -74,9 +74,26 @@ export async function GET(req: Request) {
       userRows.forEach((u) => usernameMap.set(u.id, u.username));
     }
 
+    // post 目标补 publicId：canonical permalink 是 /post/{publicId}（数字短 ID），
+    // 而 mod_logs.targetId 存的是 uuid——直接拼链接必然 404
+    const postTargets = [
+      ...new Set(
+        rows.filter((r) => r.targetType === "post" && r.targetId).map((r) => r.targetId!),
+      ),
+    ];
+    const publicIdMap = new Map<string, string>();
+    if (postTargets.length) {
+      const postRows = await db
+        .select({ id: posts.id, publicId: posts.publicId })
+        .from(posts)
+        .where(inArray(posts.id, postTargets));
+      postRows.forEach((p) => publicIdMap.set(p.id, p.publicId));
+    }
+
     const items = rows.map((r) => ({
       ...r,
       targetUsername: r.targetType === "user" ? (usernameMap.get(r.targetId ?? "") ?? null) : null,
+      targetPublicId: r.targetType === "post" ? (publicIdMap.get(r.targetId ?? "") ?? null) : null,
     }));
 
     return ok({

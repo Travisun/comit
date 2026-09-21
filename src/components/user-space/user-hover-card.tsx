@@ -10,6 +10,7 @@ import { BadgeChip } from "@/extensions/badges/badge-ui";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { formatDate } from "@/lib/utils";
 import { cn } from "@/lib/utils";
+import { routes } from "@/core/routes";
 
 interface CardData {
   username: string;
@@ -143,7 +144,7 @@ export function UserHoverCard({
             </Avatar>
             <div className="min-w-0 flex-1">
               <Link
-                href={`/u/${data.username}`}
+                href={routes.profile(data.username)}
                 className="block truncate text-sm font-semibold text-foreground hover:underline"
                 onClick={() => setOpen(false)}
               >

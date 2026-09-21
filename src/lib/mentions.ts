@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, inArray, isNull, notExists, notInArray, or, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { blocks, mentions, users } from "@/db/schema";
+import { routes } from "@/core/routes";
 import { mentionSyntaxToPlainText, mentionTokenRe } from "@/lib/mention-syntax";
 
 /**
@@ -11,8 +12,8 @@ import { mentionSyntaxToPlainText, mentionTokenRe } from "@/lib/mention-syntax";
  *    并落 mentions 记录（notifiedAt 为空 = 待通知）。昵称后续修改时，
  *    渲染端按 userId 查最新昵称 → 历史 @ 同步更新。
  *  - expandMentionTokens：渲染前把稳定引用语法展开为
- *    `[@最新昵称](/u/{username})`（站内相对链接，渲染端可 SPA 跳转）；
- *    用户已注销/不存在时降级为纯文本 `@旧昵称`。
+ *    `[@最新昵称](/{username})`（站内相对链接，canonical 主页形态；
+ *    渲染端可 SPA 跳转）；用户已注销/不存在时降级为纯文本 `@旧昵称`。
  *  - mentionTokensToPlainText：无 markdown 渲染器的出口（通知/邮件/后台表格/
  *    MCP/审核模型输入）用的纯文本形态 `@最新昵称`。
  *  - flattenMentionTokens：编辑器预填用的反向形态（`@用户名`），见其注释。
@@ -153,7 +154,7 @@ async function resolveMentionedUsers(text: string) {
   return new Map(rows.map((r) => [r.id, r]));
 }
 
-/** 渲染前展开：稳定引用 → `[@最新昵称](/u/{username})` 相对链接。 */
+/** 渲染前展开：稳定引用 → `[@最新昵称](/{username})` 相对链接。 */
 export async function expandMentionTokens(text: string): Promise<string> {
   const byId = await resolveMentionedUsers(text);
   if (!byId) return text;
@@ -163,14 +164,14 @@ export async function expandMentionTokens(text: string): Promise<string> {
     // 昵称含方括号时 markdown 链接语法无法表达（渲染端 [^\]]+ 同样会截断），
     // 降级为纯文本 @昵称 —— 宁可不链接，也不能漏出原始语法
     if (/[[\]]/.test(u.displayName)) return `@${u.displayName}`;
-    return `[@${u.displayName}](/u/${u.username})`;
+    return `[@${u.displayName}](${routes.profile(u.username)})`;
   });
 }
 
 /**
  * 纯文本出口（通知/邮件/后台表格/MCP/审核模型输入）：先按 userId 展成最新昵称，
  * 再拉平为可读 `@昵称` —— 这些位置没有 markdown 渲染器，漏出 `@[x](mention:id)`
- * 或 `[@x](/u/y)` 语法就是用户看到的乱码。先展后拉，昵称才是当下的。
+ * 或 `[@x](/y)` 语法就是用户看到的乱码。先展后拉，昵称才是当下的。
  */
 export async function mentionTokensToPlainText(text: string): Promise<string> {
   return mentionSyntaxToPlainText(await expandMentionTokens(text));
