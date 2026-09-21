@@ -201,3 +201,7 @@ src/
 ---
 
 如果这里让你想写点什么——**你的第一个 commit，一句话就够**。觉得这个想法值得存在，给个 Star；想看看它跑起来的样子，就来 **[comit.sh](https://comit.sh)** 发一条动态。
+
+<a href="https://linux.do?ref=seal-click" target="_blank" rel="noopener noreferrer" title="Best Community · LINUX DO">
+  <img src="https://linuxdo-seal.cuishushu.com/seals/seal-best-community.svg" alt="Best Community · LINUX DO" width="120" height="37" />
+</a>
