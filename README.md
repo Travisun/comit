@@ -1,5 +1,24 @@
 # comit.sh — Commit your ideas.
 
+## 在线体验
+
+**[https://comit.sh](https://comit.sh)** —— 官方演示环境跑的就是本仓库的代码，不必先部署：匿名可直接浏览，注册后即可体验从写作到分发的完整链路。
+
+[![comit.sh 作者主页（浅色主题）：封面与头像、徽章荣誉墙、动态流与右侧社区概览](docs/assets/screenshot-profile-light.webp)](https://comit.sh)
+
+| 入口 | 地址 | 可以体验什么 |
+| --- | --- | --- |
+| 社区时间线 | [comit.sh/feed](https://comit.sh/feed) | 长文与短动态混排、点赞/转发/书签、投票帖、@提及与评论线程 |
+| 探索与话题 | [comit.sh/explore](https://comit.sh/explore) · [comit.sh/topics](https://comit.sh/topics) | 全站热门、话题聚合、作者发现 |
+| 长文排版 | 时间线内点进任意一篇 | KaTeX 公式、Shiki 高亮、Mermaid 图表、目录与阅读进度 |
+| 作者主页 | [comit.sh/u/yohan](https://comit.sh/u/yohan)（即上图） | 个人主页、徽章荣誉墙、动态/文章/收藏/合集、订阅 RSS |
+| 写作台 | [comit.sh/write](https://comit.sh/write) | Markdown 实时预览、封面与图片管线、发布/定时与审核流转 |
+| 内容分发 | [comit.sh/feed.xml](https://comit.sh/feed.xml) | 站点与作者两级 RSS，外加 `sitemap.xml` / `robots.txt` 与 Open Graph 元数据 |
+| 机器接口 | `comit.sh/api/mcp`（Bearer 令牌） | 经 MCP 读写自己的内容，见 [docs/api.md](docs/api.md) 的 MCP 章节 |
+
+演示站是**真实公开环境**：发帖、评论、上传都会进入审核并对外可见，请勿用于测试含个人信息的内容。
+想跑自己的实例，见[快速开始](#快速开始)。
+
 > 提交，是技术世界最古老的仪式——从 1956 年 MIT 主机上的 COMIT 语言，到你指尖的每一次 `git commit`。comit.sh 把这个仪式，变成你的个人主页。
 
 comit.sh 是为技术极客、设计师、科学家与领域学子打造的个人主页社交网络：记录科研日志、技术学习过程、研究发布与项目动态。简历风味浓厚的学术与技术交流聚集地，拥抱 AI 的下一代个人品牌内容发布与运营平台。
@@ -8,7 +27,7 @@ comit.sh 是为技术极客、设计师、科学家与领域学子打造的个�
 
 多用户写作与社交平台：深度 Markdown 排版、公式/图表渲染、独立子域名、RSS 分发、强制 2FA、LLM 内容审核、MCP 开放接口、插件化博客主题系统、角色与认证体系。
 
-> ⚠️ 发布前请补充：首页社区时间线与个人主页截图（浅色 + 深色），存放于 `docs/assets/` 并在此引用。
+> ⚠️ 发布前请补充：首页社区时间线与个人主页的深色模式截图，同样存放于 `docs/assets/` 并在此引用。
 > 系统设计与持续演进的完整文档见 [docs/](docs/README.md)（品牌 / 架构 / 并发 / 主题 / 权限 / 通知 / 运维 / API / 路线图）。
 
 ## 技术栈
