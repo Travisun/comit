@@ -80,6 +80,26 @@ export function toUserBrief(u: {
   return { username: u.username, displayName: u.displayName, avatarPath: u.avatarPath };
 }
 
+/**
+ * DAL 展示出口收口：短动态正文的 @提及稳定引用（`@[昵称](mention:uuid)`）→
+ * 最新昵称资料页链接。文章正文不经此处（走 renderMarkdown 渲染管线）。
+ * 每个返回短动态正文的查询都必须过这一道，否则 UI 直显原始引用语法。
+ */
+async function expandShortMentions<T extends { post: Post }>(rows: readonly T[]): Promise<T[]> {
+  const contents = await Promise.all(
+    rows.map((r) =>
+      r.post.type === "short" && r.post.content
+        ? expandMentionTokens(r.post.content)
+        : Promise.resolve(r.post.content),
+    ),
+  );
+  return rows.map((r, i) =>
+    r.post.type !== "short" || contents[i] === r.post.content
+      ? r
+      : ({ ...r, post: { ...r.post, content: contents[i] } } as T),
+  );
+}
+
 export function toFeedItemDTO(item: FeedItem): FeedItemDTO {
   return {
     post: {
@@ -234,13 +254,7 @@ export async function getPublishedPosts(
   }));
 
   // 短动态正文展开 @提及（稳定引用 → 当前昵称相对链接）
-  const expanded = await Promise.all(
-    pageRows.map(async (r) =>
-      r.post.type === "short" && r.post.content
-        ? { ...r, post: { ...r.post, content: await expandMentionTokens(r.post.content) } }
-        : r,
-    ),
-  );
+  const expanded = await expandShortMentions(pageRows);
 
   // 先发后审不影响：佩戴徽章批量注入（按 username 分组，≤3 枚）
   const badgeMap = await getWornBadgesByUsernames(pageRows.map((r) => r.author.username));
@@ -352,8 +366,19 @@ export async function getProfileActivity(opts: {
       : Promise.resolve([] as CommentActivityRow[]),
   ]);
 
-  const shortById = new Map(shortRows.map((r) => [r.post.id, r]));
-  const commentById = new Map(commentRows.map((r) => [r.id, r]));
+  // 展示出口收口：时间线里的短帖正文与评论体都可能带 @提及稳定引用。
+  // （两条子查询按定义分别只取短帖/评论，故此处无条件展开）
+  const [shortRowsExpanded, commentRowsExpanded] = await Promise.all([
+    Promise.all(
+      shortRows.map(async (r) => ({ ...r, post: { ...r.post, content: await expandMentionTokens(r.post.content) } })),
+    ),
+    Promise.all(
+      commentRows.map(async (r) => ({ ...r, body: await expandMentionTokens(r.body) })),
+    ),
+  ]);
+
+  const shortById = new Map(shortRowsExpanded.map((r) => [r.post.id, r]));
+  const commentById = new Map(commentRowsExpanded.map((r) => [r.id, r]));
   const items: ProfileActivityItem[] = [];
   for (const r of pageRows) {
     if (r.kind === "short") {
@@ -419,7 +444,7 @@ export async function getUserHotPosts(userId: string, limit = 5): Promise<FeedIt
     .where(and(eq(posts.authorId, userId), eq(posts.status, "published"), eq(posts.visibility, "public")))
     .orderBy(desc(sql`(${posts.views} + ${posts.likeCount} * 3)`))
     .limit(limit);
-  return rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
+  return expandShortMentions(rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) })));
 }
 
 /* ------------------------------- trending --------------------------------- */
@@ -585,7 +610,10 @@ export async function getTrendingPosts(opts: {
   const items = pageIds
     .map((id) => byId.get(id))
     .filter((x): x is FeedItem => x !== undefined);
-  return { items, nextOffset: offset + limit < ids.length ? offset + limit : null };
+  return {
+    items: await expandShortMentions(items),
+    nextOffset: offset + limit < ids.length ? offset + limit : null,
+  };
 }
 
 /* -------------------------------- topics --------------------------------- */
@@ -826,9 +854,12 @@ export async function listBookmarkPosts(
     .limit(limit + 1)
     .offset(offset);
   const hasMore = rows.length > limit;
+  const page = await expandShortMentions(
+    rows.slice(0, limit).map((r) => ({ ...r, author: confiscateBannedUser(r.author) })),
+  );
   // DAL 出口即 DTO：杜绝 Date/全文 db 行对象经类型注解漂移到客户端
   return {
-    items: rows.slice(0, limit).map((r) => toFeedItemDTO({ ...r, author: confiscateBannedUser(r.author) })),
+    items: page.map(toFeedItemDTO),
     nextOffset: hasMore ? offset + limit : null,
   };
 }
@@ -1123,7 +1154,7 @@ async function decorateRssPosts(rows: RssSeed[]): Promise<RssPost[]> {
     rows.map(async (r) => ({
       ...r,
       topics: byPost.get(r.id) ?? [],
-      contentHtml: (await renderMarkdown(r.content)).html,
+      contentHtml: (await renderMarkdown(await expandMentionTokens(r.content))).html,
     })),
   );
 }
@@ -1269,7 +1300,7 @@ export async function searchPublishedPosts(q: string, limit = 20): Promise<FeedI
     )
     .orderBy(desc(posts.publishedAt))
     .limit(limit);
-  return rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) }));
+  return expandShortMentions(rows.map((r) => ({ ...r, author: confiscateBannedUser(r.author) })));
 }
 
 export async function getTopPosts(

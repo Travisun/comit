@@ -1,3 +1,4 @@
+import { jsonBody } from "@/lib/http";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { logger } from "@/core/logger";
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
     // 伪造）：超限抛 429 由下方 catch 静默吞掉 → 依旧返回 ok
     await rateLimitBucket("client.error", clientIp(req));
 
-    const raw = await req.json().catch(() => null);
+    const raw = await jsonBody(req).catch(() => null);
     const parsed = bodySchema.safeParse(raw);
     if (!parsed.success) return NextResponse.json({ ok: true });
     const { scope, message, stack, componentStack, path } = parsed.data;

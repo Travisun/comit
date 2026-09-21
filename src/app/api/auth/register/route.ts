@@ -160,11 +160,13 @@ export async function POST(req: Request) {
       if (isPgUniqueViolation(err, "users_username_key")) {
         throw conflict("用户名已被占用 / Username already taken");
       }
+      // 邮箱冲突与成功路径返回同一响应（事务已回滚、邀请码未烧毁）：
+      // 409 状态码本身就是账户存在性枚举通道，与 forgot/resend 的恒定文案对齐。
       if (isPgUniqueViolation(err, "users_email_key")) {
-        throw conflict("邮箱或用户名已被注册 / Email or username already registered");
+        return ok({ ok: true, message: "验证邮件已发送 / Verification email sent" });
       }
       if (isPgUniqueViolation(err)) {
-        throw conflict("邮箱或用户名已被注册 / Email or username already registered");
+        return ok({ ok: true, message: "验证邮件已发送 / Verification email sent" });
       }
       throw err; // 邀请码无效等业务错误原样抛出（事务已回滚，邀请码未烧毁）
     }

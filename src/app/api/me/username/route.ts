@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { conflict, forbidden, unauthorized } from "@/core/errors";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { checkUsernameAvailable, USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users";
 import { parseOrThrow } from "../_shared";
@@ -65,7 +65,7 @@ const putSchema = z.object({
 /** PUT /api/me/username — 修改用户名（每 30 天一次）。 */
 export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
-    const { username } = parseOrThrow(putSchema, await req.json().catch(() => null));
+    const { username } = parseOrThrow(putSchema, await jsonBody(req).catch(() => null));
 
     const normalized = username.toLowerCase();
     if (normalized === auth.user.username) return ok({ username: normalized });

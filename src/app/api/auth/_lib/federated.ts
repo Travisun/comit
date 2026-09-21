@@ -10,11 +10,20 @@ import type { FederatedProfile } from "@/lib/auth/oauth";
 /**
  * Shared "find or create" logic for every federated login (OAuth, Discourse
  * SSO, Cloudflare Access):
- *   1. (provider, providerAccountId) already linked → that user
- *   2. email matches an existing account → link + that user
- *      （仅当 provider 侧邮箱已验证才允许自动绑定；X 的合成/未验证邮箱一律不绑）
- *   3. otherwise auto-register (emailVerifiedAt mirrors the provider's claim;
- *      provider 合成 noreply 邮箱亦视同已验证，见下方步骤 3 注释)
+ *   1. (provider, providerAccountId) already linked → that user（唯一自动登入
+ *      通道：该账号此前就用同一 provider 登录过）
+ *   2. email matches an existing account but this provider was never linked
+ *      → 拒绝自动登入（身份提供商仅凭邮箱接管账号是账户接管向量），要求用户
+ *      登录后到 设置 → 账号绑定 主动绑定（bind 流程见 oauth callback 的
+ *      mb_oauth_link cookie 分支）
+ *   3. otherwise auto-register —— 仅限 provider 侧邮箱已验证
+ *      （emailVerified === true；合成 noreply 邮箱由 provider 证明身份，视同
+ *      已验证，见 FederatedProfile.emailSynthetic 注释）；email_verified
+ *      缺失/false 一律拒绝自动注册。
+ *
+ * 历史风险修复：旧逻辑第 2 步"邮箱命中即自动绑定并登入"，即使 provider
+ * 邮箱已验证也放行 —— 任何被用户关联过邮箱的账号都可被对应 IdP 接管。
+ * 现收紧为仅 (provider, providerAccountId) 精确匹配才自动关联。
  */
 
 export interface FederatedIdentity {
@@ -28,7 +37,7 @@ export async function findOrCreateFederatedUser(
   const email = profile.email.trim().toLowerCase();
   if (!email) throw new AppError("该账号未提供邮箱 / Provider did not return an email", 400, "oauth_no_email");
 
-  // 1. existing link
+  // 1. existing link（唯一自动登入通道）
   const [link] = await db
     .select({ userId: oauthAccounts.userId })
     .from(oauthAccounts)
@@ -44,37 +53,34 @@ export async function findOrCreateFederatedUser(
     if (user && user.status !== "deleted") return { user, created: false };
   }
 
-  // 2. existing account with the same email → bind（仅限 provider 已验证邮箱：
-  //    凭未验证邮箱（如 X 的合成 noreply 地址）自动接管现有账户＝账户接管）
+  // 2. email matches an existing account，但该 provider 从未关联过它 →
+  //    绝不自动绑定/登入（陌生 provider 凭邮箱登入 = 账户接管向量）。
+  //    用户须先在别处登录，再到 设置 → 账号绑定 发起 bind（回调的
+  //    mb_oauth_link 分支会校验 link 用户 == 当前会话用户后才落绑定）。
   const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
   if (existing) {
-    if (profile.emailVerified !== true) {
-      throw new AppError(
-        "该邮箱已注册，但第三方账号的邮箱未经验证，无法自动绑定 / Email already registered and the provider did not verify it — cannot auto-link",
-        409,
-        "oauth_email_conflict",
-      );
-    }
     if (existing.status === "deleted") {
       throw new AppError("该邮箱账户已注销 / This email account was deleted", 400, "oauth_deleted");
     }
-    await db
-      .insert(oauthAccounts)
-      .values({
-        userId: existing.id,
-        provider: profile.provider,
-        providerAccountId: profile.providerAccountId,
-      })
-      .onConflictDoNothing();
-    return { user: existing, created: false };
+    throw new AppError(
+      "该邮箱已被注册，请先登录后在 设置 → 账号绑定 中绑定此第三方账号 / This email is already registered — sign in first, then link this provider under Settings → Connections",
+      409,
+      "oauth_email_registered",
+    );
   }
 
-  // 3. auto-register —— 统一不写 emailVerifiedAt：OSS 注册与密码注册一样必须
-  //    通过站内邮箱验证关卡（/auth/verify）。provider 已验证 / 合成 noreply
-  //    邮箱都不再直接视为已验证；合成邮箱收不到验证信，用户在验证页先换绑
-  //    真实邮箱再完成验证（会话内换绑走 POST /api/me/verify-email）。
-  //    按邮箱自动绑入既有账户不受此影响：仍由 profile.emailVerified 单独门控
-  //    （合成邮箱 emailVerified=false 永远不允许绑入既有账户）。
+  // 3. auto-register —— provider 邮箱未验证（email_verified 缺失/false）一律
+  //    拒绝（防用受害者邮箱注册占位账号 + 邮件类身份滥用）。合成 noreply
+  //    邮箱（X）例外：邮箱本身不可验证但身份由 provider 用账号句柄证明，
+  //    且合成邮箱永远不可能与真实账户的邮箱撞库绑入（第 2 步已封死邮箱
+  //    自动绑定）。统一不写 emailVerifiedAt：站内验证关卡照走 /auth/verify。
+  if (profile.emailVerified !== true && profile.emailSynthetic !== true) {
+    throw new AppError(
+      "第三方账号未提供已验证邮箱，无法自动注册 / The provider did not return a verified email, cannot auto-register",
+      403,
+      "oauth_email_unverified",
+    );
+  }
   const username = await pickAvailableUsername(profile.username || email.split("@")[0] || "user");
   const [user] = await db
     .insert(users)

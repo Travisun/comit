@@ -2,10 +2,11 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { AppError, ok, withUser } from "@/lib/http";
+import {AppError, ok, withUser, jsonBody} from "@/lib/http";
 import { hooks } from "@/core/hooks";
 import { emit } from "@/core/events";
 import { hashPassword, isValidPassword, verifyPassword } from "@/lib/auth/password";
+import { revokeAuthTokens } from "@/lib/auth/guards";
 import { destroyUserSessions } from "@/lib/auth/session";
 import { parseOrThrow } from "../_shared";
 
@@ -23,7 +24,7 @@ const schema = z.object({
  */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(schema, await req.json().catch(() => null));
+    const body = parseOrThrow(schema, await jsonBody(req).catch(() => null));
 
     if (auth.user.passwordHash) {
       const okPw = body.currentPassword
@@ -63,6 +64,10 @@ export async function POST(req: Request) {
 
     // kick out every other device
     await destroyUserSessions(auth.user.id, auth.sessionId);
+    // 待决一次性令牌同样作废（当前会话已证明合法性，API 令牌保留）：
+    // 改密通常正是「怀疑被盗后的止损动作」，24h 内仍有效的 email_verify 链接
+    // 必须随之失效，否则攻击者可用它把邮箱改回去完成二次接管。
+    await revokeAuthTokens(auth.user.id);
     return ok();
   });
 }

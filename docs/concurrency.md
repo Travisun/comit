@@ -123,7 +123,7 @@ node scripts/load-test.mjs --show-workers http://localhost:3001
 | 失败率 | 0 | 0 |
 | P99 抖动 | 无 >2s 长尾 | — |
 
-压测时的检查清单：`watch curl -s :3000/api/health`（worker 轮转）、`/admin/ops` 队列深度（>10 黄/>50 红）、PG `pg_stat_activity` 连接数是否逼近公式上限、worker 进程 CPU 是否打满（打满则增 WEB_CONCURRENCY，PG 打满则先优化再扩容）。
+压测时的检查清单：`watch curl -s :3000/api/health`（探活 200/503；worker 轮转观测看 `--show-workers`，其走鉴权端点 `/api/admin/health`）、`/admin/ops` 队列深度（>10 黄/>50 红）、PG `pg_stat_activity` 连接数是否逼近公式上限、worker 进程 CPU 是否打满（打满则增 WEB_CONCURRENCY，PG 打满则先优化再扩容）。
 
 ## 7. 扩容路径
 

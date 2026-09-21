@@ -144,7 +144,7 @@ export function RegisterForm({ inviteRequired }: { inviteRequired: boolean }) {
             required
             value={inviteCode}
             onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
-            placeholder="XXXX-XXXX"
+            placeholder="XXXXXXXXXXXXXXXX"
           />
         </div>
       ) : null}

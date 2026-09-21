@@ -5,6 +5,7 @@ import { routes, absolute } from "@/core/routes";
 import { getSetting, type SettingsKey } from "@/lib/settings";
 import { randomToken } from "@/lib/auth/password";
 import { createOAuthUrl, oauthEnabled } from "@/lib/auth/oauth";
+import { issueFlowParam } from "../../_lib/flow-nonce";
 
 export const runtime = "nodejs";
 
@@ -51,6 +52,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ provider: 
     }
 
     const state = randomToken(16);
+    // 服务端登记该 state 为一次性票据（128 位随机 + 单次消费）：回调侧消费失败
+    // 即判重放，见 _lib/flow-nonce.ts
+    await issueFlowParam("oauth_state", state);
     const { url: oauthUrl, codeVerifier } = await createOAuthUrl(p, state);
     const url = oauthUrl;
     const res = NextResponse.redirect(url.toString());

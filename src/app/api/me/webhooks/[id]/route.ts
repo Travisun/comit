@@ -1,9 +1,12 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { webhooks } from "@/db/schema";
-import { notFound, ok, withUser } from "@/lib/http";
-import { ALL_WEBHOOK_EVENT_NAMES } from "@/extensions/webhooks/server";
+import{notFound, ok, withUser, jsonBody} from "@/lib/http";
+import { conflict } from "@/core/errors";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { ALL_WEBHOOK_EVENT_NAMES, newWebhookSecret } from "@/extensions/webhooks/server";
+import { webhookUrlDedupKey } from "@/extensions/webhooks/url-policy";
 import { parseOrThrow, webhookUrlSchema } from "../../_shared";
 
 export const runtime = "nodejs";
@@ -14,24 +17,50 @@ type Ctx = { params: Promise<{ id: string }> };
 const idSchema = z.uuid();
 
 const patchSchema = z.object({
-  // 与创建共用同一 URL schema（内网/本机黑名单），防止把已创建的合法
-  // webhook 更新成 SSRF 地址绕过创建层防线
+  // 与创建共用同一 URL schema（https-only + 凭据/IP 字面量/内网黑名单），防止把
+  // 已创建的合法 webhook 更新成 SSRF 地址绕过创建层防线
   url: webhookUrlSchema.optional(),
   events: z.array(z.enum(ALL_WEBHOOK_EVENT_NAMES)).min(1).optional(),
   active: z.boolean().optional(),
 });
 
-/** PATCH /api/me/webhooks/[id] — update url / events / active. */
+/**
+ * PATCH /api/me/webhooks/[id] — update url / events / active.
+ *
+ * 换址即换密钥：secret 与该端点一一对应，若把 URL 从 A 改到 B 而沿用旧密钥，
+ * 曾控制 A 的一方可继续用旧密钥为投递到 B 的报文签出合法签名（接收方 B 无从分辨）。
+ * 新密钥只在响应里回显一次（本站设置页不提供改址入口，故无 UI 破坏面）。
+ */
 export async function PATCH(req: Request, ctx: Ctx) {
   return withUser(req, async (auth) => {
     const { id } = await ctx.params;
     parseOrThrow(idSchema, id);
-    const body = parseOrThrow(patchSchema, await req.json().catch(() => null));
+    const body = parseOrThrow(patchSchema, await jsonBody(req).catch(() => null));
 
     const patch: Partial<typeof webhooks.$inferInsert> = {};
-    if (body.url !== undefined) patch.url = body.url;
+    let rotatedSecret: string | null = null;
+    if (body.url !== undefined) {
+      await rateLimitBucket("webhook.manage", auth.user.id); // 改址 = 换一条出站通道，与创建同桶限速
+      const others = await db
+        .select({ url: webhooks.url })
+        .from(webhooks)
+        .where(and(eq(webhooks.userId, auth.user.id), ne(webhooks.id, id)));
+      const key = webhookUrlDedupKey(body.url);
+      if (others.some((w) => webhookUrlDedupKey(w.url) === key)) {
+        throw conflict("该端点已注册 / Endpoint already registered");
+      }
+      patch.url = body.url;
+      rotatedSecret = newWebhookSecret();
+      patch.secret = rotatedSecret;
+      patch.failCount = 0; // 新地址新账：旧端点的连续失败不应让新端点一出生就被自动停用逻辑掐掉
+    }
     if (body.events !== undefined) patch.events = [...body.events];
-    if (body.active !== undefined) patch.active = body.active;
+    if (body.active !== undefined) {
+      patch.active = body.active;
+      // 重新启用即给一整轮重试预算：failCount 的语义是"连续失败"，
+      // 人工恢复若不归零，下一条投递仍会立刻撞上 AUTO_DISABLE 阈值
+      if (body.active) patch.failCount = 0;
+    }
 
     const rows = await db
       .update(webhooks)
@@ -39,7 +68,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       .where(and(eq(webhooks.id, id), eq(webhooks.userId, auth.user.id)))
       .returning({ id: webhooks.id });
     if (!rows.length) throw notFound("Webhook 不存在 / Webhook not found");
-    return ok();
+    return ok(rotatedSecret ? { secret: rotatedSecret, message: "签名密钥已随地址变更轮换，仅显示一次 / Secret rotated with the URL, shown once" } : {});
   });
 }
 

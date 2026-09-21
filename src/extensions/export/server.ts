@@ -153,7 +153,12 @@ function contentImagePaths(md: string): string[] {
   const out = new Set<string>();
   const re = /\/api\/media\/file\/([A-Za-z0-9/_\\.-]+\.webp)/g;
   let m: RegExpExecArray | null;
-  while ((m = re.exec(md))) out.add(m[1]);
+  while ((m = re.exec(md))) {
+    // 正文可被作者操纵，含 .. 或反斜杠的键视为穿越尝试直接丢弃
+    const rel = m[1];
+    if (rel.includes("..") || rel.includes("\\")) continue;
+    out.add(rel);
+  }
   return [...out];
 }
 

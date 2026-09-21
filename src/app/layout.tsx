@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import "@fontsource/noto-sans-sc/400.css";
 import "@fontsource/noto-sans-sc/500.css";
 import "@fontsource/noto-sans-sc/700.css";
@@ -77,6 +78,10 @@ async function LoginDialogHost() {
 /** Minimal root shell — chrome (site header / dashboard shell) lives in route groups. */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
+  // CSP per-request nonce（src/proxy.ts 注入 x-nonce 请求头）：Next 自动给
+  // 它生成的脚本加 nonce，我们自己的内联脚本（next-themes 引导脚本、dev
+  // 清理脚本）必须用同一个 nonce，读到这里也顺带确保本布局动态渲染。
+  const cspNonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang={locale === "zh" ? "zh-CN" : "en"}
@@ -89,6 +94,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <TopProgressBar />
         {process.env.NODE_ENV !== "production" && (
           <script
+            // CSP（src/proxy.ts per-request nonce）：自有内联脚本必须手动带
+            // 同一 nonce 才会执行（dev 亦无 'unsafe-inline' 豁免）
+            nonce={cspNonce}
             dangerouslySetInnerHTML={{
               __html: [
                 "if('serviceWorker' in navigator){",
@@ -104,7 +112,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         )}
         <I18nProvider locale={locale}>
           <DataProvider>
-            <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+            <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange nonce={cspNonce}>
               {/* 确认框 Provider 必须包住应用树：context 只向后代传递，
                   此前作为空兄弟节点挂载 → useConfirmDialog 全站拿到默认桩
                   （直接 resolve false），解绑/删除等一切确认操作静默失效 */}

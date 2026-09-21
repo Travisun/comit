@@ -16,7 +16,17 @@ const eslintConfig = defineConfig([
     // minified 代码风格 error），.codex/ 为 agent 工具状态，均非源码门禁对象。
     "public/**",
     ".codex/**",
+    // agent 并行工作区（worktree 整体镜像仓库）与本地 AI 工具状态，非源码门禁对象
+    ".qoder/**",
+    ".cursor/**",
+    ".opencode/**",
     "storage/**",
+    // 本地诊断/并行 dev 构建产物（.gitignore 已排除，不应成为 lint 门禁对象）
+    ".next-diag/**",
+    ".next-test/**",
+    "ComitDocuments/**",
+    "patches/**",
+    "logos/**",
   ]),
   {
     rules: {

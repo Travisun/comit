@@ -1,13 +1,13 @@
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { clientIp } from "@/lib/net/real-ip";
 import { resolveApiToken } from "@/lib/tokens";
 import {
-  ensureMcpBootstrapped,
   handleMcpRpc,
   mcpErrorResponse,
   mcpServerInfo,
 } from "@/lib/mcp-transport";
-import { mcpTools } from "@/extensions/_boot/server";
 import { AppError } from "@/core/errors";
+import { assertJsonBodySize } from "@/lib/http";
 import { assertNotUnderMaintenance } from "@/lib/maintenance";
 import { MCP_MUTATING_TOOLS } from "@/extensions/mcp/server";
 import { getSetting } from "@/lib/settings";
@@ -22,7 +22,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  await ensureMcpBootstrapped();
+  // 未认证 GET 不再触发 ensureMcpBootstrapped / 工具计数：匿名流量既能以
+  // 冷启动成本打库（首次 GET 会 boot 全部插件），也把工具数量这类能力
+  // 指纹送给侦察者。工具清单本来就要 POST+token 才能 tools/list 拿到。
   const siteName = await getSetting("site.name");
   const info = mcpServerInfo(siteName);
   return Response.json({
@@ -31,7 +33,6 @@ export async function GET() {
     endpoints: "POST JSON-RPC",
     auth: "Authorization: Bearer mbt_<token>",
     protocol: "MCP (JSON-RPC 2.0), stateless — one message per POST",
-    tools: mcpTools.size,
   });
 }
 
@@ -59,6 +60,17 @@ function firstMutatingCallId(body: unknown): string | number | undefined {
 }
 
 export async function POST(req: Request) {
+  // 鉴权前按 IP 计数：resolveApiToken 是每请求一次查库（sha256 精确匹配）+
+  // lastUsedAt 写回，未认证流量不受 mcp.api（按 token）桶约束 —— 没有这道
+  // IP 桶，伪造 token 的洪水即可零成本打 DB（token 值随机、爆破不中，但
+  // 每次尝试都消耗一次真查询）。阈值放宽到 token 桶 2 倍，只挡滥用不误伤
+  // 共享出口 IP 的正常 agent。rateLimitBucket 契约：超限抛 429、DB 故障降级。
+  try {
+    await rateLimitBucket("mcp.ip", clientIp(req));
+  } catch {
+    return mcpErrorResponse(429, null, -32002, "Too many requests from this address");
+  }
+
   const header = req.headers.get("authorization") ?? "";
   const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const resolved = token ? await resolveApiToken(token) : null;
@@ -89,8 +101,14 @@ export async function POST(req: Request) {
 
   let body: unknown;
   try {
+    // 与 jsonBody 同款大小预检：本路由裸 req.json()，不设上限则超大 JSON
+    // 在解析阶段即可打爆 worker 内存
+    assertJsonBodySize(req);
     body = await req.json();
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError && err.status === 413) {
+      return mcpErrorResponse(413, null, -32600, "Request body too large (> 1MB)");
+    }
     return mcpErrorResponse(400, null, -32700, "Parse error: request body is not valid JSON");
   }
 

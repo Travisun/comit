@@ -2,7 +2,7 @@
 // 与 renderMarkdown 管线的 sanitize/收紧安全行为（script 剥除、img src 协议白名单）。
 import { describe, expect, it } from "vitest";
 import type { Element, Root, RootContent } from "hast";
-import { rehypeTightenStyles, renderMarkdown } from "./server";
+import { rehypeTightenStyles, renderMarkdown, sanitizeRenderedHtml } from "./server";
 
 const tighten = rehypeTightenStyles();
 
@@ -165,5 +165,62 @@ describe("renderMarkdown · 管线安全行为（e2e，无代码块不触发 shi
     const { html, headings } = await renderMarkdown("## Hello World\n");
     expect(headings).toEqual([{ id: "hello-world", text: "Hello World", level: 2 }]);
     expect(html).toContain('id="hello-world"');
+  });
+
+  // ---- DOM-clobbering：raw HTML 的 id 收紧为 sec-/msg- 前缀白名单 ----
+  it("用户 raw HTML 的任意 id 被剥除（含 comment-* 劫持尝试）", async () => {
+    const { html } = await renderMarkdown(
+      '<p id="comment-11111111-2222-3333-4444-555555555555">x</p>\n\n<span id="evil">y</span>\n',
+    );
+    expect(html).not.toContain('id="comment-');
+    expect(html).not.toContain('id="evil"');
+    expect(html).toContain(">x</p>");
+    expect(html).toContain("y");
+  });
+
+  it("sec-/msg- 前缀 id 放行（且经 sanitize 的 user-content- 防劫持前缀二次钉牢）", async () => {
+    const { html } = await renderMarkdown('<div id="sec-install">a</div>\n\n<span id="msg-7">b</span>\n');
+    // hast-util-sanitize 对放行 id 自动加 user-content- 前缀（clobber-safe），
+    // 用户内容即使带白名单 id 也永远无法命中站内 comment-*/sec-* 真实锚点
+    expect(html).toContain('id="user-content-sec-install"');
+    expect(html).toContain('id="user-content-msg-7"');
+  });
+
+  it("服务端生成的标题 id 不受白名单影响（sanitize 之后赋值）", async () => {
+    const { html } = await renderMarkdown("## 前缀之外 ### 也如此\n\nplain text\n");
+    // heading slug 不含 sec-/msg- 前缀也照常保留 → 证明收紧只作用于用户 raw HTML
+    expect(html).toMatch(/<h2[^>]*id="[^"]*"/);
+  });
+});
+
+describe("外链守卫属性 · 只允许守卫生成（审计 M3）", () => {
+  it("raw HTML 手写的 data-external / data-external-href 被剥除", async () => {
+    const { html } = await renderMarkdown(
+      '<a href="/ok" data-external data-external-href="javascript:alert(1)">x</a>',
+    );
+    expect(html).not.toContain("data-external");
+    expect(html).not.toContain("javascript:");
+  });
+
+  it("真实外链由净化后的守卫补全 data-external-href", async () => {
+    const { html } = await renderMarkdown("[x](https://example.com/a)");
+    expect(html).toContain('data-external-href="https://example.com/a"');
+  });
+});
+
+describe("sanitizeRenderedHtml · post:render 改写通道复净（审计 M2）", () => {
+  it("改写产物中的脚本与事件属性被拦截，守卫合法属性保留", async () => {
+    const out = await sanitizeRenderedHtml(
+      '<p>ok</p><img src=x onerror=alert(1)><script>alert(1)</script><a data-external data-external-href="https://e.com/x">y</a>',
+    );
+    expect(out).not.toContain("onerror");
+    expect(out.toLowerCase()).not.toContain("<script");
+    expect(out).toContain('data-external-href="https://e.com/x"');
+  });
+
+  it("对主管线产物幂等（mermaid/pretty-code/shiki data-* 不被复净误伤）", async () => {
+    const { html } = await renderMarkdown("```mermaid\ngraph TD;A-->B;\n```\n");
+    expect(html).toContain("data-diagram");
+    expect(await sanitizeRenderedHtml(html)).toBe(html);
   });
 });

@@ -25,10 +25,14 @@ export async function POST(req: Request) {
     }
     const { name, response } = bodySchema.parse(await jsonBody(req));
     const { rpID, origin } = await rpFromRequest(req);
-    const expectedChallenge = await readChallenge(req, "pk_register", auth.user.id);
-    if (!expectedChallenge) {
+    const challengeRes = await readChallenge(req, "pk_register", auth.user.id);
+    if (challengeRes.status === "replay") {
+      throw new AppError("注册挑战已被使用，请重新发起 / Passkey challenge already used", 401, "pk_challenge_replayed");
+    }
+    if (challengeRes.status !== "ok") {
       throw new AppError("注册会话已过期，请重新开始 / Registration session expired", 400, "pk_challenge");
     }
+    const expectedChallenge = challengeRes.challenge;
 
     let verification;
     try {
@@ -37,7 +41,8 @@ export async function POST(req: Request) {
         expectedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        requireUserVerification: false,
+        // 与登录端一致强制 UV（见 login/route.ts 注释）
+        requireUserVerification: true,
       });
     } catch (err) {
       throw new AppError(

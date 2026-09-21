@@ -9,7 +9,7 @@ import { Input, Label } from "@/components/ui/input";
 import { BadgeChip } from "@/extensions/badges/badge-ui";
 import { BADGE_ICON_KEYS, BADGE_ICON_LABELS, BADGE_STYLES } from "@/extensions/badges/styles";
 import { useConfirmDialog } from "@/components/ui/confirm-dialog";
-import { apiGet, deleteJson, requestSafe } from "@/lib/client/api";
+import { apiGet, requestSafe } from "@/lib/client/api";
 
 interface BadgeRow {
   id: string;

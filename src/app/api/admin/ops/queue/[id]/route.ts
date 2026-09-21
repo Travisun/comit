@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { getBoss } from "@/core/queue";
-import { ok } from "@/lib/http";
+import {ok, jsonBody} from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { AppError } from "@/core/errors";
 
@@ -18,7 +18,7 @@ const retrySchema = z.object({
 export async function POST(req: Request, ctx: Ctx) {
   return withPermission(req, "admin.ops", async () => {
     const { id } = await ctx.params;
-    const parsed = retrySchema.safeParse(await req.json().catch(() => ({})));
+    const parsed = retrySchema.safeParse(await jsonBody(req).catch(() => ({})));
     if (!parsed.success) {
       throw new AppError("缺少 queue 参数 / Missing queue", 400, "bad_request");
     }

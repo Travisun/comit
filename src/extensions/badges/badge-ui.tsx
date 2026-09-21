@@ -1,6 +1,6 @@
 import { Award, BookOpen, Code2, Crown, Flag, Heart, Medal, Palette, PenLine, Rocket, Shield, Sparkles, Star, Users, Wrench, Zap, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { BADGE_ICON_LABELS, BADGE_ICON_KEYS, badgeStyleClassName, type BadgeIconKey } from "./styles";
+import { BADGE_ICON_LABELS, badgeStyleClassName, type BadgeIconKey } from "./styles";
 
 const ICONS: Record<BadgeIconKey, LucideIcon> = {
   medal: Medal, crown: Crown, shield: Shield, sparkles: Sparkles, heart: Heart,

@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkRehype from "remark-rehype";
 import rehypeRaw from "rehype-raw";
+import rehypeParse from "rehype-parse";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeKatex from "rehype-katex";
 import rehypeStringify from "rehype-stringify";
@@ -12,12 +13,14 @@ import type { Element, Root } from "hast";
 import { visit } from "unist-util-visit";
 import { config } from "@/core/config";
 import { callHook } from "@/core/hooks";
+import { rehypeGuardAttributes } from "@/lib/markdown/attribute-guard";
 
 /**
  * Server-side Markdown → HTML pipeline.
  *
  * remark-parse → gfm → math → hast → raw HTML (trusted set, sanitized hard)
- * → sanitize (XSS/iframe-proof) → style 收紧（pre/code 内保留更宽的低危白名单、
+ * → sanitize (XSS/iframe-proof) → attr guard（用户可控 target/rel/class 收口，
+ * 见 rehypeGuardAttributes）→ style 收紧（pre/code 内保留更宽的低危白名单、
  * 但值层面高危声明同样剥除，见 rehypeTightenStyles）→ KaTeX → Shiki code
  * highlight → mermaid
  * block marker → external-link guard (nofollow + target=_blank) → string.
@@ -27,19 +30,46 @@ import { callHook } from "@/core/hooks";
  */
 
 /** Drop dangerous elements entirely (children included) before sanitizing. */
-function rehypeDropDangerous() {
+function rehypeDropDangerous(opts: { stripGuardAttrs?: boolean } = {}) {
+  const stripGuard = opts.stripGuardAttrs ?? true;
   const DROP = new Set(["script", "style", "iframe", "object", "embed", "frame", "frameset", "applet", "base", "form", "input", "button", "select", "textarea", "link", "meta", "noscript"]);
   return (tree: Root) => {
     // 无 test 的 visit 遍历全部节点；只对含 children 的父节点过滤危险子元素。
     // （此前误用 "parent" 作为 unist test —— 它不是合法测试，命中 0 节点，
     // 本函数实际从未生效，危险元素全靠 rehype-sanitize 兜底。）
     visit(tree, (node) => {
+      // 外链守卫属性（data-external*）只允许由 rehypeExternalGuard 在净化后
+      // 生成；作者手写的在此剥除，防手写 data-external-href 携带非常规值进入
+      // 客户端 window.open 流程。复净管线传 false：那里它们是守卫合法产物。
+      if (stripGuard) {
+        const el = node as Element;
+        if (el.type === "element" && el.properties) {
+          delete el.properties.dataExternal;
+          delete el.properties.dataExternalHref;
+        }
+      }
       if (!("children" in node) || !Array.isArray(node.children)) return;
       node.children = (node.children as Element[]).filter(
         (c) => !(c.type === "element" && typeof c.tagName === "string" && DROP.has(c.tagName)),
       );
     });
   };
+}
+
+/**
+ * DOM-clobbering 防线：用户 raw HTML 的 id 收紧为前缀白名单（sec-/msg-）。
+ * 全站没有任何「用户自定义 id」的合法生产方 —— TOC/标题锚点 id 由服务端在
+ * sanitize **之后**生成（见 renderMarkdown 的 extract），KaTeX/Shiki 输出同
+ * 理不受影响。放开任意 id 会被用于劫持 `document.getElementById("comment-…")`
+ * 之类的全局 id 查找（getElementById 返回文档序首个命中）。注意 hast-util-
+ * sanitize 对**放行**的 id 还会自动加 `user-content-` 防劫持前缀（白名单是
+ * 第一道，前缀是第二道，用户内容 id 永远命不中站内真实锚点选择器）。
+ */
+const SAFE_USER_ID = /^(?:sec|msg)-[\w-]{1,64}$/;
+
+/** sanitize 属性级校验器：仅放行安全 id（value 可能是数组——class 等空格分隔属性） */
+function isSafeUserId(value: unknown): boolean {
+  return typeof value === "string" && SAFE_USER_ID.test(value);
 }
 
 const sanitizeSchema = {
@@ -72,7 +102,8 @@ const sanitizeSchema = {
       ...(defaultSchema.attributes?.["*"] ?? []),
       "className",
       "class",
-      "id",
+      // id 不再整体放行：仅 sec-/msg- 前缀（见 SAFE_USER_ID 注释）
+      ["id", ["id", isSafeUserId]],
       "dataExternal",
       "dataExternalHref",
       "dataAlign",
@@ -296,6 +327,7 @@ const processor = unified()
   .use(rehypeRaw)
   .use(rehypeDropDangerous)
   .use(rehypeSanitize, sanitizeSchema as never)
+  .use(rehypeGuardAttributes)
   .use(rehypeTightenStyles)
   .use(rehypeKatex, { output: "html", strict: false, trust: false })
   .use(rehypePrettyCode, {
@@ -306,6 +338,38 @@ const processor = unified()
   .use(rehypeMermaidBlocks)
   .use(rehypeExternalGuard)
   .use(rehypeStringify);
+
+/**
+ * 复净管线：post:render 钩子在**净化之后**改写 ctx.html，其输出不可信任，
+ * 改动过就重新 parse→sanitize→style 收紧。schema 与主管线同源，额外放行
+ * sanitize 之后各阶段合法注入的 data-*（mermaid/pretty-code/外链守卫产物），
+ * 保证对未改写内容幂等、不破坏渲染。
+ */
+const reSanitizeSchema = {
+  ...sanitizeSchema,
+  attributes: {
+    ...sanitizeSchema.attributes,
+    "*": [
+      ...(sanitizeSchema.attributes["*"] ?? []),
+      "dataRehypePrettyCodeFigure",
+      "dataLanguage",
+      "dataTheme",
+      "dataDiagram",
+    ],
+  },
+};
+
+const htmlReprocessor = unified()
+  .use(rehypeParse, { fragment: true })
+  .use(rehypeDropDangerous, { stripGuardAttrs: false })
+  .use(rehypeSanitize, reSanitizeSchema as never)
+  .use(rehypeTightenStyles)
+  .use(rehypeStringify);
+
+export async function sanitizeRenderedHtml(html: string): Promise<string> {
+  const file = await htmlReprocessor.process({ value: html });
+  return String(file);
+}
 
 export interface RenderResult {
   html: string;
@@ -333,10 +397,11 @@ export async function renderMarkdown(md: string): Promise<RenderResult> {
   const file = await processor()
     .use(extract)
     .process(md);
-  let html = String(file);
+  const rendered = String(file);
   // extension point: plugins may post-filter rendered HTML（原地改写 ctx.html）
-  const ctx: { html: string } = { html };
+  const ctx: { html: string } = { html: rendered };
   await callHook("post:render", ctx);
-  html = ctx.html;
+  // 钩子改写过 → 用同源 schema 复净（净化后改写通道不得成为 XSS 旁路）
+  const html = ctx.html === rendered ? rendered : await sanitizeRenderedHtml(ctx.html);
   return { html, headings };
 }

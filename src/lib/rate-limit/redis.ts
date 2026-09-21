@@ -1,5 +1,7 @@
 /**
  * Redis driver for the rate limiter — Tier 1, opt-in via REDIS_URL.
+ * 同时承载通用一次性键原语（setex/getdel/del，见文件底部），供
+ * src/lib/auth/one-time.ts 的 passkey challenge 重放防护复用同一客户端。
  *
  * 限流器的一级驱动（opt-in）：仅当环境变量 REDIS_URL 存在时启用，风格对照
  * src/core/pg-listen.ts（懒启动 + globalThis 单例 + 后台退避重连）。
@@ -185,6 +187,37 @@ export async function redisHit(key: string, windowMs: number): Promise<number> {
 }
 
 /**
+ * 通用原子计数脚本入口（供限流之外的跨进程计数复用，如 SSE 每用户连接槽位
+ * src/lib/realtime/sse-counter.ts）：脚本内自带 INCR/DECR + PEXPIRE，调用方
+ * 传入固定 key（槽位计数不是窗口计数，不带 windowStart 后缀）。与 redisHit
+ * 同款故障边界：250ms 预算、任何失败 throw 给调用方降级，本函数绝不吞错。
+ */
+export async function redisCounterEval(script: string, key: string, ttlMs: number): Promise<number> {
+  const client = await ensureClient();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const op: Promise<unknown> = client.eval(script, 1, key, String(ttlMs));
+    op.catch(() => {}); // race 落选方的迟到 rejection 不能变成 unhandledRejection
+    const res = await Promise.race([
+      op,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`rate-limit redis timeout (${REDIS_TIMEOUT_MS}ms)`)),
+          REDIS_TIMEOUT_MS,
+        );
+      }),
+    ]);
+    const count = Number(res ?? 0);
+    if (!Number.isFinite(count)) {
+      throw new Error(`rate-limit redis: unexpected counter reply: ${String(res)}`);
+    }
+    return count;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * 同步 best-effort 判定"下一次调用是否会先尝试 Redis"（供 limiterStatus）：
  * 未配置 → false；懒未建连/建连中/已就绪 → true；正在重连或已终态 → false
  * （命令会快速失败，下一次调用预计落到 PG）。
@@ -196,4 +229,53 @@ export function redisUsableNow(): boolean {
   const client = state.client;
   if (!client) return true; // 懒启动：下一次调用将发起 Redis 尝试
   return client.status === "ready" || client.status === "connect" || client.status === "connecting";
+}
+
+/* ========================= 通用一次性键原语 ============================ */
+/**
+ * 供一次性挑战消费（src/lib/auth/one-time.ts，passkey challenge 重放防护）
+ * 复用的原子原语。与限流驱动共享同一懒建连客户端（连接管理/退避重连/
+ * 快速失败语义一致），键由调用方自带前缀，互不冲突。
+ */
+
+/** 单次操作超时预算：与限流一致 250ms，超时 throw 由调用方降级下一级 */
+async function withBudget<T>(op: Promise<T>, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    op.catch(() => {}); // race 落选方的迟到 rejection 不能变成 unhandledRejection
+    return await Promise.race([
+      op,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timeout (${REDIS_TIMEOUT_MS}ms)`)), REDIS_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** SETEX 写入（签发一次性键）。失败 throw，由调用方降级。 */
+export async function redisSetex(key: string, ttlSec: number, value: string): Promise<void> {
+  const client = await ensureClient();
+  await withBudget(client.set(key, value, "EX", ttlSec), "redis SETEX");
+}
+
+/**
+ * 原子取删（验证时一次性消费）：GETDEL 需要 Redis ≥6.2，用 EVAL 兼容旧版——
+ * GET + 命中即 DEL 在同一脚本内原子完成。返回 true=消费成功（键存在），
+ * false=键不存在（重放/已过期）。失败 throw，由调用方降级。
+ */
+const GETDEL_LUA =
+  "local v = redis.call('GET', KEYS[1]) if v then redis.call('DEL', KEYS[1]) return 1 else return 0 end";
+
+export async function redisGetdel(key: string): Promise<boolean> {
+  const client = await ensureClient();
+  const res = await withBudget(client.eval(GETDEL_LUA, 1, key), "redis GETDEL-eval");
+  return Number(res) === 1;
+}
+
+/** 尽力删除（跨层级消费时清理低层残留）。失败 throw，由调用方吞掉。 */
+export async function redisDel(key: string): Promise<void> {
+  const client = await ensureClient();
+  await withBudget(client.del(key), "redis DEL");
 }

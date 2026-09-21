@@ -45,7 +45,7 @@
 | --- | --- | --- |
 | 结构化日志（D1） | ✅ | core/logger.ts：级别/上下文/AsyncLocalStorage requestId |
 | 应用缓存（D2） | ✅ | core/cache.ts：remember/put/forget/flushTags + 上限淘汰 |
-| HTTP Client（D5） | ✅ | core/http-client.ts：超时/重试退避/日志；llm/webhooks/oauth 已迁移 |
+| HTTP Client（D5） | ✅ | core/http-client.ts：超时/重试退避/日志；llm/webhooks/oauth 已迁移；ssrfGuard 按已校验 IP pin 直连（DNS rebinding 已闭环，逐跳重新解析+校验+pin）；webhook URL 强制仅 https |
 | Feature Flags（D3） | ✅ | capabilities/flags.ts：define/enabled/set（settings 存储 + 5s 缓存） |
 | 维护模式（D4） | ✅ | site.maintenance 设置 + maintenanceGuard 中间件（放行 auth/admin/health） |
 | 通知模板注册制（D6） | ✅ | capabilities/notify-templates.ts |

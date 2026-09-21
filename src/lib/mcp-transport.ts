@@ -1,4 +1,5 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { AppError } from "@/core/errors";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -55,7 +56,8 @@ function createMcpServer(auth: McpAuthContext, brandName?: string): Server {
     const def = mcpTools.get(name);
     if (!def) {
       return {
-        content: [{ type: "text", text: `Unknown tool: ${name}` }],
+        // 工具名来自调用方任意输入 —— 回显限长，防超大 name 进响应
+        content: [{ type: "text", text: `Unknown tool: ${String(name).slice(0, 64)}` }],
         isError: true,
       };
     }
@@ -80,8 +82,18 @@ function createMcpServer(auth: McpAuthContext, brandName?: string): Server {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
       };
     } catch (err) {
+      // 与 toErrorResponse 同套约定：只有 AppError（工具层显式面向调用方的
+      // 消息）可以回显；其余（drizzle/PG/插件内部错误）可能带 SQL 片段、
+      // 约束名、内部路径 —— 服务端落日志、调用方只见泛化消息。
+      if (err instanceof AppError) {
+        return {
+          content: [{ type: "text", text: `Tool error: ${err.message}` }],
+          isError: true,
+        };
+      }
+      console.error(`[mcp] tool "${name}" failed:`, err);
       return {
-        content: [{ type: "text", text: `Tool error: ${err instanceof Error ? err.message : String(err)}` }],
+        content: [{ type: "text", text: "Tool error: internal error (see server logs)" }],
         isError: true,
       };
     }
@@ -146,6 +158,15 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 }
 
 /**
+ * 单请求批处理条数上限。1MB body 预检挡不住「小而多」的批次：~100 字节的
+ * tools/call 一条消息可塞近万条，而 handleMcpRpc 对每条请求都新建一对
+ * InMemoryTransport + Server（各带 30s 超时），且限流桶按整个 POST 计 1 次
+ * —— 无上限即放大 DoS。超限直接拒绝整批（MCP 新版协议已废弃批处理，
+ * 正常客户端不会发多消息数组）。
+ */
+export const MCP_BATCH_MAX = 32;
+
+/**
  * Handle the parsed body of a POST /api/mcp request. Supports a single
  * JSON-RPC message (request or notification) and legacy batches. Returns:
  *  - `202` for notifications (nothing to answer)
@@ -162,6 +183,9 @@ export async function handleMcpRpc(
   const messages: unknown[] = Array.isArray(body) ? body : [body];
   if (messages.length === 0) {
     return mcpErrorResponse(400, null, -32600, "Invalid Request: empty batch");
+  }
+  if (messages.length > MCP_BATCH_MAX) {
+    return mcpErrorResponse(400, null, -32600, `Invalid Request: batch exceeds ${MCP_BATCH_MAX} messages`);
   }
 
   const responses: JSONRPCMessage[] = [];

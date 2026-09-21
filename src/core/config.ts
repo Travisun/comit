@@ -42,7 +42,16 @@ export const config = {
     },
     sessionCookie: "mb_session",
     pendingCookie: "mb_pending",
+    /** 滑动续期窗口：连续不活跃超过该天数即失效（每次访问顺延至此上限） */
     sessionDays: 30,
+    /**
+     * 会话绝对寿命：自签发起无论活跃度如何都强制过期重登（滑动续期不得越过
+     * 此上限）。收紧 365d+无限滑动 的公开前风险。
+     */
+    get sessionAbsoluteDays() {
+      const v = Number(process.env.SESSION_ABSOLUTE_DAYS);
+      return Number.isFinite(v) && v >= 1 ? v : 180;
+    },
   },
   mail: {
     get host() {

@@ -55,7 +55,19 @@ export const llmProvidersValueSchema = z.object({
         id: z.string().min(1).max(40),
         label: z.string().min(1).max(80),
         protocol: z.enum(["openai", "anthropic"]),
-        baseUrl: z.string().trim().min(1).max(300),
+        baseUrl: z
+          .string()
+          .trim()
+          .min(1)
+          .max(300)
+          .refine((v) => {
+            try {
+              const p = new URL(v).protocol;
+              return p === "https:" || p === "http:";
+            } catch {
+              return false;
+            }
+          }, "baseUrl 必须是合法的 http(s) URL / baseUrl must be a valid http(s) URL"),
         apiKey: z.string().max(400).default(""),
         models: z.array(z.string().trim().min(1).max(120)).max(50).default([]),
         temperature: z.number().min(0).max(2).optional(),
@@ -497,6 +509,13 @@ export function renderPrompt(nameOrTemplate: string, vars: Record<string, string
   return template.replace(/\{\{(\w+)\}\}/g, (_, k: string) => vars[k] ?? "");
 }
 
+/**
+ * LLM baseUrl 由后台配置，被窃的管理员会话可把它指向云 metadata/内网服务
+ * 形成回显式 SSRF，且 API key 头随之外带 —— 出站默认过 SSRF 守卫。
+ * 本机自托管推理（Ollama 等）需内网地址时显式设 LLM_ALLOW_INTERNAL_BASEURL=1。
+ */
+const LLM_ALLOW_INTERNAL = process.env.LLM_ALLOW_INTERNAL_BASEURL === "1";
+
 /** 查询提供商可用型号（openai /models；anthropic /v1/models）。 */
 export async function listRemoteModels(providerId?: string): Promise<string[]> {
   const resolved = await resolveProvider(providerId);
@@ -506,20 +525,23 @@ export async function listRemoteModels(providerId?: string): Promise<string[]> {
   const p = (resolved?.provider ?? legacy) as LlmProviderConfig | null;
   if (!p) return [];
 
-  if (p.protocol === "anthropic") {
-    const res = await fetch(`${p.baseUrl.replace(/\/$/, "")}/v1/models`, {
-      headers: { "x-api-key": p.apiKey, "anthropic-version": "2023-06-01" },
-    });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { data?: { id?: string }[] };
-    return (data.data ?? []).map((m) => m.id ?? "").filter(Boolean);
-  }
-  const res = await fetch(`${p.baseUrl.replace(/\/$/, "")}/models`, {
-    headers: { Authorization: `Bearer ${p.apiKey}` },
-  });
-  if (!res.ok) return [];
-  const data = (await res.json()) as { data?: { id?: string }[] };
-  return (data.data ?? []).map((m) => m.id ?? "").filter(Boolean);
+  const modelsUrl =
+    p.protocol === "anthropic"
+      ? `${p.baseUrl.replace(/\/$/, "")}/v1/models`
+      : `${p.baseUrl.replace(/\/$/, "")}/models`;
+  const res = await httpRequest<unknown>(modelsUrl, {
+    timeoutMs: 15_000,
+    retries: 0,
+    label: `llm:${p.id}:models`,
+    ssrfGuard: !LLM_ALLOW_INTERNAL,
+    headers:
+      p.protocol === "anthropic"
+        ? { "x-api-key": p.apiKey, "anthropic-version": "2023-06-01" }
+        : { Authorization: `Bearer ${p.apiKey}` },
+  }).catch(() => null);
+  if (!res || !res.ok) return [];
+  const data = (await res.json().catch(() => null)) as { data?: { id?: string }[] } | null;
+  return (data?.data ?? []).map((m) => m.id ?? "").filter(Boolean);
 }
 
 /* ------------------------------ 调用入口 ------------------------------ */
@@ -557,6 +579,7 @@ export async function llmComplete(opts: LlmCompleteOptions): Promise<LlmResult> 
         timeoutMs: wireOpts.timeoutMs ?? 30_000,
         retries: 0,
         label: `llm:${provider.id}:${model}`,
+        ssrfGuard: !LLM_ALLOW_INTERNAL,
         headers: wire.headers,
         json: wire.body,
       });

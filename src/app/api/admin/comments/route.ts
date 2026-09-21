@@ -2,6 +2,7 @@ import { count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, posts, users } from "@/db/schema";
 import { ok } from "@/lib/http"
+import { expandMentionTokens } from "@/lib/mentions";
 import { withPermission } from "@/lib/permissions";
 import { truncate } from "@/lib/utils";
 import { pagination } from "@/app/api/admin/_shared";
@@ -36,7 +37,10 @@ export async function GET(req: Request) {
     ]);
 
     return ok({
-      items: items.map((c) => ({ ...c, body: truncate(c.body, 100) })),
+      // 预览为纯文本直出：先展开 @提及稳定引用，再截断
+      items: await Promise.all(
+        items.map(async (c) => ({ ...c, body: truncate(await expandMentionTokens(c.body), 100) })),
+      ),
       total,
     });
   });

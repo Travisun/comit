@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { unauthorized } from "@/core/errors";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createInvite, listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
 import { parseOrThrow } from "../_shared";
@@ -48,7 +48,7 @@ const postSchema = z.object({}).optional();
 /** POST /api/me/invites — generate a new invite code (max 5 unused). */
 export async function POST(req: Request) {
   return withUser(req, async () => {
-    parseOrThrow(postSchema, await req.json().catch(() => ({})));
+    parseOrThrow(postSchema, await jsonBody(req).catch(() => ({})));
     const code = await createInvite((await getCurrentUser())!.id);
     return ok({ code });
   });

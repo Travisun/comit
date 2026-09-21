@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { mentions, comments, likes, posts, users } from "@/db/schema";
@@ -170,7 +170,9 @@ export async function POST(req: Request) {
 
     return ok({
       id: created.id,
-      body: created.body,
+      // 客户端把本响应直接插入评论列表缓存（不经 GET 的展开出口），
+      // 故此处必须展开 @提及，否则新评论直显原始引用语法。
+      body: await expandMentionTokens(created.body),
       status: created.status,
       visibility: created.visibility,
       createdAt: created.createdAt,
@@ -242,9 +244,11 @@ export async function GET(req: Request) {
         .orderBy(list === "pinned" ? desc(comments.pinnedAt) : asc(comments.solutionAt))
         .limit(20);
       const isPostAuthor = viewer ? viewer.user.id === post.authorId : false;
-      const items = rows.map((r) => ({
+      // 展示出口收口：这两个列表同样是正文直出，@提及须展开（与下方主流一致）
+      const expandedBodies = await Promise.all(rows.map((r) => expandMentionTokens(r.body)));
+      const items = rows.map((r, i) => ({
         id: r.id,
-        body: r.body,
+        body: expandedBodies[i],
         createdAt: r.createdAt,
         likeCount: r.likeCount,
         liked: null,
@@ -438,7 +442,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: Request): Promise<Response> {
   return withUser(req, async (auth) => {
-    const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+    const parsed = patchSchema.safeParse(await jsonBody(req).catch(() => null));
     if (!parsed.success) bad();
     const { id, action } = parsed.data;
 

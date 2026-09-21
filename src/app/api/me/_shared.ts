@@ -3,18 +3,27 @@ import { z, type ZodType } from "zod";
 import { db } from "@/db";
 import { media } from "@/db/schema";
 import { AppError } from "@/core/errors";
-import { isForbiddenHostLiteral } from "@/core/http-client";
+import { assertWebhookUrl, WEBHOOK_URL_MAX_LENGTH } from "@/extensions/webhooks/url-policy";
 
 /** Helpers shared by /api/me/* route handlers. */
 
-/** webhook URL schema — 创建与更新共用同一内网/本机字面量黑名单（SSRF 防线一；
- * DNS 级权威校验在投递时 ssrfGuard，见 core/http-client）。 */
+/** webhook URL schema — 创建与更新共用同一份，防止 PATCH 把已创建的合法端点改成
+ * SSRF 地址绕过创建层防线。规则实现收口在 extensions/webhooks/url-policy（纯函数、
+ * 可单测）：仅 https（明文 http 会泄露签名头与 payload；仅 WEBHOOK_ALLOW_HTTP=1 的
+ * 本地联调场景放行）+ 拒内嵌凭据 + 拒 IP 字面量及其十进制/八进制/十六进制变体 +
+ * 本机/内网字面量黑名单（SSRF 防线一）。transform 返回**归一化 href** → 落库值与
+ * 校验解析结果严格同源。权威校验在投递时 ssrfGuard：DNS 解析逐地址拒绝私网/保留段
+ * 并按已校验 IP pin 连接（rebinding 已闭环，见 core/http-client）。 */
 export const webhookUrlSchema = z
-  .url("URL 格式不正确 / Invalid URL")
-  .max(2000)
-  .startsWith("http")
-  .refine((u) => !isForbiddenHostLiteral(new URL(u).hostname), {
-    message: "URL 不允许指向本机或内网地址 / URL must not point to internal hosts",
+  .string()
+  .max(WEBHOOK_URL_MAX_LENGTH, `URL 过长 / URL too long（≤${WEBHOOK_URL_MAX_LENGTH}）`)
+  .transform((u, ctx) => {
+    try {
+      return assertWebhookUrl(u);
+    } catch (err) {
+      ctx.addIssue({ code: "custom", message: err instanceof Error ? err.message : "URL 格式不正确 / Invalid URL" });
+      return z.NEVER;
+    }
   });
 
 export function parseOrThrow<T>(schema: ZodType<T>, data: unknown): T {
@@ -27,7 +36,7 @@ export function parseOrThrow<T>(schema: ZodType<T>, data: unknown): T {
   return result.data;
 }
 
-/** Mask an email for display: `john.doe@example.com` → `j***@gmail.com`. */
+/** Mask an email for display: `john.doe@example.com` → `j***@example.com`. */
 export function maskEmail(email: string): string {
   const at = email.indexOf("@");
   if (at <= 0) return "***";

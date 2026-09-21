@@ -21,6 +21,10 @@ export async function POST(req: Request) {
     await rateLimitBucket("auth.twofa", clientIp(req));
     const auth = await getAuth();
     if (!auth) throw unauthorized("请先登录 / Please sign in");
+    // 与 challenge 同口径的账户级桶：confirm 成功同样会 setSessionPending2fa(false)
+    // 把半认证会话升格为完整会话（等同登录完成），只有 IP 桶时代理池可换 IP
+    // 对单一账户无限爆破 6 位 TOTP；补齐后单账户 5 分钟窗口最多 10 次。
+    await rateLimitBucket("auth.twofa.account", auth.user.id);
     const { code } = await parseJsonBody(req, schema);
 
     const result = await verifyTotpCode(auth.user.id, code, { confirm: true });

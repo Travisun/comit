@@ -159,6 +159,11 @@ export const sessions = pgTable(
     ip: varchar("ip", { length: 64 }),
     userAgent: text("user_agent"),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    /**
+     * 绝对寿命上限：签发后无论滑动续期与否都强制过期（重登）。
+     * null（历史行）⇒ 由代码回落到 created_at + config.auth.sessionAbsoluteDays。
+     */
+    absoluteExpiresAt: timestamp("absolute_expires_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (t) => [
@@ -166,6 +171,21 @@ export const sessions = pgTable(
     index("sessions_user_idx").on(t.userId),
     index("sessions_expires_idx").on(t.expiresAt),
   ],
+);
+
+/**
+ * 一次性挑战键（passkey challenge jti 等）：签发时写入（带 TTL），验证时以
+ * 原子消费（GETDEL / DELETE RETURNING）实现重放防护。Redis 为一级驱动，
+ * 本表是 Redis 不可用时的 PG 后备；过期行由 maintenance.retention cron 清理。
+ */
+export const oneTimeChallenges = pgTable(
+  "one_time_challenges",
+  {
+    key: varchar("key", { length: 200 }).primaryKey(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("one_time_challenges_expires_idx").on(t.expiresAt)],
 );
 
 export const authTokens = pgTable(

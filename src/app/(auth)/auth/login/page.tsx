@@ -18,6 +18,8 @@ export default async function LoginPage({
   const sp = await searchParams;
   const verified = sp.verified === "1";
   const oauthError = typeof sp.error === "string" && sp.error.startsWith("oauth");
+  // 第三方邮箱命中既有账户（不再自动登入）：给出明确的"先登录再绑定"指引
+  const emailRegistered = sp.error === "oauth_email_registered";
   // 后台关闭密码登录（仅 OSS）时隐藏邮箱表单
   const passwordAuth = await getSetting("auth.passwordAuth");
   const passkeysEnabled = await getSetting("auth.passkeys");
@@ -36,7 +38,15 @@ export default async function LoginPage({
       }
     >
       {verified ? <AuthBanner tone="success">{t("auth.verifyEmail.success")}</AuthBanner> : null}
-      {oauthError ? (
+      {emailRegistered ? (
+        <AuthBanner tone="error">
+          该邮箱已被注册，出于账号安全，第三方登录不会自动登入陌生邮箱账户；请先用
+          已注册方式登录，再到 设置 → 账号绑定 中绑定此第三方账号{" "}
+          <Link href="/settings/connections" className="text-primary hover:underline">
+            前往绑定
+          </Link>
+        </AuthBanner>
+      ) : oauthError ? (
         <AuthBanner tone="error">
           第三方登录失败，请重试或使用邮箱登录 / Federated sign-in failed, please retry or use email
         </AuthBanner>

@@ -67,7 +67,7 @@ Markdown 管线：unified（remark/rehype）+ `rehype-sanitize` 白名单净化�
 
 ## 9. Webhook
 
-用户订阅平台事件的出站推送（`webhooks.events` 白名单）：投递带 `X-MyBlogs-Event`、`X-MyBlogs-Timestamp`、`X-MyBlogs-Signature: v1=HMAC-SHA256(secret, ts.payload)`；15s 超时，失败进队列重试（指数退避），每次投递留痕于 `webhook_deliveries`（状态/响应码/错误），连续失败累计 `failCount`。测试按钮发送样例事件。
+用户订阅平台事件的出站推送（`webhooks.events` 白名单）：投递带 `X-Comit-Event`、`X-Comit-Timestamp`、`X-Comit-Signature: t=<ts>,v1=<hex>`，其中 `v1 = HMAC-SHA256(secret, "<ts>.<原始 body 字节>")`（hex 小写；body 即 `{"event":…,"data":…,"deliveryId":…}`，接收方**必须按收到的原始字节**重算，不可 `JSON.parse` 后再序列化）。验签请照抄 `verifyWebhookSignature`：时间戳须在 ±300s 容忍窗内、签名用恒定时间比较，并以 `deliveryId` 幂等去重（窗口内重放只靠去重挡住）；`X-Comit-Event` 仅供参考，事件名以签过名的 `body.event` 为准。15s 硬超时；失败进队列重试（指数退避，单条最多 3 次重投），每次投递留痕于 `webhook_deliveries`（状态/响应码/错误/尝试次数）；连续失败累计 `failCount`，达 20 次自动停用端点（成功一次即清零，重新启用或改址也会清零）。测试按钮发送 `ping` 事件（异步投递，响应只回 deliveryId，不回显目标任何内容）。端点注册限制：每用户 ≤20 个、同一端点去重、创建/改址/测试各自限速；URL 仅 https（本地联调可用 `WEBHOOK_ALLOW_HTTP=1` 放开）、拒绝内嵌凭据与 IP 字面量（含十进制/八进制/十六进制变体）、拒绝本机与内网主机，落库为归一化 href。SSRF 防护：投递时经 `http-client` 的 ssrfGuard——每跳一次 DNS 解析、任一解析地址落入私网/保留段即拒绝，并按**已校验 IP pin 直连**（连接阶段不再二次解析，DNS rebinding 窗口已闭环），重定向手动跟随、每跳重新解析+校验+pin；被出口策略拦下的投递视为永久失败，端点直接停用且不再重投。投递作用域：私信/获赞/审核结论类事件只投给当事人自己的端点，审核内部字段（`reason`/`by`）出站前剥离。签名密钥 `whsec_…` 仅在创建与改址时回显一次，列表接口与设置页只暴露前 8 字符前缀（读取投影 `WEBHOOK_VIEW_COLUMNS` 不选 `secret` 列）。
 
 ## 10. MCP 开放接口
 

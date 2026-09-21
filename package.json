@@ -2,6 +2,7 @@
   "name": "myblogs",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -44,6 +45,7 @@
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
     "drizzle-orm": "^0.45.2",
+    "dompurify": "^3.4.15",
     "emittery": "^1.2.1",
     "feed": "^6.0.0",
     "hookable": "^6.1.1",
@@ -97,6 +99,7 @@
     "drizzle-kit": "^0.31.10",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "happy-dom": "^20.14.5",
     "tailwindcss": "^4",
     "tsx": "^4.23.13",
     "typescript": "^5",

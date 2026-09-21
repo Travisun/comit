@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { routes, absolute } from "@/core/routes";
 import { clientIp } from "@/lib/rate-limit";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { safeCompare } from "@/lib/auth/password";
 import { createSession, getAuth } from "@/lib/auth/session";
 import { db } from "@/db";
 import { oauthAccounts } from "@/db/schema";
@@ -10,6 +12,7 @@ import { hasConfirmedTotp } from "@/lib/auth/totp";
 import { exchangeOAuthCode, oauthEnabled } from "@/lib/auth/oauth";
 import { AppError } from "@/core/errors";
 import { findOrCreateFederatedUser } from "../../../_lib/federated";
+import { consumeFlowParam } from "../../../_lib/flow-nonce";
 import { awardBadgeByKey, GENESIS_DEADLINE_MS } from "@/extensions/badges/server";
 
 export const runtime = "nodejs";
@@ -53,6 +56,9 @@ function flowExit(url: string): NextResponse {
 export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: string }> }) {
   const loginError = absolute(`${routes.login}?error=oauth`);
   try {
+    // 该端点会签发（pending2fa）会话且此前完全无限流：单次消费已挡住重放，
+    // 但爆破/刷日志仍需成本上限。超限不抛 429 —— 导航型 GET 统一回落登录页。
+    await rateLimitBucket("auth.federated.callback", clientIp(req));
     const { provider } = await ctx.params;
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
@@ -65,10 +71,17 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
       !code ||
       !state ||
       !cookieState ||
-      state !== cookieState ||
+      !safeCompare(state, cookieState) ||
       !PROVIDERS.has(provider) ||
       !(await oauthEnabled(provider))
     ) {
+      return flowExit(loginError);
+    }
+
+    // 单次消费 state（防回调重放）：cookie 比对只证明「同一浏览器」，证明不了
+    // 「只用过一次」。浏览器预取/后退、以及从日志或 Referer 泄露出去的完整
+    // 回调 URL 都可能带着仍然匹配的 state 再来一次 ⇒ 重复建会话。消费失败即拒。
+    if (!(await consumeFlowParam("oauth_state", state))) {
       return flowExit(loginError);
     }
 
@@ -126,9 +139,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     return res;
   } catch (err) {
     console.error("[auth/oauth] callback failed:", err);
-    // provider 邮箱未验证却撞上现有账户 → 用独立错误码，区别于笼统 oauth
-    if (err instanceof AppError && err.code === "oauth_email_conflict") {
-      return flowExit(absolute(`${routes.login}?error=oauth_email`));
+    // 邮箱命中既有账户但此 provider 未绑定过 → 独立错误码，登录页引导
+    // "先登录，再到设置 → 账号绑定"（不再是笼统的登录失败）
+    if (err instanceof AppError && err.code === "oauth_email_registered") {
+      return flowExit(absolute(`${routes.login}?error=oauth_email_registered`));
     }
     return flowExit(loginError);
   }

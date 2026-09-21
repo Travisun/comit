@@ -280,6 +280,11 @@ async function normalizeProfile(
  */
 export async function discourseSsoStartUrl(nonce: string, returnPath: string): Promise<string> {
   const c = await oauthCreds("discourse");
+  // 后台配置的 SSO 地址参与 302 跳转目标拼接：钉死 https，防配置失误
+  // （http://、javascript:、缺 scheme）变成明文跳转或跳转注入
+  if (!/^https:\/\//i.test(c.clientId)) {
+    throw new Error("Discourse SSO URL must be an absolute https:// address");
+  }
   const payload = Buffer.from(
     JSON.stringify({ nonce, return_sso_url: `${config.app.url}${returnPath}` }),
   ).toString("base64");
@@ -308,16 +313,46 @@ export async function verifyDiscourseCallback(sso: string, sig: string): Promise
 
 /* --------------------------- Cloudflare Access -------------------------- */
 
-export async function verifyCfAccessJwt(jwt: string): Promise<FederatedProfile | null> {
+/**
+ * 校验 Cloudflare Access 签发的 JWT。
+ *
+ * @param jwt      待校验的断言（header 或 cookie 携带的同一形状）
+ * @param opts.maxIatAgeSec  iat 最旧可接受秒数；仅对**边缘每请求现签**的
+ *        `Cf-Access-Jwt-Assertion` header 使用（该断言每次请求都由 CF 重新
+ *        生成，秒级新鲜）。cookie（CF_Authorization）里的 JWT 寿命等于 Access
+ *        应用的 Session Duration（可配置到数天），对其做 iat 窗口会误伤合法
+ *        长会话，故 cookie 路径只受自身 exp 约束。
+ */
+export async function verifyCfAccessJwt(
+  jwt: string,
+  opts: { maxIatAgeSec?: number } = {},
+): Promise<FederatedProfile | null> {
   const c = await oauthCreds("cfaccess");
   const team = c.clientId;
   if (!team) return null;
+  // team 名拼入 JWKS URL 与 issuer：限制为合法主机名片段，防配置注入
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*$/i.test(team)) return null;
+  // AUD token 必填：留空会让 jose 跳过 aud 校验，同一 Cloudflare Team 下
+  // 任意其它 Access 应用签发的 JWT 都能登录本站（跨应用 token 复用）
+  const audience = c.clientSecret?.trim();
+  if (!audience) return null;
   const certs = createRemoteJWKSet(new URL(`https://${team}.cloudflareaccess.com/cdn-cgi/access/certs`));
   try {
     const { payload } = await jwtVerify(jwt, certs, {
       issuer: `https://${team}.cloudflareaccess.com`,
-      audience: c.clientSecret || undefined,
+      audience,
     });
+    // typ 断言（purpose 隔离）：Access 只在 payload 里放 "JWT" 这一种取值，
+    // 同 issuer 下其它用途的签名票据（不同 typ / 无 typ）不得当作登录凭证。
+    if (payload.typ !== "JWT") return null;
+    // exp/nbf 由 jose 校验；iat 窗口按来源另外收紧（见函数注释）
+    if (opts.maxIatAgeSec !== undefined) {
+      const iat = payload.iat;
+      if (typeof iat !== "number") return null;
+      const ageSec = Math.floor(Date.now() / 1000) - iat;
+      // 上限：陈旧断言不可复用；下限：允许 30s 时钟偏移，但未来 iat 同样可疑
+      if (ageSec > opts.maxIatAgeSec || ageSec < -30) return null;
+    }
     return {
       provider: "cfaccess",
       providerAccountId: String(payload.sub ?? ""),

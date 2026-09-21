@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { follows, pollVotes, polls, posts } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
 import { jsonBody, ok, withApi, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { apiUser } from "@/lib/auth/guards";
 import { POLL_OPTIONS_MAX } from "@/lib/poll";
 import { parseWith } from "../../_shared";
@@ -38,6 +39,8 @@ export async function GET(req: Request, ctx: Ctx): Promise<Response> {
 export async function POST(req: Request, ctx: Ctx): Promise<Response> {
   return withUser(req, async (auth) => {
     const { id: postId } = await ctx.params;
+    // 改票 = 删旧插新事务，无限流则可被高频刷库；与关注/收藏共用社交桶
+    await rateLimitBucket("action.social", auth.user.id);
     const body = parseWith(voteSchema, await jsonBody(req));
 
     const [row] = await db

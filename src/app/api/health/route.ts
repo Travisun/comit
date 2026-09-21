@@ -1,9 +1,14 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
-import { limiterStatus } from "@/lib/rate-limit";
-import { storageStatus } from "@/lib/storage";
 
-/** Liveness/readiness probe for load balancers and uptime checks. */
+/**
+ * Liveness/readiness probe for load balancers and uptime checks.
+ *
+ * 公开发布前的收敛：本端点无鉴权（LB/宝塔/uptime 必须能直接探），因此响应
+ * 缩减为最小 `{ status }` —— 版本号、worker/pid/uptime、DB/Redis/队列细节
+ * 一律不外泄（这些信息可被用于指纹识别与攻击面枚举）。完整快照见
+ * `GET /api/admin/health`（admin.ops 权限）。
+ */
 export const dynamic = "force-dynamic";
 
 const DB_PROBE_TIMEOUT_MS = 2_000;
@@ -27,25 +32,10 @@ async function probeDb(): Promise<boolean> {
 }
 
 export async function GET() {
-  // db 探活与限流器/存储驱动状态并行采集：后两者是纯同步配置判定，不增加时延
-  const [dbOk, limiter, storage] = await Promise.all([probeDb(), limiterStatus(), Promise.resolve(storageStatus())]);
+  const dbOk = await probeDb();
+  // 仅 ok/degraded 两态；HTTP 200/503 供探活（LB 按状态码摘除流量）
   return Response.json(
-    {
-      ok: dbOk,
-      status: dbOk ? "ok" : "degraded",
-      db: dbOk,
-      worker: process.env.WORKER_ID ?? "solo",
-      // 限流器驱动链：{ driver: "redis" | "pg" | "memory", redisConfigured }，
-      // driver 为下一次调用将使用的驱动（静态判定，运行时故障降级见限频日志）
-      limiter,
-      // 存储驱动链：{ driver: "local" | "r2", r2Configured }，driver 为当前写入
-      // 驱动（STORAGE_DRIVER=r2 配置缺失时已回落 local），r2Configured 仅表
-      // 示 R2 必填 env 是否齐全
-      storage,
-      pid: process.pid,
-      uptimeSec: Math.round(process.uptime()),
-      ts: new Date().toISOString(),
-    },
+    { status: dbOk ? "ok" : "degraded" },
     { status: dbOk ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

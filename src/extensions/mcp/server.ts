@@ -7,16 +7,21 @@ import {
   type Plugin,
 } from "@/core/plugins/types";
 import { emit } from "@/core/events";
+import { AppError } from "@/core/errors";
 import { escapeLikePattern, makeExcerpt, slugifyTitle } from "@/lib/utils";
 import { preSubmitCheck } from "@/lib/moderation";
 import { getInteractablePost } from "@/lib/interactions";
 import { deleteMediaFile } from "@/lib/media";
 import { asStorageTag } from "@/lib/storage";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 
 /**
  * MCP plugin — exposes the platform to LLM agents over the Model Context
  * Protocol (endpoint /api/mcp, Bearer token auth). Tools cover reading and
  * writing posts, media, comments and the community feed.
+ *
+ * 错误约定：工具层面向调用方的可读错误一律抛 AppError —— transport 只回显
+ * AppError.message，其余异常（DB/内部）以泛化消息返回，防 SQL/约束/路径泄露。
  */
 
 function tool(
@@ -27,6 +32,49 @@ function tool(
   handler: McpToolDef["handler"],
 ): McpToolDef {
   return { name, description, scopes, inputSchema, handler };
+}
+
+/* ------------------------- 入参加固助手（MCP 面） ------------------------- */
+
+/** inputSchema 只是对客户端的声明（SDK 不做运行时校验），越界的字符串/数字
+ * 会一路进 SQL 与 varchar 列（超长触发 PG 错误、非 uuid 触发 22P02）。
+ * 以下助手在 handler 入口补齐运行时校验，语义对齐 web 路由的 zod schema。 */
+
+/** 与 web posts 路由 zod 同款的字段上限。extensions 不 import app-route 模块
+ *（既有惯例，见 resolvePostPublicId 注释），数值与 _shared.ts 手工保持同步。 */
+const TITLE_MAX = 200;
+const SUMMARY_MAX = 500; // posts.summary = varchar(500)
+const CONTENT_MAX = 200_000;
+const SHORT_CONTENT_MAX = 8000; // 与 _shared.ts SHORT_CONTENT_MAX 一致
+const QUERY_MAX = 200;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function badRequest(msg: string): never {
+  throw new AppError(msg, 400, "bad_request");
+}
+
+/** 资源 id 必须是合法 uuid：挡掉非 uuid 输入直达 PG（22P02 错误虽已被
+ * transport 泛化，但白白消耗一次查询与 500 路径）。 */
+function requireUuid(field: string, value: unknown): string {
+  const s = typeof value === "string" ? value : "";
+  if (!UUID_RE.test(s)) badRequest(`${field} must be a valid uuid / 必须是合法 id`);
+  return s;
+}
+
+/** 分页数字归一：非法值回默认，钳制到 [min, max]（limit 无上限 = 拖库 DoS）。 */
+function intArg(value: unknown, def: number, min: number, max: number): number {
+  const n = Number(value ?? def);
+  if (!Number.isFinite(n)) return def;
+  return Math.max(min, Math.min(Math.trunc(n), max));
+}
+
+/** 必填字符串：类型/长度双检（不接受数字数组等被 String() 静默转换的怪值）。 */
+function requireString(field: string, value: unknown, max: number): string {
+  if (typeof value !== "string") badRequest(`${field} must be a string / 必须是字符串`);
+  const s = value as string;
+  if (s.length > max) badRequest(`${field} exceeds ${max} characters / 超出长度上限`);
+  return s;
 }
 
 async function postWithAuthor(postId: string) {
@@ -107,7 +155,7 @@ async function assertCollectionOwned(collectionId: string, userId: string): Prom
     .from(collections)
     .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)))
     .limit(1);
-  if (!row) throw new Error("collection not found or not yours");
+  if (!row) throw new AppError("collection not found or not yours", 404, "not_found");
 }
 
 /**
@@ -124,7 +172,8 @@ export const MCP_MUTATING_TOOLS: ReadonlySet<string> = new Set([
   "delete_media",
 ]);
 
-const TOOLS: McpToolDef[] = [
+/** 导出仅供单测直取 handler（register 走 registerMcpTool 注册表，不依赖此导出）。 */
+export const TOOLS: McpToolDef[] = [
   tool(
     "list_my_posts",
     "List the authenticated user's posts (articles and short posts), newest first.",
@@ -139,8 +188,11 @@ const TOOLS: McpToolDef[] = [
     },
     async (args, ctx) => {
       const status = String(args.status ?? "all");
-      const limit = Math.min(Number(args.limit ?? 20), 100);
-      const offset = Number(args.offset ?? 0);
+      if (!["draft", "pending_review", "published", "rejected", "all"].includes(status)) {
+        badRequest('status must be one of "draft" | "pending_review" | "published" | "rejected" | "all"');
+      }
+      const limit = intArg(args.limit, 20, 1, 100);
+      const offset = intArg(args.offset, 0, 0, 100_000);
       const conds = [eq(posts.authorId, ctx.userId)];
       if (status !== "all") conds.push(eq(posts.status, status as never));
       const rows = await db
@@ -168,10 +220,11 @@ const TOOLS: McpToolDef[] = [
     "get_post",
     "Get one post's full markdown content by id. The caller's own posts are readable in any lifecycle state; other people's posts only when published and visible to the caller (public, or followers-only if the caller follows the author).",
     ["posts:read"],
-    { type: "object", required: ["postId"], properties: { postId: { type: "string" } } },
+    { type: "object", required: ["postId"], properties: { postId: { type: "string", format: "uuid" } } },
     async (args, ctx) => {
-      const row = await postWithAuthor(String(args.postId));
-      if (!row) throw new Error("post not found");
+      const postId = requireUuid("postId", args.postId);
+      const row = await postWithAuthor(postId);
+      if (!row) throw new AppError("post not found", 404, "not_found");
       // 与 web GET /api/posts/[id] 同口径：作者任意状态可读；他人仅
       // published + 对其可见（public / followers-已关注），草稿、回收站、
       // 私有内容一律按不存在处理 —— 防止 token 越权读取任意草稿/已删帖。
@@ -207,12 +260,28 @@ const TOOLS: McpToolDef[] = [
       },
     },
     async (args, ctx) => {
-      // 与 web POST /api/posts 对齐的基本校验：文章必须有标题与内容
-      const title = String(args.title).trim().slice(0, 200);
-      const content = String(args.content);
-      if (!title) throw new Error("文章必须有标题 / Articles require a title");
-      if (!content.trim()) throw new Error("文章内容不能为空 / Article content cannot be empty");
-      if (args.collectionId) await assertCollectionOwned(String(args.collectionId), ctx.userId);
+      // 与 web POST /api/posts 同桶同主体（write.post 按 userId 计数，入队
+      // 即扣配额）：MCP 发布不得比 web 宽松 —— 否则 60 req/min 的 token 桶
+      // 会变成绕过「每小时 10 篇」发帖限额的后门。
+      await rateLimitBucket("write.post", ctx.userId);
+
+      // 与 web POST /api/posts 对齐的基本校验：文章必须有标题与内容，
+      // 长度上限同 web zod schema（超长此前会直达 varchar 列触发 PG 错误）
+      const title = requireString("title", args.title, TITLE_MAX).trim();
+      const content = requireString("content", args.content, CONTENT_MAX);
+      if (!title) throw new AppError("文章必须有标题 / Articles require a title", 400, "validation_error");
+      if (!content.trim()) throw new AppError("文章内容不能为空 / Article content cannot be empty", 400, "validation_error");
+      if (args.summary !== undefined) requireString("summary", args.summary, SUMMARY_MAX).trim();
+      const summary =
+        (args.summary !== undefined ? (args.summary as string).trim() : "") || makeExcerpt(content);
+      if (args.visibility !== undefined && !["public", "followers"].includes(String(args.visibility))) {
+        badRequest('visibility must be "public" or "followers"');
+      }
+      const collectionId =
+        args.collectionId !== undefined && args.collectionId !== null && args.collectionId !== ""
+          ? requireUuid("collectionId", args.collectionId)
+          : null;
+      if (collectionId) await assertCollectionOwned(collectionId, ctx.userId);
 
       const submit = args.publishNow !== false;
 
@@ -221,11 +290,10 @@ const TOOLS: McpToolDef[] = [
       if (submit) {
         const { blocked } = await preSubmitCheck(title, content);
         if (blocked.length) {
-          throw new Error(`内容包含被禁止的关键词：${blocked.join("、")}`);
+          throw new AppError(`内容包含被禁止的关键词：${blocked.join("、")}`, 422, "blocked_keywords");
         }
       }
 
-      const summary = String(args.summary ?? "") || makeExcerpt(content);
       const topicNames = (Array.isArray(args.topics) ? args.topics : [])
         .map((n) => String(n))
         .slice(0, 5);
@@ -243,7 +311,7 @@ const TOOLS: McpToolDef[] = [
             content,
             status: submit ? "pending_review" : "draft",
             visibility: args.visibility === "followers" ? "followers" : "public",
-            collectionId: args.collectionId ? String(args.collectionId) : null,
+            collectionId,
           })
           .returning();
         await syncPostTopics(tx, row.id, topicNames);
@@ -272,38 +340,98 @@ const TOOLS: McpToolDef[] = [
   ),
   tool(
     "update_post",
-    "Update an existing post's title/content/summary (must be owned by the caller).",
+    "Update an existing post's title/content/summary (must be owned by the caller). Editing a published post re-enters the moderation pipeline (status goes back to pending_review, same as the web editor).",
     ["posts:write"],
     {
       type: "object",
       required: ["postId"],
       properties: {
-        postId: { type: "string" },
+        postId: { type: "string", format: "uuid" },
         title: { type: "string" },
         content: { type: "string" },
         summary: { type: "string" },
       },
     },
     async (args, ctx) => {
+      const postId = requireUuid("postId", args.postId);
       const patch: Record<string, unknown> = { updatedAt: new Date() };
-      if (args.title !== undefined) patch.title = String(args.title).slice(0, 200);
-      if (args.content !== undefined) patch.content = String(args.content);
-      if (args.summary !== undefined) patch.summary = String(args.summary);
+      if (args.title !== undefined) {
+        const title = requireString("title", args.title, TITLE_MAX).trim();
+        if (!title) badRequest("标题不能为空 / Title cannot be empty");
+        patch.title = title;
+      }
+      if (args.content !== undefined) {
+        patch.content = requireString("content", args.content, CONTENT_MAX);
+      }
+      if (args.summary !== undefined) {
+        patch.summary = requireString("summary", args.summary, SUMMARY_MAX).trim();
+      }
+      if (Object.keys(patch).length === 1) badRequest("没有可更新的字段 / No fields to update");
+
+      // 归属预读（对照 web getAuthorPost：不存在/非本人/回收站一律 404，
+      // 回收站的恢复与彻底清除只走 web 专用端点）
+      const [post] = await db
+        .select({ id: posts.id, type: posts.type, status: posts.status })
+        .from(posts)
+        .where(
+          and(
+            eq(posts.id, postId),
+            eq(posts.authorId, ctx.userId),
+            ne(posts.status, "deleted"),
+          ),
+        )
+        .limit(1);
+      if (!post) throw new AppError("post not found or not yours", 404, "not_found");
+
+      // 短动态正文上限与 web PUT 同口径（超长内容会被无条件覆写进
+      // 短动态行，必须在落库前挡下）
+      if (
+        post.type === "short" &&
+        typeof patch.content === "string" &&
+        patch.content.length > SHORT_CONTENT_MAX
+      ) {
+        badRequest(`短动态内容不能超过 ${SHORT_CONTENT_MAX} 字`);
+      }
+
+      // 审核闭环与 web PUT 一致：已发布内容的任何编辑都回到 pending_review
+      // 重走审核管线（旧实现直接改 published 行 = 绕过审核发布新内容），
+      // 过审后由 moderation 插件恢复发布并照常触发下游钩子
+      const wasPublished = post.status === "published";
+      if (wasPublished) {
+        patch.status = "pending_review";
+        patch.rejectReason = null;
+      }
+
+      // 条件更新带 authorId 绑定（对象级授权：token 属主只能改自己的行）
       const rows = await db
         .update(posts)
         .set(patch)
-        .where(and(eq(posts.id, String(args.postId)), eq(posts.authorId, ctx.userId)))
+        .where(and(eq(posts.id, postId), eq(posts.authorId, ctx.userId)))
         .returning({ id: posts.id });
-      if (!rows.length) throw new Error("post not found or not yours");
-      return { id: rows[0].id, updated: true };
+      if (!rows.length) throw new AppError("post not found or not yours", 404, "not_found");
+
+      if (wasPublished) {
+        await emit("post:submitted", {
+          postId: rows[0].id,
+          authorId: ctx.userId,
+          title: typeof patch.title === "string" ? patch.title : "",
+          needReview: true,
+        });
+      }
+      return {
+        id: rows[0].id,
+        updated: true,
+        status: wasPublished ? "pending_review" : post.status,
+      };
     },
   ),
   tool(
     "delete_post",
     "Move one of the authenticated user's posts to the recycle bin (soft delete, restorable from the web UI). Posts already in the recycle bin are reported as not found.",
     ["posts:write"],
-    { type: "object", required: ["postId"], properties: { postId: { type: "string" } } },
+    { type: "object", required: ["postId"], properties: { postId: { type: "string", format: "uuid" } } },
     async (args, ctx) => {
+      const postId = requireUuid("postId", args.postId);
       // 与 web DELETE /api/posts/[id]（不带 ?purge=true）同款软删：
       // status=deleted + preDeleteStatus + deletedAt，保留评论/点赞，可从回收站
       // 恢复；已删除的行视为不存在（回收站的恢复/彻底清除走 web 专用端点）。
@@ -323,13 +451,13 @@ const TOOLS: McpToolDef[] = [
         })
         .where(
           and(
-            eq(posts.id, String(args.postId)),
+            eq(posts.id, postId),
             eq(posts.authorId, ctx.userId),
             ne(posts.status, "deleted"),
           ),
         )
         .returning({ id: posts.id });
-      if (!deleted) throw new Error("post not found or not yours");
+      if (!deleted) throw new AppError("post not found or not yours", 404, "not_found");
       return { id: deleted.id, deleted: true, status: "deleted" };
     },
   ),
@@ -342,8 +470,9 @@ const TOOLS: McpToolDef[] = [
       properties: { query: { type: "string" }, limit: { type: "number", default: 10, maximum: 50 } },
     },
     async (args) => {
-      const q = String(args.query ?? "").trim();
+      const q = (args.query === undefined ? "" : requireString("query", args.query, QUERY_MAX)).trim();
       if (!q) return { posts: [] };
+      const limit = intArg(args.limit, 10, 1, 50);
       const rows = await db
         .select({
           id: posts.id,
@@ -362,7 +491,7 @@ const TOOLS: McpToolDef[] = [
           ),
         )
         .orderBy(desc(posts.publishedAt))
-        .limit(Math.min(Number(args.limit ?? 10), 50));
+        .limit(limit);
       return { posts: rows };
     },
   ),
@@ -372,6 +501,8 @@ const TOOLS: McpToolDef[] = [
     ["feed:read"],
     { type: "object", properties: { limit: { type: "number", default: 20, maximum: 50 }, offset: { type: "number", default: 0 } } },
     async (args) => {
+      const limit = intArg(args.limit, 20, 1, 50);
+      const offset = intArg(args.offset, 0, 0, 100_000);
       const rows = await db
         .select({
           id: posts.id,
@@ -388,8 +519,8 @@ const TOOLS: McpToolDef[] = [
         .innerJoin(users, eq(users.id, posts.authorId))
         .where(and(eq(posts.status, "published"), eq(posts.visibility, "public")))
         .orderBy(desc(posts.publishedAt))
-        .limit(Math.min(Number(args.limit ?? 20), 50))
-        .offset(Number(args.offset ?? 0));
+        .limit(limit)
+        .offset(offset);
       return { feed: rows };
     },
   ),
@@ -399,6 +530,7 @@ const TOOLS: McpToolDef[] = [
     ["media:read"],
     { type: "object", properties: { limit: { type: "number", default: 50, maximum: 200 } } },
     async (args, ctx) => {
+      const limit = intArg(args.limit, 50, 1, 200);
       const rows = await db
         .select({
           id: media.id,
@@ -412,7 +544,7 @@ const TOOLS: McpToolDef[] = [
         .from(media)
         .where(eq(media.userId, ctx.userId))
         .orderBy(desc(media.createdAt))
-        .limit(Math.min(Number(args.limit ?? 50), 200));
+        .limit(limit);
       return { media: rows };
     },
   ),
@@ -420,12 +552,14 @@ const TOOLS: McpToolDef[] = [
     "delete_media",
     "Delete a media file from the authenticated user's library (removes the library row and the underlying file).",
     ["media:write"],
-    { type: "object", required: ["mediaId"], properties: { mediaId: { type: "string" } } },
+    { type: "object", required: ["mediaId"], properties: { mediaId: { type: "string", format: "uuid" } } },
     async (args, ctx) => {
+      const mediaId = requireUuid("mediaId", args.mediaId);
+      // 对象级授权：查询即绑定 userId，他人 mediaId 查不到 → 不泄露存在性
       const [row] = await db
         .select({ id: media.id, path: media.path, storage: media.storage })
         .from(media)
-        .where(and(eq(media.id, String(args.mediaId)), eq(media.userId, ctx.userId)))
+        .where(and(eq(media.id, mediaId), eq(media.userId, ctx.userId)))
         .limit(1);
       if (!row) return { deleted: false };
       await db.delete(media).where(eq(media.id, row.id));
@@ -441,14 +575,16 @@ const TOOLS: McpToolDef[] = [
     ["comments:read"],
     { type: "object", required: ["postId"], properties: { postId: { type: "string" }, limit: { type: "number", default: 50 } } },
     async (args, ctx) => {
+      const postId = requireUuid("postId", args.postId);
+      const limit = intArg(args.limit, 50, 1, 200);
       // 隐藏内容门控：他人草稿/回收站/私有帖的评论不可经 MCP 读取
       const [p] = await db
         .select({ authorId: posts.authorId })
         .from(posts)
-        .where(eq(posts.id, String(args.postId)))
+        .where(eq(posts.id, postId))
         .limit(1);
-      if (!p) throw new Error("post not found");
-      if (p.authorId !== ctx.userId) await getInteractablePost(String(args.postId), ctx.userId);
+      if (!p) throw new AppError("post not found", 404, "not_found");
+      if (p.authorId !== ctx.userId) await getInteractablePost(postId, ctx.userId);
       const rows = await db
         .select({
           id: comments.id,
@@ -461,13 +597,13 @@ const TOOLS: McpToolDef[] = [
         .innerJoin(users, eq(users.id, comments.userId))
         .where(
           and(
-            eq(comments.postId, String(args.postId)),
+            eq(comments.postId, postId),
             eq(comments.status, "visible"),
             eq(comments.visibility, "public"),
           ),
         )
         .orderBy(desc(comments.createdAt))
-        .limit(Math.min(Number(args.limit ?? 50), 200));
+        .limit(limit);
       return { comments: rows };
     },
   ),
@@ -478,6 +614,11 @@ const TOOLS: McpToolDef[] = [
     { type: "object", properties: {} },
     async (_args, ctx) => {
       const [user] = await db.select().from(users).where(eq(users.id, ctx.userId)).limit(1);
+      // token 级联删除晚于用户删除等竞态下可能查不到行：显式 404，不靠运行时崩溃
+      // （崩溃会走 transport 泛化路径，但静默 TypeError 会白白消耗 500）
+      if (!user) throw new AppError("account not found or deactivated", 404, "not_found");
+      // 返回投影只含公开资料字段：passwordHash/totpSecret/email/settings 等
+      // 敏感列一律不带出（select() 全行只用于取值，不外发）
       return {
         username: user.username,
         displayName: user.displayName,

@@ -45,7 +45,7 @@ components/themes  UI 组件（shadcn 风格）与博客主题包
 
 ## 2. 请求生命周期
 
-当前**没有 edge middleware**：安全响应头由 `next.config.ts` 的 `headers()` 统一下发；子域名访问走 `/sub/[subdomain]/[[...path]]` 路由段 + `ROOT_DOMAIN` 解析，而非域名重写。
+静态安全响应头由 `next.config.ts` 的 `headers()` 统一下发；CSP 是唯一例外——由 `src/proxy.ts` per-request 生成 nonce 下发（见 §2.4）；子域名访问走 `/sub/[subdomain]/[[...path]]` 路由段 + `ROOT_DOMAIN` 解析，而非域名重写。
 
 ### 2.1 页面（RSC）
 
@@ -85,6 +85,18 @@ pg-boss（同一 PG，pgboss.job 表）→ 各 worker 竞争消费（instrumenta
 ```
 
 跨 worker 的事件不广播：事件只在本进程内生效，跨进程协作一律经过数据库/队列表（这是 cluster 模型下无共享内存的必然选择，见 [concurrency.md](./concurrency.md)）。
+
+### 2.4 安全响应头与 CSP nonce
+
+`src/proxy.ts` 对每个文档/API 请求（matcher 排除纯静态资产）生成一次性随机 nonce（`src/core/security/csp.ts`，16 字节 CSPRNG → base64），同时：
+
+- 写**请求头** `content-security-policy`：Next 16 SSR 时从中解析 `'nonce-…'`，自动把 nonce 附到它生成的全部内联脚本（流式占位、RSC payload、框架/页面 chunk）——要求页面动态渲染（全站满足）；
+- 写请求头 `x-nonce`：根 layout 读出后传给 next-themes 引导脚本与 dev 清理脚本（自有内联脚本必须手动带同一 nonce）；
+- 写**响应头** `Content-Security-Policy`：`script-src 'self' 'nonce-…' 'strict-dynamic'`，无 `unsafe-inline`；`'unsafe-eval'` 仅 dev（React 错误栈重建/HMR）。
+
+`'strict-dynamic'` 的信任继承覆盖 Vditor（npm 包被 Next 打进带 nonce 的 chunk，其运行时从 `/vditor`（public 静态目录，`cdn: "/vditor"`）动态 `createElement("script")` 注入的 lute/katex/highlight.js 等）与 mermaid 的动态 chunk。`<script type="application/ld+json">`（JSON-LD）不是可执行脚本类型，不受 script-src 管控，无需 nonce。支持 nonce 的浏览器会忽略 script-src 里的 `'self'`（仅作老浏览器回退），为预期行为。
+
+**已知权衡**：`style-src` 维持 `'self' 'unsafe-inline'` 不随本次收紧——用户自定义主题 CSS、Vditor/mermaid 运行时注入的 `<style>` 依赖面广，nonce/hash 化成本远高于收益；样式注入不构成脚本执行面。
 
 ## 3. 领域事件与订阅关系
 
@@ -130,7 +142,7 @@ pg-boss（同一 PG，pgboss.job 表）→ 各 worker 竞争消费（instrumenta
 | 插件 | 能力 |
 | --- | --- |
 | `plugins/notifications.ts` | 站内信/邮件/（可扩展）频道；每用户偏好覆盖（`users.notificationPrefs`） |
-| `plugins/webhooks.ts` | 用户订阅事件子集；HMAC-SHA256 签名投递（`X-MyBlogs-Signature: v1=…`）；失败重试 |
+| `plugins/webhooks.ts` | 用户订阅事件子集；HMAC-SHA256 签名投递（`X-Comit-Signature: t=…,v1=…`，签名覆盖 `ts.原始 body`，±300s 容忍窗）；失败重试 + 连续失败自动停用；投递作用域按当事人限定（详见 docs/product-features.md §9） |
 | `plugins/moderation.ts` | 关键词黑名单（block/warn）→ LLM 审核（OpenAI 兼容）→ 人工队列 |
 | `plugins/mcp.ts` | 12 个 MCP 工具（posts/media/feed/profile），Bearer token + scopes |
 | `plugins/export.ts` | Markdown+媒体 ZIP 打包导出（GDPR） |

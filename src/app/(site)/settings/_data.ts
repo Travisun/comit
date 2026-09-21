@@ -6,6 +6,7 @@ import { USERNAME_COOLDOWN_DAYS, USERNAME_MAX, USERNAME_MIN } from "@/lib/users"
 import { listApiTokens } from "@/lib/tokens";
 import { listInvites, MAX_INVITES_PER_USER } from "@/lib/auth/invite";
 import { hasConfirmedTotp } from "@/lib/auth/totp";
+import { WEBHOOK_VIEW_COLUMNS } from "@/extensions/webhooks/server";
 
 import { bootPlugins, channels } from "@/extensions/_boot/server";
 import { config } from "@/core/config";
@@ -95,7 +96,12 @@ export async function getSettingsPageData(auth: {
       .where(eq(sessions.userId, u.id))
       .orderBy(desc(sessions.createdAt)),
     listInvites(u.id),
-    db.select().from(webhooks).where(eq(webhooks.userId, u.id)).orderBy(desc(webhooks.createdAt)),
+    // 列投影：签名私钥不被选出（只取固定前缀），SSR 结构与 /api/me/webhooks 同源
+    db
+      .select(WEBHOOK_VIEW_COLUMNS)
+      .from(webhooks)
+      .where(eq(webhooks.userId, u.id))
+      .orderBy(desc(webhooks.createdAt)),
     listApiTokens(u.id),
     db
       .select({
@@ -192,7 +198,7 @@ export async function getSettingsPageData(auth: {
       lastStatus: w.lastStatus,
       lastDeliveryAt: w.lastDeliveryAt ? w.lastDeliveryAt.toISOString() : null,
       failCount: w.failCount,
-      secretPrefix: w.secret.slice(0, 8),
+      secretPrefix: w.secretPrefix.slice(0, 8),
       createdAt: w.createdAt.toISOString(),
     })),
     tokens: tokenRows.map((t) => ({

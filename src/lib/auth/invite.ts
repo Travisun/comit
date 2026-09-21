@@ -7,8 +7,19 @@ import { applyTierLimits } from "@/lib/tiers";
 
 export const MAX_INVITES_PER_USER = 5;
 
+/**
+ * 邀请码形状：16 位十六进制（大写），即 8 字节 = **64 位熵**。
+ *
+ * WHY：旧实现是 4 字节（32 位）+ 连字符分组。邀请码虽经 consumeInvite/注册事务
+ * 里的 `UPDATE … WHERE used_at IS NULL` 原子单次消费，但 32 位空间可被「轮换
+ * IP + 注册端点」离线式穷举 —— 在邀请制站点上后果是提前烧毁他人未使用的邀请
+ * 码（占位/骚扰），故把猜测成本抬到 2^64（配合 auth.register 桶的按 IP 限流，
+ * 现实不可行）。上限受 invites.code varchar(16) 约束：不加列宽迁移就不可能到
+ * 128 位，故取当前列宽允许的最大熵；分组连字符同样为长度让路（显示改为整体
+ * 十六进制串，输入侧统一 toUpperCase 归一）。
+ */
 export function generateInviteCode(): string {
-  return randomBytes(4).toString("hex").toUpperCase().match(/.{1,4}/g)!.join("-");
+  return randomBytes(8).toString("hex").toUpperCase();
 }
 
 export async function createInvite(userId: string): Promise<string> {

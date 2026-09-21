@@ -2,10 +2,16 @@ import { unified } from "unified";
 import rehypeParse from "rehype-parse";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeStringify from "rehype-stringify";
+import { rehypeGuardAttributes } from "@/lib/markdown/attribute-guard";
+import { rehypeTightenStyles } from "@/lib/markdown/server";
 
 /**
  * 扩展注入 HTML（prepend/append）的净化白名单 —— 第三方过滤器的输出
- * 不可信任：script/iframe/事件属性一律剥离，img 限 http(s) 与本站相对路径。
+ * 不可信任：script/iframe/事件属性一律剥离，img 限 http(s) 与本站相对路径；
+ * schema 放行的 class/target/rel 为用户（博主/扩展）可控值，随后由
+ * rehypeGuardAttributes 收口（target 仅 _blank/_self、rel 白名单交集且
+ * _blank 恒含 noopener、class 合规定长限量）；style 值层面复用主管线的
+ * 收紧器（rehypeTightenStyles），防 position:fixed 覆盖钓鱼与 url() 外带。
  * 同步管线在 boot 后注册时构建一次。
  */
 const sanitizePipeline = unified()
@@ -15,7 +21,10 @@ const sanitizePipeline = unified()
     tagNames: (defaultSchema.tagNames ?? []).filter((t) => !["script", "iframe", "object", "embed", "form"].includes(t)),
     attributes: {
       ...defaultSchema.attributes,
-      "*": [...(defaultSchema.attributes?.["*"] ?? []), "class", "style"],
+      // 注意：hast-util-sanitize 按属性名匹配（class → className），只写
+      // "class" 等于什么都没放行（旧版即如此，扩展注入的 class 被静默剥光）；
+      // className 在此放行范围 → 值层面由后置的 rehypeGuardAttributes 收紧。
+      "*": [...(defaultSchema.attributes?.["*"] ?? []), "class", "className", "style"],
       img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "loading"],
       a: [...(defaultSchema.attributes?.a ?? []), "href", "target", "rel"],
     },
@@ -25,6 +34,8 @@ const sanitizePipeline = unified()
       href: ["http", "https", "mailto"],
     },
   })
+  .use(rehypeGuardAttributes)
+  .use(rehypeTightenStyles)
   .use(rehypeStringify);
 
 export async function sanitizeExtensionHtml(html: string): Promise<string> {

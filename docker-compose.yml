@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: CHANGE_ME
       POSTGRES_DB: myblogs
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - myblogs_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -21,8 +21,8 @@ services:
     image: axllent/mailpit:latest
     container_name: myblogs-mailpit
     ports:
-      - "8025:8025"
-      - "1025:1025"
+      - "127.0.0.1:8025:8025"
+      - "127.0.0.1:1025:1025"
 
 volumes:
   myblogs_pgdata:

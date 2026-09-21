@@ -4,6 +4,7 @@ import { posts, users } from "@/db/schema";
 import { ok } from "@/lib/http"
 import { withPermission } from "@/lib/permissions";
 import { truncate } from "@/lib/utils";
+import { expandMentionTokens } from "@/lib/mentions";
 import { pagination } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
@@ -35,7 +36,10 @@ export async function GET(req: Request) {
       .limit(Math.min(limit, 50));
 
     return ok({
-      items: items.map((p) => ({ ...p, content: truncate(p.content, 500) })),
+      // 审核预览直出正文原文：先展开 @提及稳定引用，避免审阅者看到引用语法
+      items: await Promise.all(
+        items.map(async (p) => ({ ...p, content: truncate(await expandMentionTokens(p.content), 500) })),
+      ),
     });
   });
 }

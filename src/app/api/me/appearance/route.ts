@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ok, withUser } from "@/lib/http";
+import { ok, withUser, jsonBody } from "@/lib/http";
 import { parseOrThrow } from "../_shared";
 import { WIDGET_CATALOG } from "@/components/user-space/widget-catalog";
 
@@ -20,7 +20,8 @@ const bgValue = z
   .max(300)
   .refine(
     (v) =>
-      v.startsWith("/") ||
+      // 站内相对路径必须 / 开头且非 //（协议相对 URL 会直连外站追踪访客 IP/UA）
+      /^\/(?!\/)/.test(v) ||
       /^https?:\/\//i.test(v) ||
       (/^url\(/i.test(v)
         ? /^url\(["']?(\/(?!\/)|https?:\/\/)[^"')]*["']?\)$/i.test(v) &&
@@ -50,7 +51,7 @@ const bodySchema = z.object({
 /** PUT /api/me/appearance — page background/accent/font + sidebar widget selection. */
 export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(bodySchema, await req.json().catch(() => null));
+    const body = parseOrThrow(bodySchema, await jsonBody(req).catch(() => null));
 
     if (body.appearance || body.widgets) {
       const valid = new Set(WIDGET_CATALOG.map((w) => w.id));

@@ -38,6 +38,9 @@ export async function POST(req: Request) {
     }
     const body = await parseJsonBody(req, schema);
     const identifier = (body.identifier ?? body.email)!;
+    // 账号级兜底：IP 桶可被代理池/伪造 X-Real-IP 绕过，这里按标识符再限一次，
+    // 使对单一账号的分布式撞库在 15 分钟窗口内最多 10 次。
+    await rateLimitBucket("auth.login.account", identifier);
 
     // 邮箱或用户名登录：两个唯一列都可能是命中项；用户名与邮箱统一小写存储
     const [user] = await db

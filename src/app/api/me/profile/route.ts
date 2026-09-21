@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { AppError, unauthorized } from "@/core/errors";
 import { hooks } from "@/core/hooks";
 import { coerceProfileFields } from "@/core/capabilities/manifest";
@@ -6,7 +6,7 @@ import { getAllProfileFieldDefs } from "@/extensions/_boot/manifests";
 import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { assertOwnMedia, emptyToNull, localeSchema, maskEmail, parseOrThrow } from "../_shared";
 
@@ -58,7 +58,7 @@ const patchSchema = z.object({
 /** PUT /api/me/profile — update profile fields. */
 export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(patchSchema, await req.json().catch(() => null));
+    const body = parseOrThrow(patchSchema, await jsonBody(req).catch(() => null));
     const patch: Partial<typeof users.$inferInsert> = { updatedAt: new Date() };
 
     if (body.displayName !== undefined) patch.displayName = body.displayName;

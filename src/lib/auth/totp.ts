@@ -5,7 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { totpSecrets } from "@/db/schema";
 import { config } from "@/core/config";
-import { sha256 } from "./password";
+import { sha256, safeCompare } from "./password";
 
 /**
  * TOTP two-factor auth on otplib v13 (async API, noble crypto plugin).
@@ -78,10 +78,12 @@ export async function verifyTotpCode(
   const [row] = await db.select().from(totpSecrets).where(eq(totpSecrets.userId, userId)).limit(1);
   if (!row) return { ok: false };
   const t = new TOTP({ ...otpOptions(), secret: row.secret });
-  const result = await t.verify(token.trim(), { epochTolerance: 60 });
+  // 容差 30s ⇒ 实际接受当前 ±1 个 30s 时间步（3 个候选码）。不要放大：
+  // otplib 按 floor(tol/period) 折算步数，60s 容差会放宽到 ±2 步（5 个候选），
+  // 直接提高线上爆破命中率。
+  const result = await t.verify(token.trim(), { epochTolerance: 30 });
   if (!result.valid) return { ok: false };
-  // 防重放（anti-replay）：timeStep 即命中的 30s 窗口（epochTolerance ±30s ⇒
-  // 实际命中 ±1 窗口，取 otplib 返回的实际命中 step）。step <= lastUsedStep ⇒
+  // 防重放（anti-replay）：timeStep 即命中的 30s 窗口。step <= lastUsedStep ⇒
   // 同一（或更早）窗口的 code 已被使用，复用"无效验证码"错误路径，不区分原因。
   const step = result.timeStep;
   if (row.lastUsedStep !== null && step <= row.lastUsedStep) return { ok: false };
@@ -194,8 +196,10 @@ async function verifyRecoveryCodeHash(code: string, stored: string): Promise<boo
     const expected = Buffer.from(keyHex, "hex");
     return key.length === expected.length && timingSafeEqual(key, expected);
   }
-  // 存量码兼容路径：与旧实现逐字节同口径（trim 后 sha256），不做大小写归一
-  return stored === sha256(code.trim());
+  // 存量码兼容路径：与旧实现逐字节同口径（trim 后 sha256），不做大小写归一。
+  // 比较走常数时间（sha256 定长后 timingSafeEqual）：裸 === 会在首个差异字符
+  // 短路，恢复码哈希虽不可逆，但响应时序仍会泄露「前缀命中位数」。
+  return safeCompare(sha256(code.trim()), stored);
 }
 
 async function hashRecoveryCodes(codes: string[]): Promise<string[]> {

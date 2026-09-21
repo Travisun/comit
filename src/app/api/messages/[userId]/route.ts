@@ -63,6 +63,8 @@ async function getOtherUser(userId: string) {
 /** GET /api/messages/[userId]?cursor=&limit= — ascending messages, marks read. */
 export async function GET(req: Request, ctx: { params: Promise<{ userId: string }> }) {
   return withUser(req, async (auth) => {
+    // 读取路径同样限流：mark-read 是写放大点，高频轮询可刷库
+    await rateLimitBucket("read.messages", auth.user.id);
     const { userId } = await ctx.params;
     if (!z.uuid().safeParse(userId).success) {
       throw new AppError("参数错误 / Invalid payload", 400, "bad_request");

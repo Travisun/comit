@@ -2,17 +2,22 @@ import { and, count, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "@/db";
 import { conversations, messages, users } from "@/db/schema";
 import { ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 
 /** GET /api/messages/conversations — list the current user's conversations. */
 export async function GET(req: Request) {
   return withUser(req, async (auth) => {
+    await rateLimitBucket("read.messages", auth.user.id);
     const me = auth.user.id;
 
+    // 会话数不设防会被脚本化拉取放大成无界 join+聚合（DB DoS 面）；
+    // 200 远超真实私信场景，超出部分按 lastMessageAt 序自然截断
     const convs = await db
       .select()
       .from(conversations)
       .where(or(eq(conversations.userAId, me), eq(conversations.userBId, me)))
-      .orderBy(desc(conversations.lastMessageAt));
+      .orderBy(desc(conversations.lastMessageAt))
+      .limit(200);
 
     if (convs.length === 0) return ok([]);
 

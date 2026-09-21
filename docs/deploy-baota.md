@@ -4,16 +4,15 @@
 
 数据库与 Redis 不容器化，直接复用服务器已有实例；应用本体用 [docker-compose.server.yml](../docker-compose.server.yml) 部署（`network_mode: host` + migrate one-shot）。
 
-## 目标服务器（唯一部署目标：your-server）
+## 目标服务器（示例：请按你的实际机器填写）
 
 | 项 | 值 |
 |---|---|
-| 主机 | Oracle Cloud 大阪 `AP-OSAKA-1-AD-1`，`VM.Standard.A1.Flex` 4 OCPU / 24GB（Always Free 顶格） |
-| 地址 | `ubuntu@YOUR_SERVER`，本地已配 SSH 别名：`ssh your-server` |
-| 磁盘 | 系统盘 50G（`/`）+ 数据盘 150G 挂载 **`/www`**（宝塔全部数据、站点、代码都在这里；`/data` 为其软链） |
+| 主机 | 任意 4C/8G+ 的 VPS（本文示例：`<YOUR_SERVER>`，SSH 用户 `<YOUR_SSH_USER>`） |
+| 磁盘 | 系统盘 + 数据盘挂载 **`/www`**（宝塔全部数据、站点、代码都在这里；`/data` 为其软链） |
 | 已装 | Docker 29.x、PostgreSQL（`127.0.0.1:5432`）、Redis（`127.0.0.1:6379`）、宝塔 nginx 1.30（80/443） |
-| 宝塔面板 | `https://<YOUR_SERVER>:<PANEL_PORT>/<安全入口>`（面板端口已改为 <PANEL_PORT>，非默认 8888） |
-| 已放行端口 | 22 / 80 / 443 / <PANEL_PORT>（OCI 安全列表 IPv4+IPv6 已放行；实例防火墙由宝塔面板内管理） |
+| 宝塔面板 | `https://<YOUR_SERVER>:<PANEL_PORT>/<安全入口>`（建议把面板端口从默认 8888 改为非默认值，并用防火墙/零信任限制来源 IP） |
+| 放行端口 | 22 / 80 / 443（面板端口不要对全网开放） |
 
 ---
 
@@ -58,7 +57,7 @@ openssl rand -base64 48    # 生成 AUTH_SECRET
 docker compose -f docker-compose.server.yml build
 docker compose -f docker-compose.server.yml up -d
 docker compose -f docker-compose.server.yml ps        # migrate 应 exited (0)
-curl -fsS http://127.0.0.1:3000/api/health            # {"ok":true,...}
+curl -fsS http://127.0.0.1:3000/api/health            # {"status":"ok"}（探针细节已收敛，宝塔/uptime 只看 200/503）
 ```
 
 首次部署（可选）初始化种子数据（管理员/站点内容演示，见 `src/db/seed.ts`）：

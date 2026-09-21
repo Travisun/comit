@@ -5,6 +5,7 @@ import { BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
 import { apiGet, mediaUrl } from "@/lib/client/api";
+import { findCommentEl } from "@/lib/client/comment-anchor";
 import { queryKeys } from "@/lib/query/keys";
 import { commentsPageSchema } from "@/lib/models/comments";
 
@@ -46,7 +47,8 @@ export function SolutionsBox({ postId, disabled }: { postId: string; disabled?: 
             key={sc.id}
             type="button"
             onClick={() => {
-              const el = document.getElementById(`comment-${sc.id}`);
+              // 抗 DOM-clobbering：data-comment-id 属性选择器替代全局 getElementById
+              const el = findCommentEl(sc.id);
               if (el) {
                 el.scrollIntoView({ block: "center", behavior: "smooth" });
                 history.replaceState(null, "", `#comment-${sc.id}`);

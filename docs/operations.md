@@ -34,7 +34,7 @@
 | `WEB_CONCURRENCY` | `2` | cluster worker 数（`start:cluster` 专用） |
 | `UV_THREADPOOL_SIZE` | `8` | 每 worker libuv 线程池（cluster-server 注入） |
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | 监听端口与地址（cluster-server 读取） |
-| `WORKER_ID` | （运行时注入） | cluster master 注入的 worker 编号，勿手工设置；`/api/health` 与运维面板展示用 |
+| `WORKER_ID` | （运行时注入） | cluster master 注入的 worker 编号，勿手工设置；`/api/admin/health` 与运维面板展示用（公开 `/api/health` 探针不再返回） |
 
 ### SMTP（邮件）
 
@@ -162,7 +162,8 @@ rsync -a /backup/myblogs-storage/ storage/
 
 **探针**
 
-- `GET /api/health` → `{ok:true, worker, pid, uptimeSec, ts}`：LB 健康检查 + worker 轮转观测（压测脚本 `--show-workers`）；
+- `GET /api/health` → `{status:"ok"\|"degraded"}`（HTTP 200/503）：LB/uptime 无鉴权探活，公开响应已收敛为最小形态（不泄露版本/进程/驱动信息）；
+- `GET /api/admin/health`（admin.ops 鉴权）→ `{ok, version, worker, pid, uptimeSec, limiter, storage, ts}`：完整健康快照 + worker 轮转观测（压测脚本 `--show-workers`，需 `MB_ADMIN_COOKIE` 环境变量携带 admin 会话 Cookie）；
 - 登录态管理页 `/admin/ops`：进程（RSS/heap/uptime）、DB 核心表行数、`pgboss.job` 按 queue×state 深度、内容健康、storage 体积，只读无轮询。
 
 **告警阈值建议**

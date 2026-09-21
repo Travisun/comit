@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { absolute } from "@/core/routes";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { verifyPassword } from "@/lib/auth/password";
 import { issueAuthToken } from "@/lib/auth/guards";
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   return withUser(req, async (auth) => {
     // 已登录换绑：按用户限流（桶清单标注按主体），防攻击者换 IP 绕过每用户邮箱操作频率
     await rateLimitBucket("auth.email", auth.user.id);
-    const body = parseOrThrow(postSchema, await req.json().catch(() => null));
+    const body = parseOrThrow(postSchema, await jsonBody(req).catch(() => null));
 
     const newEmail = body.newEmail;
     if (newEmail === auth.user.email.toLowerCase()) {

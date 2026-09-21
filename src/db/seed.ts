@@ -13,12 +13,17 @@ import {
 } from "./schema";
 import { hashPassword } from "../lib/auth/password";
 import { makeExcerpt } from "../lib/utils";
+import { resolveSeedPolicy, type SeedPolicyResult } from "./seed-policy";
 
 /**
- * Development seed: admin + two demo users, demo articles/short post,
- * keyword blacklist samples, topics, follows, comments and a like.
- * Idempotent: exits early when the admin account already exists.
+ * Development seed: admin (+ optional demo users via `--demo`), demo
+ * articles/short post, keyword blacklist samples, topics, follows, comments
+ * and a like. Idempotent: exits early when the admin account already exists.
  * Run via `pnpm db:seed`.
+ *
+ * 口令策略见 seed-policy.ts：生产环境硬性拒绝；ADMIN_PASSWORD /
+ * SEED_ADMIN_PASSWORD 环境变量提供管理员口令（演示用户复用同一口令）；
+ * 交互式开发未提供时随机生成一次性口令并打印；非交互未提供直接拒绝。
  */
 
 const daysAgo = (n: number, hourOffset = 0): Date =>
@@ -117,6 +122,16 @@ fn render(md: &str) -> Result<String, RenderError> {
 const BOB_SHORT = `深夜把博客引擎的构建时间从 3 分钟压到 20 秒。Rust 的增量编译是真香，喝茶，看日志，等 CI 变绿。`;
 
 async function main() {
+  const policy: SeedPolicyResult = resolveSeedPolicy({
+    env: process.env,
+    argv: process.argv.slice(2),
+    isTTY: Boolean(process.stdout.isTTY),
+  });
+  if (policy.action === "refuse") {
+    console.error(policy.reason);
+    process.exit(1);
+  }
+
   console.log("[seed] checking admin account…");
   const [existingAdmin] = await db
     .select({ id: users.id })
@@ -128,10 +143,10 @@ async function main() {
     return;
   }
 
-  const passwordHash = await hashPassword("Admin123456");
+  const passwordHash = await hashPassword(policy.adminPassword);
 
   /* ------------------------------ users ------------------------------ */
-  const [admin, alice, bob] = await db
+  const [admin] = await db
     .insert(users)
     .values([
       {
@@ -143,6 +158,48 @@ async function main() {
         emailVerifiedAt: new Date(),
         passwordHash,
       },
+    ])
+    .returning({ id: users.id, username: users.username });
+  console.log(`[seed] user created: ${admin.username}`);
+
+  /* ---------------------------- keywords ----------------------------- */
+  await db
+    .insert(keywords)
+    .values([
+      { word: "spam-link-01", severity: "block", category: "spam" },
+      { word: "fake-giveaway", severity: "block", category: "scam" },
+      { word: "test-banned", severity: "block", category: "general" },
+      { word: "促销链接", severity: "warn", category: "marketing" },
+      { word: "test-warn", severity: "warn", category: "general" },
+      { word: "sample-ad", severity: "warn", category: "marketing" },
+    ])
+    .onConflictDoNothing({ target: keywords.word });
+  console.log("[seed] keyword blacklist seeded (6 harmless demo words)");
+
+  /* ---------------------- demo users (--demo) ------------------------ */
+  // 演示用户（可登录账号 + 社交内容）只在显式 `--demo` 时创建，避免误播种
+  // 带口令的演示账号；口令与管理员同一个（来自环境变量或一次性随机值）。
+  if (policy.demoUsers) await seedDemoContent(passwordHash);
+
+  const pwHint = policy.generated
+    ? `${policy.adminPassword}（一次性随机口令，仅本次输出，请妥善保存）`
+    : "（取自 ADMIN_PASSWORD / SEED_ADMIN_PASSWORD 环境变量）";
+  console.log(`
+[seed] done. 登录账号：
+  管理员  admin@myblogs.local / ${pwHint}${
+    policy.demoUsers
+      ? `
+  演示    alice@myblogs.local / 同管理员口令
+  演示    bob@myblogs.local   / 同管理员口令`
+      : `
+  （未创建演示用户；开发演示数据请加 --demo 重跑）`}`);
+}
+
+/** `--demo` 演示内容：alice/bob 用户 + 文章/短文 + topics + 社交关系 */
+async function seedDemoContent(passwordHash: string): Promise<void> {
+  const [alice, bob] = await db
+    .insert(users)
+    .values([
       {
         email: "alice@myblogs.local",
         username: "alice",
@@ -163,21 +220,7 @@ async function main() {
       },
     ])
     .returning({ id: users.id, username: users.username });
-  console.log(`[seed] users created: ${admin.username}, ${alice.username}, ${bob.username}`);
-
-  /* ---------------------------- keywords ----------------------------- */
-  await db
-    .insert(keywords)
-    .values([
-      { word: "spam-link-01", severity: "block", category: "spam" },
-      { word: "fake-giveaway", severity: "block", category: "scam" },
-      { word: "test-banned", severity: "block", category: "general" },
-      { word: "促销链接", severity: "warn", category: "marketing" },
-      { word: "test-warn", severity: "warn", category: "general" },
-      { word: "sample-ad", severity: "warn", category: "marketing" },
-    ])
-    .onConflictDoNothing({ target: keywords.word });
-  console.log("[seed] keyword blacklist seeded (6 harmless demo words)");
+  console.log(`[seed] demo users created: ${alice.username}, ${bob.username}`);
 
   /* ----------------------------- topics ------------------------------ */
   const topicRows = await db
@@ -281,12 +324,6 @@ async function main() {
   await db.insert(likes).values({ userId: alice.id, targetType: "post", targetId: bobPost.id });
   await db.update(posts).set({ likeCount: 1 }).where(eq(posts.id, bobPost.id));
   console.log("[seed] follows / comments / like seeded");
-
-  console.log(`
-[seed] done. 登录账号：
-  管理员  admin@myblogs.local / Admin123456
-  演示    alice@myblogs.local / Admin123456
-  演示    bob@myblogs.local   / Admin123456`);
 }
 
 main()

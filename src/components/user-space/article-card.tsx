@@ -13,7 +13,7 @@ import { BookmarkButton } from "@/components/social/bookmark-button";
 import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import type { FeedItemDTO } from "./types";
-import { BadgeChip, BadgeChipRow } from "@/extensions/badges/badge-ui";
+import { BadgeChip } from "@/extensions/badges/badge-ui";
 import { UserHoverCard } from "./user-hover-card";
 
 /**

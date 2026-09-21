@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { withAdmin, ok } from "@/lib/http";
+import {withAdmin, ok, jsonBody} from "@/lib/http";
 import { getSetting, setSettings } from "@/lib/settings";
 import { parseOrThrow } from "@/app/api/admin/_shared";
 
@@ -32,7 +32,7 @@ const bodySchema = z.object({
 /** POST /api/admin/moderation/llm — save the LLM review configuration. */
 export async function POST(req: Request) {
   return withAdmin(req, async () => {
-    const body = parseOrThrow(bodySchema, await req.json().catch(() => null));
+    const body = parseOrThrow(bodySchema, await jsonBody(req).catch(() => null));
 
     const prev = await getSetting("moderation.llm");
 

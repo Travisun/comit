@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { authTokens, users } from "@/db/schema";
 import { absolute } from "@/core/routes";
-import { consumeAuthToken } from "@/lib/auth/guards";
+import { consumeAuthToken, revokeAuthTokens } from "@/lib/auth/guards";
 import { sha256 } from "@/lib/auth/password";
 
 export const runtime = "nodejs";
@@ -59,6 +59,10 @@ export async function GET(req: Request) {
           updatedAt: new Date(),
         })
         .where(eq(users.id, userId));
+      // 换绑成功 = 登录标识符变更：此前发到**旧邮箱**的 password_reset 链接
+      // （30 分钟窗口）若仍有效，可把新邮箱账户的密码重置掉（旧邮箱可能已被
+      // 回收/转卖/属他人）。同类型的 email_verify 残留一并吊销。
+      await revokeAuthTokens(userId);
     } catch (err) {
       // 复查与落库之间的并发窗口兜底
       if (isPgUniqueViolation(err, "users_email_key")) {

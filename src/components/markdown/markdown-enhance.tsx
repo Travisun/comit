@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/lib/i18n/client";
+import { sanitizeSvgForInjection } from "@/lib/svg-sanitizer";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -70,7 +71,9 @@ export function MarkdownEnhance({ scanKey }: { scanKey?: string }) {
               const source = decodeBase64Utf8(block.dataset.diagram ?? "");
               const id = `mermaid-svg-${i}-${Math.random().toString(36).slice(2, 8)}`;
               const { svg } = await mermaid.render(id, source);
-              block.innerHTML = svg;
+              // 第二层净化：securityLevel:"strict" 只约束解析层，渲染产出的
+              // SVG 注入 DOM 前必须再过 DOMPurify + 手写剥离（见 svg-sanitizer）
+              block.innerHTML = sanitizeSvgForInjection(svg);
             } catch (err) {
               console.error("[markdown] mermaid render failed:", err);
               block.innerHTML = "";
@@ -101,7 +104,14 @@ export function MarkdownEnhance({ scanKey }: { scanKey?: string }) {
       a.dataset.enhanced = "1";
       const handler = (e: MouseEvent) => {
         e.preventDefault();
-        setExternalUrl(a.dataset.externalHref || a.getAttribute("href"));
+        // dataset.externalHref 在净化白名单内（作者可手写）：只接受 http(s)，
+        // 防 javascript:/data: 经确认弹窗的 window.open 逃逸执行
+        const raw = a.dataset.externalHref || a.getAttribute("href") || "";
+        if (!/^https?:\/\//i.test(raw)) {
+          window.location.assign(raw);
+          return;
+        }
+        setExternalUrl(raw);
       };
       a.addEventListener("click", handler);
       cleanups.push(() => a.removeEventListener("click", handler));

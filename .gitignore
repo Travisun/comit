@@ -52,3 +52,17 @@ next-env.d.ts
 /media
 /data
 scripts/tmp-*.mts
+
+# Local AI/dev workspace assets — not part of the open-source product
+/.codex/
+/.qoder/
+/.cursor/
+/.cursor-tips/
+/.opencode/
+/.openspec/
+/ComitDocuments/
+/CLAUDE.md
+/AGENTS.md
+/QODER.md
+/logos/
+/.oss-publish/

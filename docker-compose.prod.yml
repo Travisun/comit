@@ -55,7 +55,9 @@ services:
     build: { context: ., dockerfile: Dockerfile }
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-3000}:3000"
+      # 只绑回环：公网流量必须经本机 nginx/CDN 反代进入。若直绑 0.0.0.0，
+      # TRUST_PROXY=nginx 会让攻击者伪造 X-Real-IP 绕过全部按 IP 的限流。
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-blog}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-myblogs}

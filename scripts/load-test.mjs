@@ -17,8 +17,9 @@
  *   health 100% GET /api/health（纯进程吞吐，不含 DB/RSC 开销）
  *
  * 其他:
- *   --show-workers  观测模式：每秒 GET /api/health 打印 worker 字段，共 30 次，
- *                   用于验证 cluster 轮转（可另开终端与压测同时运行）。
+ *   --show-workers  观测模式：每秒 GET /api/admin/health 打印 worker 字段，共
+ *                   30 次，用于验证 cluster 轮转（需 MB_ADMIN_COOKIE 环境变量
+ *                   携带 admin 会话 Cookie，见 showWorkers 注释）。
  *   SIGINT(Ctrl-C)  优雅退出并打印已完成部分的统计。
  *
  * 判定: HTTP 2xx/3xx 记为成功，其余状态码记为失败并按状态码归类；
@@ -45,14 +46,27 @@ const mode = pos[3] ?? "mixed";
 
 /* ------------------------------ worker 观测 ------------------------------ */
 
+/**
+ * worker 观测走 /api/admin/health（admin.ops 鉴权）：公开 /api/health 已收敛
+ * 为最小 { status }，不再携带 worker/pid/uptime。需从浏览器复制 admin 会话
+ * Cookie 注入环境变量：MB_ADMIN_COOKIE="mb_session=..." node scripts/load-test.mjs --show-workers
+ */
 async function showWorkers() {
-  const url = `${base}/api/health`;
+  const url = `${base}/api/admin/health`;
+  const cookie = process.env.MB_ADMIN_COOKIE ?? "";
   console.log(`--show-workers: 每秒请求 ${url}，观察 worker 轮转（共 30 次，Ctrl-C 退出）`);
+  if (!cookie) {
+    console.log("（提示：未设置 MB_ADMIN_COOKIE，将收到 401；worker/pid/uptime 细节仅在鉴权快照中提供）");
+  }
   for (let i = 1; i <= 30; i++) {
     const started = performance.now();
     try {
-      const res = await fetch(url, { headers: { "cache-control": "no-cache" } });
-      const body = (await res.json()) ?? {};
+      const res = await fetch(url, {
+        headers: { "cache-control": "no-cache", ...(cookie ? { cookie } : {}) },
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json().catch(() => ({}));
+      const body = json?.data ?? json ?? {};
       const ms = (performance.now() - started).toFixed(1);
       console.log(
         `#${String(i).padStart(2, "0")} worker=${body.worker ?? "?"} pid=${body.pid ?? "?"} uptime=${body.uptimeSec ?? "?"}s (${ms}ms)`,
@@ -226,7 +240,7 @@ async function run() {
   console.log("");
   console.log("集群 worker 分布：压测期间请求应由多个 worker 轮流响应。");
   console.log(`验证方式：另开终端执行  node scripts/load-test.mjs --show-workers ${base}`);
-  console.log("（每秒打印 /api/health 返回的 worker 字段，共 30 次）");
+  console.log("（每秒打印 /api/admin/health 返回的 worker 字段，共 30 次；需 MB_ADMIN_COOKIE）");
   if (stats.fail > 0) process.exitCode = 2;
 }
 

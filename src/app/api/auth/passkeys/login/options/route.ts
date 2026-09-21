@@ -25,7 +25,9 @@ export async function GET(req: NextRequest) {
     const { rpID } = await rpFromRequest(req);
     const options = await generateAuthenticationOptions({
       rpID,
-      userVerification: "preferred",
+      // required：验证端 requireUserVerification:true 要求仪式必须做 UV，
+      // preferred 下认证器可跳过 UV 导致登录必失败
+      userVerification: "required",
     });
 
     const cookie = await challengeCookie("pk_login", options.challenge, null);

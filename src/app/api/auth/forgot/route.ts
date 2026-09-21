@@ -36,7 +36,12 @@ export async function POST(req: Request) {
       const resetUrl = absolute(`${routes.resetPassword(token)}`);
       const locale = (user.locale === "en" ? "en" : "zh") as Locale;
       const mail = renderMail("resetPassword", locale, { url: resetUrl });
-      await sendMail({ to: user.email, ...mail });
+      try {
+        await sendMail({ to: user.email, ...mail });
+      } catch (err) {
+        // SMTP 故障不得变成 500 —— 已注册邮箱 500 / 未注册 200 会泄露账户存在性
+        console.error("[forgot] reset email failed:", err);
+      }
     }
     return ok({
       ok: true,

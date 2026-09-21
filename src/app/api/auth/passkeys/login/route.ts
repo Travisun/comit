@@ -34,10 +34,14 @@ export async function POST(req: Request) {
     }
     const { response } = bodySchema.parse(await jsonBody(req));
     const { rpID, origin } = await rpFromRequest(req);
-    const expectedChallenge = await readChallenge(req, "pk_login", null);
-    if (!expectedChallenge) {
+    const challengeRes = await readChallenge(req, "pk_login", null);
+    if (challengeRes.status === "replay") {
+      throw new AppError("登录挑战已被使用，请重新发起 / Passkey challenge already used", 401, "pk_challenge_replayed");
+    }
+    if (challengeRes.status !== "ok") {
       throw new AppError("登录会话已过期，请重试 / Login session expired", 400, "pk_challenge");
     }
+    const expectedChallenge = challengeRes.challenge;
 
     const credentialId = response.id;
     const [row] = await db
@@ -61,7 +65,9 @@ export async function POST(req: Request) {
         expectedChallenge,
         expectedOrigin: origin,
         expectedRPID: rpID,
-        requireUserVerification: false,
+        // 强制用户验证（生物/PIN）：false 会让被复制的软件仿真凭据直接通过
+        // 第一因子，passkey 退化为可拷贝的 bearer token
+        requireUserVerification: true,
         credential: {
           id: row.pk.credentialId,
           publicKey: new Uint8Array(Buffer.from(row.pk.publicKey, "base64url")),

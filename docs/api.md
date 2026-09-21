@@ -77,8 +77,8 @@
 | GET/POST /api/me/invites | 登录 | 邀请码列表/生成 |
 | GET/PUT /api/me/notifications | 登录 | 通知偏好读写 |
 | GET/POST /api/me/tokens · DELETE /api/me/tokens/[id] | 登录 | API 令牌管理（创建时返回明文一次） |
-| GET/POST /api/me/webhooks · PATCH/DELETE /api/me/webhooks/[id] | 登录 | Webhook CRUD |
-| POST /api/me/webhooks/[id]/test | 登录 | 发送测试投递 |
+| GET/POST /api/me/webhooks · PATCH/DELETE /api/me/webhooks/[id] | 登录 | Webhook CRUD（每用户 ≤20 端点、同址去重；创建/改址走 `webhook.manage` 限速桶；URL 仅 https，见 docs/product-features.md §9） |
+| POST /api/me/webhooks/[id]/test | 登录 | 发送测试投递（`webhook.test` 限速桶；异步入队，仅回 deliveryId，不回显目标响应） |
 
 ### Posts / Collections / Topics
 
@@ -140,7 +140,7 @@
 | GET /api/hot?range=day\|week\|month | 公开 | 热门榜分页（时间窗互动加权 + 新鲜度重力衰减） |
 | GET /api/feed.xml、/u/[username]/feed.xml、/sub/[subdomain]/feed.xml | 公开 | RSS（个人可关 rssEnabled） |
 | POST /api/markdown/preview | 登录 | Markdown 预览渲染（同一管线，防 XSS） |
-| GET /api/health | 公开 | 健康探针（无鉴权、无 DB） |
+| GET /api/health | 公开 | 健康探针（无鉴权）：仅 `{status: "ok"\|"degraded"}` + HTTP 200/503，细节见 /api/admin/health |
 
 ### Admin（/api/admin，RBAC 见 lib/permissions.ts）
 
@@ -156,6 +156,7 @@
 | GET /api/admin/users · PATCH /[id] | admin | 用户管理（角色/封禁/解封） |
 | GET/POST /api/admin/settings | admin | 站点设置（settings KV） |
 | GET /api/admin/ops | admin（admin.ops） | 运维快照：进程/DB 计数/队列深度/内容健康/存储（只读） |
+| GET /api/admin/health | admin（admin.ops） | 完整健康快照：version/db/worker/pid/uptime/limiter（Redis 驱动）/storage（原公开 /api/health 细节迁至此） |
 
 ## 4. MCP 端点与工具清单
 
@@ -181,7 +182,7 @@
 ## 5. 调用示例
 
 ```bash
-# ① 探活 & MCP 服务信息（无需鉴权）
+# ① 探活（最小响应 {"status":"ok"}；细节在鉴权端点 /api/admin/health）& MCP 服务信息（无需鉴权）
 curl -s http://localhost:3000/api/health
 curl -s http://localhost:3000/api/mcp
 

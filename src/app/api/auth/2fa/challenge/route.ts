@@ -26,6 +26,8 @@ export async function POST(req: Request) {
     await rateLimitBucket("auth.twofa", clientIp(req));
     const auth = await getAuth();
     if (!auth) throw unauthorized("请先登录 / Please sign in");
+    // 第二因子按账户限流：IP 桶挡不住代理池对单个 pending 会话的 TOTP 爆破
+    await rateLimitBucket("auth.twofa.account", auth.user.id);
     const body = await parseJsonBody(req, schema);
 
     let passed = false;

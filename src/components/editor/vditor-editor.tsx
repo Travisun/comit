@@ -121,12 +121,57 @@ export function VditorEditor({
     onSaveRef.current = onSave;
   });
 
+  // ---- 实例挂载助手（定义在 effect 之前，StrictMode 重挂路径可直接调用）----
+  const onKey = (e: KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      e.preventDefault();
+      e.stopPropagation();
+      onSaveRef.current?.();
+    }
+  };
+  const onBlur = () => {
+    // input 回调实时同步 valueRef，此处读它即可（与 vd.getValue() 等价）
+    const current = valueRef.current;
+    if (current !== value) {
+      valueRef.current = current;
+      onChangeRef.current(current ?? "");
+    }
+  };
+  const detach = () => {
+    const host = hostRef.current;
+    host?.removeEventListener("keydown", onKey, true);
+    host?.removeEventListener("blur", onBlur, true);
+  };
+  const createSlotAfterToolbar = () => {
+    if (afterToolbarSlotRef.current) return;
+    const toolbar = hostRef.current?.querySelector(".vditor-toolbar");
+    if (!toolbar) return;
+    const slot = document.createElement("div");
+    slot.className = "vditor-after-toolbar-slot";
+    toolbar.insertAdjacentElement("afterend", slot);
+    afterToolbarSlotRef.current = slot;
+    setAfterToolbarSlot(slot);
+  };
+  const attach = () => {
+    const host = hostRef.current;
+    if (!host) return;
+    host.addEventListener("keydown", onKey, true);
+    host.addEventListener("blur", onBlur, true);
+    createSlotAfterToolbar();
+    // 工具栏横向滚动会裁切 CSS 提示气泡 —— 用原生 title 提示替代
+    host
+      .querySelectorAll(".vditor-toolbar [aria-label]")
+      .forEach((el) => {
+        if (!el.getAttribute("title")) {
+          el.setAttribute("title", el.getAttribute("aria-label") ?? "");
+        }
+      });
+  };
+
   useEffect(() => {
     // StrictMode 双挂载：第二次挂载时首次的实例仍在（wasm 未就绪时不能
     // destroy）—— 只重挂监听与标题插槽，不再新建实例
     if (!hostRef.current || vditorRef.current) {
-      // StrictMode 双挂载：首次实例仍在（wasm 未就绪时不能 destroy）——
-      // 定义区在下方，这里仅置标记，函数声明提升后调用安全
       attach();
       return;
     }
@@ -213,53 +258,6 @@ export function VditorEditor({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- init once
   }, []);
-
-  // ---- 实例挂载助手（提升至 effect 外，StrictMode 重挂路径也可调用）----
-  const detach = () => {
-    const host = hostRef.current;
-    host?.removeEventListener("keydown", onKey, true);
-    host?.removeEventListener("blur", onBlur, true);
-  };
-  const createSlotAfterToolbar = () => {
-    if (afterToolbarSlotRef.current) return;
-    const toolbar = hostRef.current?.querySelector(".vditor-toolbar");
-    if (!toolbar) return;
-    const slot = document.createElement("div");
-    slot.className = "vditor-after-toolbar-slot";
-    toolbar.insertAdjacentElement("afterend", slot);
-    afterToolbarSlotRef.current = slot;
-    setAfterToolbarSlot(slot);
-  };
-  const attach = () => {
-    const host = hostRef.current;
-    if (!host) return;
-    host.addEventListener("keydown", onKey, true);
-    host.addEventListener("blur", onBlur, true);
-    createSlotAfterToolbar();
-    // 工具栏横向滚动会裁切 CSS 提示气泡 —— 用原生 title 提示替代
-    host
-      .querySelectorAll(".vditor-toolbar [aria-label]")
-      .forEach((el) => {
-        if (!el.getAttribute("title")) {
-          el.setAttribute("title", el.getAttribute("aria-label") ?? "");
-        }
-      });
-  };
-  const onKey = (e: KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
-      e.preventDefault();
-      e.stopPropagation();
-      onSaveRef.current?.();
-    }
-  };
-  const onBlur = () => {
-    // input 回调实时同步 valueRef，此处读它即可（与 vd.getValue() 等价）
-    const current = valueRef.current;
-    if (current !== value) {
-      valueRef.current = current;
-      onChangeRef.current(current ?? "");
-    }
-  };
 
   // 编程式句柄：标题回车聚焦正文、工具扩展插入内容
   useImperativeHandle(

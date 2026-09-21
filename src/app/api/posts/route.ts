@@ -8,7 +8,7 @@ import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
 import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
-import { processMentions, storeMentions } from "@/lib/mentions";
+import { processMentions } from "@/lib/mentions";
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import {

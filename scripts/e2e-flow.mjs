@@ -59,7 +59,9 @@ async function main() {
     'docker exec myblogs-postgres psql -U blog -d myblogs -c "delete from totp_secrets"',
     { stdio: "ignore" },
   );
-  const login = await api("POST", "/api/auth/login", { email: "alice@myblogs.local", password: "Admin123456" });
+  // 演示用户口令 = 种子时的 SEED_ADMIN_PASSWORD/ADMIN_PASSWORD（不再有默认弱口令）
+  const seedPw = process.env.SEED_ADMIN_PASSWORD ?? process.env.ADMIN_PASSWORD ?? "";
+  const login = await api("POST", "/api/auth/login", { email: "alice@myblogs.local", password: seedPw });
   assert(login.status === 200 && login.json?.status === "2fa_setup", "login → 2fa_setup", JSON.stringify(login.json));
 
   const setup = await api("POST", "/api/auth/2fa/setup");

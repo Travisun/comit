@@ -5,6 +5,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { postTopics, posts, topics } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth/session";
+import { flattenMentionTokens } from "@/lib/mentions";
 import { routes } from "@/core/routes";
 import { ArticleEditor, type EditorPost } from "@/components/editor/article-editor";
 
@@ -36,7 +37,9 @@ export default async function WriteEditPage({ params }: { params: Promise<{ id: 
   const initial: EditorPost = {
     id: post.id,
     title: post.title,
-    content: post.content,
+    // 库内存的是 @提及稳定引用；编辑器按作者书写形态（@用户名）预填，
+    // 保存时 processMentions 会重新落回稳定引用
+    content: await flattenMentionTokens(post.content),
     summary: post.summary,
     publicId: post.publicId,
     status: post.status as EditorPost["status"],

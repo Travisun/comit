@@ -44,11 +44,16 @@ export function assertSameOrigin(req: Request): void {
  * 站内 JSON 载荷（评论 ≤2000 字、设置项等）远低于 1MB。 */
 const JSON_BODY_MAX_BYTES = 1024 * 1024;
 
-export async function jsonBody<T>(req: Request): Promise<T> {
+/** 独立可复用的大小预检（不走 jsonBody 的路由如 /api/mcp 也须先过一遍）。 */
+export function assertJsonBodySize(req: Request): void {
   const len = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(len) && len > JSON_BODY_MAX_BYTES) {
     throw new AppError("请求体过大 / Payload too large", 413, "payload_too_large");
   }
+}
+
+export async function jsonBody<T>(req: Request): Promise<T> {
+  assertJsonBodySize(req);
   try {
     return (await req.json()) as T;
   } catch {

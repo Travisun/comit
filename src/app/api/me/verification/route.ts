@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ok, withUser } from "@/lib/http";
+import {ok, withUser, jsonBody} from "@/lib/http";
 import { VERIFICATION_TYPES, createVerificationRequestSchema } from "@/lib/verification";
 import {
   createVerificationRequest,
@@ -36,7 +36,7 @@ export async function GET(req: Request): Promise<Response> {
  */
 export async function POST(req: Request): Promise<Response> {
   return withUser(req, async ({ user }) => {
-    const body = parseOrThrow(createVerificationRequestSchema, await req.json().catch(() => ({})));
+    const body = parseOrThrow(createVerificationRequestSchema, await jsonBody(req).catch(() => ({})));
     const request = await createVerificationRequest(user.id, body);
     return ok({ request });
   });

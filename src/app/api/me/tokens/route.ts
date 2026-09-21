@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { unauthorized } from "@/core/errors";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { createApiToken, listApiTokens, TOKEN_SCOPES } from "@/lib/tokens";
 import { parseOrThrow } from "../_shared";
@@ -29,7 +29,7 @@ const postSchema = z.object({
 /** POST /api/me/tokens — create a token; the full token is shown exactly once. */
 export async function POST(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(postSchema, await req.json().catch(() => null));
+    const body = parseOrThrow(postSchema, await jsonBody(req).catch(() => null));
     const { id, token } = await createApiToken(auth.user.id, body.name, [...body.scopes]);
     return ok({ id, token, message: "令牌仅此一次完整显示 / Shown only once" });
   });

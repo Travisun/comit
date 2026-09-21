@@ -29,24 +29,41 @@ export async function startWorkers(): Promise<void> {
   // moderation.review / poll.end / export.build 三个任务已自包含到
   // 各扩展（ctx.jobs.work 注册，ext.job 通道统一消费）——见各自 server.ts。
   await queue.work("webhook.deliver", async (data) => {
-    const { signPayload } = await import("@/extensions/webhooks/server");
+    const {
+      AUTO_DISABLE_AFTER_CONSECUTIVE_FAILURES,
+      buildSignatureHeader,
+      isPermanentDeliveryError,
+      sanitizeDeliveryError,
+      signPayload,
+    } = await import("@/extensions/webhooks/server");
     const { webhooks } = await import("@/db/schema");
     const [hook] = await db.select().from(webhooks).where(eq(webhooks.id, data.webhookId)).limit(1);
     if (!hook || !hook.active) {
       await db
         .update(webhookDeliveries)
-        .set({ status: "failed", error: "webhook removed or disabled" })
+        .set({
+          status: "failed",
+          error: "webhook removed or disabled",
+          attempts: sql`${webhookDeliveries.attempts} + 1`,
+        })
         .where(eq(webhookDeliveries.id, data.deliveryId));
       return;
     }
     const timestamp = String(Math.floor(Date.now() / 1000));
+    // 签名覆盖 `timestamp.原始body`；body 用的正是同一串 payloadJson（不再二次序列化）
     const signature = signPayload(hook.secret, data.payloadJson, timestamp);
+    // 单次尝试的结果：failure=null 即投递成功。整段只写一次 deliveries / webhooks，
+    // 避免"先更新成功状态、再在 catch 里更新失败状态"造成 attempts 累加两次。
+    let responseCode: number | null = null;
+    let failure: unknown = null;
     try {
       // D5：出站调用统一走 http-client（超时/日志标准化；重试由队列层负责 → retries: 0）。
-      // URL 为用户可控 → 开启 SSRF 防护（DNS 校验私网/保留地址 + 手动跟随重定向逐跳复检）
+      // URL 为用户可控 → 开启 SSRF 防护：每跳一次 DNS 解析、逐地址拒绝私网/保留段，
+      // 并按已校验 IP pin 直连（连接阶段不再二次解析，rebinding 已闭环）；
+      // redirect 手动跟随、每跳重新解析校验；https-only 在 URL 创建/更新时强制。
       const res = await httpRequest(hook.url, {
         method: "POST",
-        timeoutMs: 15_000,
+        timeoutMs: 15_000, // 硬超时：黑洞/慢速接收端最多占住 worker 15s（连接+响应整体）
         retries: 0,
         ssrfGuard: true,
         label: "webhook.deliver",
@@ -54,27 +71,55 @@ export async function startWorkers(): Promise<void> {
           "Content-Type": "application/json",
           "User-Agent": "comit.sh-Webhook/1.0",
           "X-Comit-Timestamp": timestamp,
-          "X-Comit-Signature": `v1=${signature}`,
+          // t= 冗余进签名头：接收方只解析一个头也能拿到被签名覆盖的时间戳
+          "X-Comit-Signature": buildSignatureHeader(timestamp, signature),
           "X-Comit-Event": data.event,
         },
         body: data.payloadJson,
       });
-      await db
-        .update(webhookDeliveries)
-        .set({ status: res.ok ? "success" : "failed", responseCode: res.status, attempts: 1 })
-        .where(eq(webhookDeliveries.id, data.deliveryId));
-      await db
-        .update(webhooks)
-        .set({ lastStatus: res.status, lastDeliveryAt: new Date(), failCount: res.ok ? 0 : hook.failCount + 1 })
-        .where(eq(webhooks.id, hook.id));
-      if (!res.ok) throw new Error(`delivery HTTP ${res.status}`);
+      responseCode = res.status;
+      // 非 2xx 与抛错同等对待：都要重投（接收端 4xx/5xx 视为未送达）
+      if (!res.ok) failure = new Error(`delivery HTTP ${String(res.status)}`);
     } catch (err) {
-      await db
-        .update(webhookDeliveries)
-        .set({ status: "failed", error: String(err), attempts: 1 })
-        .where(eq(webhookDeliveries.id, data.deliveryId));
-      throw err; // retry via queue
+      failure = err;
     }
+
+    const delivered = failure === null;
+    // 出口错误统一脱敏 + 截断后才落库（下游错误页/内网解析细节不进运维面）
+    const errorText = delivered ? null : sanitizeDeliveryError(failure);
+    await db
+      .update(webhookDeliveries)
+      .set({
+        status: delivered ? "success" : "failed",
+        ...(responseCode !== null ? { responseCode } : {}),
+        ...(errorText !== null ? { error: errorText } : {}),
+        attempts: sql`${webhookDeliveries.attempts} + 1`, // 累加而非写死 1：重投次数必须可见
+      })
+      .where(eq(webhookDeliveries.id, data.deliveryId));
+    const failCount = delivered ? 0 : hook.failCount + 1;
+    // SSRF/出口策略拦截 = 永久性失败：同一规则下重投必然再被拦，白烧 worker 预算，
+    // 且反复解析同一内网目标会形成可被观察到的时序信号 → 停用端点、不再入队。
+    const permanent = !delivered && isPermanentDeliveryError(failure);
+    await db
+      .update(webhooks)
+      .set({
+        lastStatus: responseCode,
+        lastDeliveryAt: new Date(),
+        failCount,
+        // 自动停用：连续失败封顶后不再为该端点投递。缺这一步，一个永久 5xx 的
+        // 端点会随每次平台事件重新入队重试（队列与 webhook_deliveries 双向堆积），
+        // failCount 也只是个没有收敛动作的数字。成功一次即清零，故语义是"连续"。
+        ...(permanent || failCount >= AUTO_DISABLE_AFTER_CONSECUTIVE_FAILURES ? { active: false } : {}),
+      })
+      .where(eq(webhooks.id, hook.id));
+    if (permanent) {
+      console.warn(
+        `[webhook.deliver] blocked by egress policy, endpoint disabled (webhookId=${String(hook.id)}):`,
+        errorText,
+      );
+      return; // 不 rethrow → 队列不再重试
+    }
+    if (!delivered) throw failure; // retry via queue
   });
 
   // 队列化事件（ShouldQueue 语义）
@@ -110,6 +155,12 @@ export async function startWorkers(): Promise<void> {
     // 已不可能命中当前窗口（限流窗口最长为分钟级），批量删除防表无限增长
     const ratePurged = await purgeRateLimits();
     if (ratePurged > 0) console.log(`[cron:maintenance.retention] purged ${ratePurged} rows from rate_limits`);
+    // one_time_challenges（passkey challenge 一次性键，src/lib/auth/one-time.ts）：
+    // 过期未消费的键已不可能有效，清理防表无限增长
+    const oneTimePurged = await purgeOneTimeChallenges();
+    if (oneTimePurged > 0) {
+      console.log(`[cron:maintenance.retention] purged ${oneTimePurged} rows from one_time_challenges`);
+    }
   });
 
   console.log("[workers] queue workers registered");
@@ -173,6 +224,27 @@ async function purgeRateLimits(batchSize = 1000): Promise<number> {
       sql`DELETE FROM rate_limits WHERE key IN (
             SELECT key FROM rate_limits
             WHERE window_start < now() - interval '24 hours'
+            LIMIT ${batchSize}
+          ) RETURNING key`,
+    );
+    const deleted = res.rows.length;
+    total += deleted;
+    if (deleted < batchSize) break;
+  }
+  return total;
+}
+
+/**
+ * one_time_challenges 专用清理：主键是 key（无 id 列），批量删除 expires_at
+ * 已过期的行（一次性键 TTL 仅分钟级，过期即无效）。幂等。
+ */
+async function purgeOneTimeChallenges(batchSize = 1000): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const res = await db.execute(
+      sql`DELETE FROM one_time_challenges WHERE key IN (
+            SELECT key FROM one_time_challenges
+            WHERE expires_at < now()
             LIMIT ${batchSize}
           ) RETURNING key`,
     );

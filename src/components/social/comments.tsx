@@ -16,6 +16,7 @@ import { useI18n } from "@/lib/i18n/client";
 import { Avatar, AvatarFallback, AvatarImage, Skeleton } from "@/components/ui/primitives";
 import { cn, timeAgo } from "@/lib/utils";
 import { apiGet, deleteJson, isAuthError, mediaUrl, postJson } from "@/lib/client/api";
+import { findCommentEl } from "@/lib/client/comment-anchor";
 import { queryKeys } from "@/lib/query/keys";
 import { useApiMutation } from "@/lib/query/mutation";
 import {
@@ -69,6 +70,8 @@ export function Comments({
   const [viewerOverride, setViewerOverride] = useState<string | null>(null);
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // 评论区容器 ref：锚点查找限定在本 section 内（抗 DOM-clobbering，见 lib/client/comment-anchor）
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   // ---- 评论流：无限分页（TanStack Query 托管缓存与翻页状态） ----
   const commentsQ = useInfiniteQuery({
@@ -135,7 +138,9 @@ export function Comments({
   const focusAnchor = useCallback(() => {
     const m = window.location.hash.match(/^#comment-([A-Za-z0-9-]+)$/);
     if (!m) return;
-    const target = document.getElementById(`comment-${m[1]}`);
+    // 不用 document.getElementById：全局 id 查找可被页面上任何抢先渲染的同 id
+    // 元素劫持（DOM-clobbering）。data-comment-id 仅由本组件以服务端 UUID 渲染
+    const target = findCommentEl(m[1], sectionRef.current);
     if (!target) return;
     target.scrollIntoView({ block: "center", behavior: "smooth" });
     setHighlightId(m[1]);
@@ -317,6 +322,7 @@ export function Comments({
             <div
               key={c.id}
               id={`comment-${c.id}`}
+              data-comment-id={c.id}
               className={cn(
                 "relative flex gap-3 rounded-lg px-2 py-2 transition-colors scroll-mt-14",
                 highlightId === c.id && "bg-[var(--selected)] ring-1 ring-primary/25",
@@ -424,7 +430,7 @@ export function Comments({
   );
 
   return (
-    <section className="mt-6" aria-label={t("comments.title")}>
+    <section ref={sectionRef} className="mt-6" aria-label={t("comments.title")}>
       <h2 className="mb-3 flex items-center gap-2 text-sm font-normal text-foreground">
         <MessageCircle className="size-4" />
         {t("comments.title")}

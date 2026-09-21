@@ -4,11 +4,11 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { AppError, forbidden, unauthorized } from "@/core/errors";
 import { routes, absolute } from "@/core/routes";
-import { ok, withApi } from "@/lib/http";
+import {ok, withApi, jsonBody} from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getAuth } from "@/lib/auth/session";
 import { verifyPassword } from "@/lib/auth/password";
-import { issueAuthToken } from "@/lib/auth/guards";
+import { issueAuthToken, revokeAuthTokens } from "@/lib/auth/guards";
 import { renderMail, sendMail } from "@/lib/mail";
 import type { Locale } from "@/lib/i18n";
 import { parseOrThrow } from "../_shared";
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
       throw new AppError("邮箱已完成验证 / Email already verified", 400, "already_verified");
     }
     await rateLimitBucket("auth.email.resend", `user:${auth.user.id}`);
-    const body = parseOrThrow(postSchema, await req.json().catch(() => null));
+    const body = parseOrThrow(postSchema, await jsonBody(req).catch(() => null));
 
     const currentEmail = auth.user.email.toLowerCase();
     const target = body.newEmail ?? currentEmail;
@@ -71,6 +71,10 @@ export async function POST(req: Request) {
         .update(users)
         .set({ email: target, pendingEmail: null, updatedAt: new Date() })
         .where(eq(users.id, auth.user.id));
+      // 登录邮箱已变更：此前可能已按旧地址发到过 password_reset 链接
+      // （issueAuthToken 只吊销同类型残留），旧地址上的待决重置票据必须作废，
+      // 否则旧邮箱的收件人仍可重置这个已经换址的账户。
+      await revokeAuthTokens(auth.user.id, ["password_reset"]);
     }
 
     const token = await issueAuthToken(auth.user.id, "email_verify", 60 * 24);

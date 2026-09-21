@@ -1,7 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { extBadgeWear, extBadges, follows, users } from "@/db/schema";
-import { getWornBadgesByUsernames } from "@/extensions/badges/server";
 import { apiUser } from "@/lib/auth/guards";
 import { ok } from "@/lib/http";
 import { notFound } from "@/core/errors";

@@ -38,7 +38,7 @@ export async function GET(req: Request) {
       })),
       authenticatorSelection: {
         residentKey: "preferred",
-        userVerification: "preferred",
+        userVerification: "required",
       },
     });
 

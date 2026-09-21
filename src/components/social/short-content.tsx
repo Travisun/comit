@@ -20,7 +20,9 @@ interface ParagraphBlock {
 
 type Block = ImageBlock | ParagraphBlock;
 
-const IMAGE_LINE = /^!\[([^\]]*)\]\((\S+)\)$/;
+// 图片行仅接受 http(s) 或站内相对路径（非 // 协议相对）：与 markdown 管线
+// 的 src scheme 白名单一致，防 data:/其它 scheme 外链追踪
+const IMAGE_LINE = /^!\[([^\]]*)\]((?:https?:\/\/\S+|\/(?!\/)\S+))$/;
 
 const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g;
 

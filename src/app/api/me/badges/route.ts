@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { extBadgeGrants, extBadges, extBadgeWear } from "@/db/schema";
-import { ok, withUser } from "@/lib/http";
+import {ok, withUser, jsonBody} from "@/lib/http";
 import { getUserBadges, WEAR_LIMIT } from "@/extensions/badges/server";
 
 export const runtime = "nodejs";
@@ -22,7 +22,7 @@ const wearSchema = z.object({
 /** PUT /api/me/badges — 整体设置佩戴的徽章（≤ WEAR_LIMIT 枚，必须已获得）。 */
 export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
-    const parsed = wearSchema.safeParse(await req.json().catch(() => null));
+    const parsed = wearSchema.safeParse(await jsonBody(req).catch(() => null));
     if (!parsed.success) {
       return Response.json(
         { error: "参数错误 / Invalid payload", code: "bad_request" },

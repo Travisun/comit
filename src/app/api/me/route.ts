@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { db } from "@/db";
 import { media, users } from "@/db/schema";
 import { hooks } from "@/core/hooks";
-import { AppError, ok, withUser } from "@/lib/http";
+import {AppError, ok, withUser, jsonBody} from "@/lib/http";
 import { verifyPassword } from "@/lib/auth/password";
 import { destroyUserSessions } from "@/lib/auth/session";
 import { deleteMediaFile } from "@/lib/media";
@@ -28,7 +28,7 @@ const schema = z.object({
  */
 export async function DELETE(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(schema, await req.json().catch(() => null));
+    const body = parseOrThrow(schema, await jsonBody(req).catch(() => null));
 
     if (auth.user.passwordHash) {
       const okPw = body.password

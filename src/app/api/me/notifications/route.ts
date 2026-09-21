@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { unauthorized } from "@/core/errors";
-import { ok, withApi, withUser } from "@/lib/http";
+import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DEFAULT_CHANNELS } from "@/extensions/notifications/server";
 import { channels } from "@/extensions/_boot/server";
@@ -37,7 +37,7 @@ const bodySchema = z.object({
 /** PUT /api/me/notifications — replace the per-event channel preferences. */
 export async function PUT(req: Request) {
   return withUser(req, async (auth) => {
-    const body = parseOrThrow(bodySchema, await req.json().catch(() => null));
+    const body = parseOrThrow(bodySchema, await jsonBody(req).catch(() => null));
 
     const validChannels = new Set([...channels.keys()]);
     const prefs: Record<string, string[]> = {};

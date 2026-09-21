@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { comments, posts, reports } from "@/db/schema";
+import { comments, posts, reports, users } from "@/db/schema";
 import { ok, jsonBody } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
-import { AppError, notFound } from "@/core/errors";
+import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 import { banUser, warnUser } from "@/app/api/admin/users/_moderation";
@@ -158,6 +158,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       case "ban_author": {
         const authorId = await resolveAuthor(report.targetType, report.targetId);
         const days = body.banDays ?? null;
+        // 权限对称闸口：admin.moderate 含 editor，但「永久封禁」与「封禁管理
+        // 成员」在 /api/admin/users/[id] 是 admin-only —— 工作台不得成为绕过
+        // 该门槛的旁路（被钓鱼的 editor 账号不能永久删除任意用户/管理员）
+        if (days === null || (await isStaffUser(authorId))) {
+          if (user.role !== "admin") {
+            throw forbidden("永久封禁或封禁管理成员仅限管理员 / Only admins may permanently ban or ban staff");
+          }
+        }
         await banUser({ adminId: user.id, userId: authorId, days, reason: body.reason! });
         await markResolved();
         await logAdmin(
@@ -187,6 +195,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
   });
+}
+
+/** 目标是管理成员（admin/非普通角色）？举报工作台的封禁权限对称闸口用。 */
+async function isStaffUser(userId: string): Promise<boolean> {
+  const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+  return !!u && u.role !== "user";
 }
 
 /** Resolve the "author" of a reported object: post/comment author, or the reported user. */
