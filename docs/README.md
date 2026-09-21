@@ -9,6 +9,7 @@
 | 文档 | 内容 | 状态 |
 | --- | --- | --- |
 | [brand.md](./brand.md) | 品牌手册：comit.sh 命名与四处语源叙事、语调规范、文案 do/don't、色彩 #f6821f 与排版引用关系 | ✅ |
+| [positioning.md](./positioning.md) | 定位策划案：竞争格局与占位、平台故事三幕、四类人群、社区文化五条、氛围设定、文案示例库与落地清单 | ✅ |
 | [architecture.md](./architecture.md) | 总体架构：分层、请求生命周期、领域事件、插件扩展点、目录结构 | ✅ |
 | [concurrency.md](./concurrency.md) | 并发与扩容设计：cluster 模型、关键参数公式、压测方法 | ✅ |
 | [operations.md](./operations.md) | 部署与运维：环境变量全表、迁移、备份、日志、监控、FAQ | ✅ |
