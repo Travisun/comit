@@ -8,8 +8,8 @@ import { settings } from "@/db/schema";
  */
 export const SETTINGS_DEFAULTS = {
   "site.name": "comit.sh",
-  "site.tagline": "Commit your ideas. — 为极客、设计师与科学家打造的个人品牌社区",
-  "site.description": "comit.sh — 记录科研日志、技术学习、研究发布与项目动态的个人品牌社交网络。",
+  "site.tagline": "Commit your ideas. — 技术人的个人主页",
+  "site.description": "comit.sh — 技术人的个人主页：长文与动态，住在同一条时间线。",
   /** SEO 关键词（逗号/中文逗号分隔），进 <meta name=keywords> 与根 OG 页 */
   "site.keywords": "" as string,
   /** 默认分享图（OG / twitter:card 大图）：站内媒体相对路径或完整 https URL */

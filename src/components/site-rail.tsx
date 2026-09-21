@@ -132,7 +132,7 @@ export function SiteRail({
       <section className="rounded-lg border border-border p-3">
         <h2 className="text-sm font-normal">{siteName} 是什么</h2>
         <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
-          极客 · 设计师 · 科学家 · CS 学子的个人品牌社区 —— 记录科研日志、技术学习、研究发布与项目动态。
+          技术人的个人主页 —— 长文与动态住在同一条时间线，记录科研日志、学习笔记、研究发布与项目动态。
         </p>
         {stats && (
           <p className="num mt-1.5 text-xs text-muted-foreground">

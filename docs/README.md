@@ -2,7 +2,7 @@
 
 > 最后更新：2026-09-21
 
-介于个人博客与社区之间的多用户写作平台（品牌名 comit.sh，品牌手册见 [brand.md](./brand.md)）。技术栈：Next.js 16（App Router）+ React 19 + TypeScript strict + Tailwind v4 + Drizzle/PostgreSQL + pg-boss。
+技术人的个人主页社区（品牌名 comit.sh）：长文与动态，住在同一条时间线，开源可自建。品牌手册见 [brand.md](./brand.md)，定位策划案见 [positioning.md](./positioning.md)。技术栈：Next.js 16（App Router）+ React 19 + TypeScript strict + Tailwind v4 + Drizzle/PostgreSQL + pg-boss。
 
 ## 目录
 

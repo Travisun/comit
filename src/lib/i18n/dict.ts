@@ -29,7 +29,7 @@ export const zh = {
 
   "home.hero.title": "记录你的每一次思考、想法、灵感",
   "home.hero.subtitle":
-    "comit.sh 是为技术极客、设计师、科学家与领域学子打造的个人主页社交网络：科研日志、学习笔记、研究发布与项目动态，都从这里开始。",
+    "comit.sh 是技术人的个人主页：长文与动态，住在同一条时间线。科研日志、学习笔记、研究发布与项目动态，都从这里开始。",
   "home.hero.cta": "写下你的第一个想法",
   "home.hero.ctaSecondary": "进入时间线",
   "home.latest": "最新内容",
@@ -395,7 +395,7 @@ export const zh = {
   "about.link": "关于",
   "about.hero.title": "Commit your ideas.",
   "about.hero.subtitle":
-    "comit.sh 是为极客、设计师、科学家与领域学子打造的个人主页社交网络。名字里的 COMIT，来自技术世界最古老的仪式之一。",
+    "comit.sh 是技术人的个人主页。名字里的 COMIT，来自技术世界最古老的仪式之一。",
   "about.origins.title": "为什么叫 comit",
   "about.origin.comit.tag": "1956 · 编程语言",
   "about.origin.comit.title": "COMIT，MIT，1956",
@@ -459,7 +459,7 @@ export type DictKey = keyof Dict;
 export const en: Record<DictKey, string> = {
   "app.name": "comit.sh",
   "app.tagline": "Commit your ideas.",
-  "app.slogan": "The social home for hackers, designers & scientists",
+  "app.slogan": "The personal homepage community for hackers, designers, scientists & students",
 
   "nav.home": "Home",
   "nav.feed": "Feed",
@@ -479,7 +479,7 @@ export const en: Record<DictKey, string> = {
 
   "home.hero.title": "Commit your ideas",
   "home.hero.subtitle":
-    "comit.sh is the social home for hackers, designers, scientists and students — research logs, learning notes, releases and project updates, all start here.",
+    "comit.sh is the personal homepage for hackers, designers, scientists and students — long reads and short posts on one timeline. Research logs, learning notes, releases and project updates all start here.",
   "home.hero.cta": "Write your first idea",
   "home.hero.ctaSecondary": "Open the timeline",
   "home.latest": "Latest",
@@ -857,7 +857,7 @@ export const en: Record<DictKey, string> = {
   "about.link": "About",
   "about.hero.title": "Commit your ideas.",
   "about.hero.subtitle":
-    "comit.sh is the social home for hackers, designers, scientists and students. The COMIT in its name comes from one of the oldest rituals in computing.",
+    "comit.sh is the personal homepage for hackers, designers, scientists and students. The COMIT in its name comes from one of the oldest rituals in computing.",
   "about.origins.title": "Why \"comit\"",
   "about.origin.comit.tag": "1956 · Programming language",
   "about.origin.comit.title": "COMIT, MIT, 1956",
