@@ -155,20 +155,9 @@ export async function getPublishedPosts(
   const offset = Math.max(opts.offset ?? 0, 0);
   const type = opts.type ?? (opts.excludeShort ? "article" : undefined);
 
-  // 先发后审的自见语义：登录作者的信息流里包含自己的 待审/未通过 内容
-  // （带状态标签仅自己可见），其他用户只见 已发布+公开
-  const viewerId = opts.viewerId ?? null;
-  const conds = [
-    viewerId
-      ? or(
-          and(eq(posts.status, "published"), eq(posts.visibility, "public")),
-          and(
-            eq(posts.authorId, viewerId),
-            inArray(posts.status, ["pending_review", "rejected"]),
-          ),
-        )!
-    : and(eq(posts.status, "published"), eq(posts.visibility, "public")),
-  ];
+  // 信息流只呈现「已发布 + 公开」，对作者本人也不例外：审核中的内容不再以
+  // 自见卡片的形式出现在 UI 里（通过即出现，未通过由通知与 /write/posts 承接）
+  const conds = [and(eq(posts.status, "published"), eq(posts.visibility, "public"))];
   if (opts.authorId) conds.push(eq(posts.authorId, opts.authorId));
   // 关注流：只看自己关注的作者（无关注则返回空流）
   if (opts.followingOf) {
@@ -278,23 +267,18 @@ export type { CommentActivityRow };
  * 个人主页「动态」时间线：短帖 + 该用户的评论，按时间全局倒序合并分页。
  * 先用 UNION 子查询取出本页 (kind, id)，再分批取详情（复用 FeedItem 行），
  * 保证跨两种内容的全局分页正确。
- * includeOwnPending（本人视角）：附带 pending_review / rejected 的自见内容。
+ * isSelf（本人视角）：额外包含自己设为「仅自己可见」的内容；审核状态不出现在
+ * 时间线里 —— 未通过审核的内容由通知与 /write/posts 管理列表承接。
  */
 export async function getProfileActivity(opts: {
   userId: string;
-  includeOwnPending?: boolean;
+  isSelf?: boolean;
   limit?: number;
   offset?: number;
 }): Promise<{ items: ProfileActivityItem[]; nextOffset: number | null }> {
   const limit = Math.min(Math.max(opts.limit ?? 12, 1), 50);
   const offset = Math.max(opts.offset ?? 0, 0);
-  const selfView = Boolean(opts.includeOwnPending);
-  const postStatus = selfView
-    ? sql`in ('published', 'pending_review', 'rejected')`
-    : sql`= 'published'`;
-  const commentStatus = selfView
-    ? sql`in ('visible', 'pending_review', 'rejected')`
-    : sql`= 'visible'`;
+  const selfView = Boolean(opts.isSelf);
 
   const idRes = await db.execute<{ kind: "short" | "comment"; id: string }>(sql`
     select u.kind, u.id from (
@@ -302,14 +286,14 @@ export async function getProfileActivity(opts: {
         from posts p
        where p.author_id = ${opts.userId}
          and p.type = 'short'
-         and p.status ${postStatus}
+         and p.status = 'published'
          and p.visibility ${selfView ? sql`in ('public', 'private')` : sql`= 'public'`}
       union all
       select 'comment'::text as kind, c.id as id, c.created_at as at
         from comments c
         join posts p2 on p2.id = c.post_id
        where c.user_id = ${opts.userId}
-         and c.status ${commentStatus}
+         and c.status = 'visible'
          and c.visibility ${selfView ? sql`in ('public', 'private')` : sql`= 'public'`}
          and p2.status = 'published'
          and p2.visibility = 'public'

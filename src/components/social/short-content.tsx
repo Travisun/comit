@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { InlineText } from "@/components/social/inline-text";
 
 /**
  * Deliberately tiny renderer for short-post content: paragraphs, line breaks
@@ -23,35 +23,6 @@ type Block = ImageBlock | ParagraphBlock;
 // 图片行仅接受 http(s) 或站内相对路径（非 // 协议相对）：与 markdown 管线
 // 的 src scheme 白名单一致，防 data:/其它 scheme 外链追踪
 const IMAGE_LINE = /^!\[([^\]]*)\]((?:https?:\/\/\S+|\/(?!\/)\S+))$/;
-
-const MD_LINK = /\[([^\]]+)\]\((https?:\/\/[^\s)]+|\/[^\s)]*)\)/g;
-
-/** 段落文本内的 markdown 链接渲染为可点击超链接（其余保持纯文本 + 换行）。 */
-function renderLine(text: string, keyBase: string): React.ReactNode[] {
-  const nodes: React.ReactNode[] = [];
-  let last = 0;
-  for (const m of text.matchAll(MD_LINK)) {
-    const idx = m.index ?? 0;
-    if (idx > last) nodes.push(text.slice(last, idx));
-    const [, label, href] = m;
-    if (href.startsWith("/")) {
-      nodes.push(
-        <Link key={`${keyBase}-l-${idx}`} href={href} className="text-link hover:underline">
-          {label}
-        </Link>,
-      );
-    } else {
-      nodes.push(
-        <a key={`${keyBase}-l-${idx}`} href={href} target="_blank" rel="nofollow noopener noreferrer" className="text-link hover:underline">
-          {label}
-        </a>,
-      );
-    }
-    last = idx + m[0].length;
-  }
-  if (last < text.length) nodes.push(text.slice(last));
-  return nodes;
-}
 
 export function parseShortContent(content: string): Block[] {
   const blocks: Block[] = [];
@@ -96,7 +67,7 @@ export function ShortContent({ content, className }: { content: string; classNam
           />
         ) : (
           <p key={i} className="whitespace-pre-wrap break-words">
-            {renderLine(b.text, String(i))}
+            <InlineText text={b.text} />
           </p>
         ),
       )}

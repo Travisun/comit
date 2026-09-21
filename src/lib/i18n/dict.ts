@@ -179,7 +179,6 @@ export const zh = {
   "post.publishedIn": "发布于合集",
   "post.prevNext": "更多内容",
   "post.rejected": "未通过审核",
-  "post.pendingReview": "审核中",
   "post.draft": "草稿",
 
   "comments.title": "评论",
@@ -634,7 +633,6 @@ export const en: Record<DictKey, string> = {
   "post.publishedIn": "In collection",
   "post.prevNext": "More",
   "post.rejected": "Rejected by review",
-  "post.pendingReview": "Under review",
   "post.draft": "Draft",
 
   "comments.title": "Comments",

@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import slugify from "slugify";
+import { mentionSyntaxToPlainText } from "@/lib/mention-syntax";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -23,7 +24,10 @@ export function formatBytes(bytes: number): string {
 
 /** Strip markdown syntax down to plain text (for excerpts / search / LLM). */
 export function markdownToPlain(md: string): string {
-  return md
+  // 先用同源正则拉平 @提及语法：昵称无字符集校验（varchar 80，可自带 `]`），
+  // 下面的通用 `\[([^\]]*)\]` 链接规则对这种昵称根本匹配不上，会把
+  // `](mention:345e…)` 半截漏进摘要/通知/搜索 —— 那正是本函数要消灭的形态。
+  return mentionSyntaxToPlainText(md)
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`([^`]*)`/g, "$1")
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")

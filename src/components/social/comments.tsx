@@ -233,22 +233,25 @@ export function Comments({
       silent: true,
       refresh: false, // 评论区全量走查询缓存，无需 RSC 重验
       onSuccess: (created) => {
-        queryClient.setQueryData<InfiniteData<CommentsPage>>(
-          queryKeys.comments(postId),
-          (prev) =>
-            prev
-              ? {
-                  ...prev,
-                  pages: prev.pages.map((p, i) =>
-                    i === 0 ? { ...p, items: [created, ...p.items] } : p,
-                  ),
-                }
-              : prev,
-        );
-        // 审核模式下 pending 评论不计入公开计数（与后端 commentCount 推迟自增一致）
-        if (created.status !== "pending_review") setCount((c) => c + 1);
+        // 审核中的评论不并入本地楼层（与 GET 出口一致：pending 一律不返回，
+        // 过审后才出现），也不计入公开计数（后端 commentCount 推迟自增）；
+        // 未通过由通知告知，UI 不挂「审核中 · 仅自己可见」
         if (created.status === "pending_review") {
-          toast.success("评论已发布");
+          toast.success("评论已提交");
+        } else {
+          queryClient.setQueryData<InfiniteData<CommentsPage>>(
+            queryKeys.comments(postId),
+            (prev) =>
+              prev
+                ? {
+                    ...prev,
+                    pages: prev.pages.map((p, i) =>
+                      i === 0 ? { ...p, items: [created, ...p.items] } : p,
+                    ),
+                  }
+                : prev,
+          );
+          setCount((c) => c + 1);
         }
         setReplyTo(null);
         setViewerOverride((v) => v ?? "signed-in");

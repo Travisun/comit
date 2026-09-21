@@ -2,7 +2,7 @@ import { count, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, posts, users } from "@/db/schema";
 import { ok } from "@/lib/http"
-import { expandMentionTokens } from "@/lib/mentions";
+import { mentionTokensToPlainText } from "@/lib/mentions";
 import { withPermission } from "@/lib/permissions";
 import { truncate } from "@/lib/utils";
 import { pagination } from "@/app/api/admin/_shared";
@@ -37,9 +37,10 @@ export async function GET(req: Request) {
     ]);
 
     return ok({
-      // 预览为纯文本直出：先展开 @提及稳定引用，再截断
+      // 预览为纯文本直出：mention 语法先拉平成 @昵称（带最新昵称）再截断，
+      // 否则表格漏链接语法、截点还可能落在语法中间
       items: await Promise.all(
-        items.map(async (c) => ({ ...c, body: truncate(await expandMentionTokens(c.body), 100) })),
+        items.map(async (c) => ({ ...c, body: truncate(await mentionTokensToPlainText(c.body), 100) })),
       ),
       total,
     });

@@ -508,7 +508,7 @@ async function PostsTab({
 }
 
 /** 动态 tab — 短帖 + 该用户发表的全部评论，按时间全局合并；评论行可直达
- * 原帖楼层并标注来源帖 / 回复对象。本人视角附带审核中/未通过的自见内容。 */
+ * 原帖楼层并标注来源帖 / 回复对象。本人视角额外附带自己「仅自己可见」的私密内容。 */
 async function ShortsTab({
   user,
   page,
@@ -524,7 +524,7 @@ async function ShortsTab({
 }) {
   const { items, nextOffset } = await getProfileActivity({
     userId: user.id,
-    includeOwnPending: Boolean(isSelf),
+    isSelf: Boolean(isSelf),
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
   });
@@ -543,13 +543,7 @@ async function ShortsTab({
             rowHref
             menu={Boolean(viewerUsername)}
             badge={
-              it.post.status === "pending_review"
-                ? { text: "审核中" }
-                : it.post.status === "rejected"
-                  ? { text: "未通过审核", tone: "destructive" }
-                  : it.post.visibility === "private"
-                    ? { text: "仅自己可见" }
-                    : undefined
+              it.post.visibility === "private" ? { text: "仅自己可见" } : undefined
             }
           />
         ) : (

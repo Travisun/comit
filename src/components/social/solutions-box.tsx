@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BadgeCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/primitives";
+import { InlineText } from "@/components/social/inline-text";
 import { apiGet, mediaUrl } from "@/lib/client/api";
 import { findCommentEl } from "@/lib/client/comment-anchor";
 import { queryKeys } from "@/lib/query/keys";
@@ -15,10 +16,11 @@ import { commentsPageSchema } from "@/lib/models/comments";
  * 摘要，点击跳转到对应楼层锚点（#comment-{id}，由评论区 focusAnchor 定位）。
  */
 
-/** 轻量 markdown 摘录（与评论区摘要口径一致：去图片取前 80 字） */
-function excerpt(md: string, max = 80): string {
-  const text = md.replace(/!\[[^\]]*\]\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+/** 评论体归一为摘要文本：去图片与多余空白；链接语法（含 @提及展开态）保留，
+ *  由 InlineText 成链 —— 先截断后拉平会把 `[@x](/u/` 半截漏成字面量，故长度
+ *  裁剪交给 InlineText 的按段截断。 */
+function excerpt(md: string): string {
+  return md.replace(/!\[[^\]]*\]\([^)]*\)/g, " ").replace(/\s+/g, " ").trim();
 }
 
 export function SolutionsBox({ postId, disabled }: { postId: string; disabled?: boolean }) {
@@ -43,10 +45,16 @@ export function SolutionsBox({ postId, disabled }: { postId: string; disabled?: 
       </div>
       <div className="space-y-1">
         {items.map((sc) => (
-          <button
+          // role=button 而非 <button>：摘要里可能内嵌 @提及链接，button 的
+          // 内容模型不允许交互后代（与时间线行 TimelineRow 同一处理方式）
+          <div
             key={sc.id}
-            type="button"
-            onClick={() => {
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              // 行内 @提及链接的点击不该再触发楼层跳转（同 TimelineRow 的守卫）
+              const target = e.target instanceof Element ? e.target : null;
+              if (target?.closest("a,button,input")) return;
               // 抗 DOM-clobbering：data-comment-id 属性选择器替代全局 getElementById
               const el = findCommentEl(sc.id);
               if (el) {
@@ -55,6 +63,10 @@ export function SolutionsBox({ postId, disabled }: { postId: string; disabled?: 
               } else {
                 toast.info("该评论在列表后段，请向下翻页查看");
               }
+            }}
+            onKeyDown={(e) => {
+              const target = e.target instanceof Element ? e.target : null;
+              if (e.key === "Enter" && !target?.closest("a,button,input")) e.currentTarget.click();
             }}
             className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-[var(--hover)]"
           >
@@ -66,10 +78,12 @@ export function SolutionsBox({ postId, disabled }: { postId: string; disabled?: 
             </Avatar>
             <span className="min-w-0 flex-1 truncate text-xs text-foreground/90">
               <span className="font-medium">{sc.user.displayName}</span>
-              <span className="text-muted-foreground">：{excerpt(sc.body)}</span>
+              <span className="text-muted-foreground">
+                ：<InlineText text={excerpt(sc.body)} max={80} />
+              </span>
             </span>
             <BadgeCheck className="size-3.5 shrink-0 text-emerald-600" aria-hidden />
-          </button>
+          </div>
         ))}
       </div>
     </div>

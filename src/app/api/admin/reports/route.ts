@@ -2,6 +2,7 @@ import { and, count, desc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { comments, posts, reports, users } from "@/db/schema";
 import { ok } from "@/lib/http";
+import { mentionTokensToPlainText } from "@/lib/mentions";
 import { withPermission } from "@/lib/permissions";
 import { pagination } from "@/app/api/admin/_shared";
 import { makeExcerpt, truncate } from "@/lib/utils";
@@ -135,16 +136,18 @@ export async function GET(req: Request) {
             .innerJoin(posts, eq(posts.id, comments.postId))
             .innerJoin(users, eq(users.id, comments.userId))
             .where(inArray(comments.id, commentIds))
-            .then((rs) =>
-              rs.forEach((r) =>
+            .then(async (rs) => {
+              // 工作台预览是纯文本槽位：mention 语法先拉平成 @昵称（带最新昵称）
+              // 再交给 truncate，否则引用语法字面量直入审阅者眼前
+              for (const r of rs) {
                 commentMap.set(r.id, {
                   postId: r.postId,
-                  body: r.body,
+                  body: await mentionTokensToPlainText(r.body),
                   postTitle: r.postTitle,
                   username: r.username,
-                }),
-              ),
-            )
+                });
+              }
+            })
         : Promise.resolve(),
       userIds.length
         ? db

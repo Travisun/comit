@@ -245,7 +245,7 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
       }
       // submit → published directly (reviewMode=off) or queued for review
       setPublishOpen(false);
-      toast.success(data.status === "published" ? t("editor.publish") : t("post.pendingReview"));
+      toast.success(t("editor.publish"));
       router.push(routes.home);
     } catch {
       toast.error(t("common.error"));
@@ -304,10 +304,8 @@ export function ArticleEditor({ initial }: { initial?: EditorPost | null }) {
             >
               <ArrowLeft className="size-4" />
             </button>
-            {status !== "draft" && (
-              <Badge variant={isPublished ? "success" : "warning"}>
-                {isPublished ? t("editor.publish") : t("post.pendingReview")}
-              </Badge>
+            {isPublished && (
+              <Badge variant="success">{t("editor.publish")}</Badge>
             )}
             {status === "rejected" && initial?.rejectReason && (
               <span className="truncate text-xs text-destructive">

@@ -81,7 +81,9 @@ Markdown 管线：unified（remark/rehype）+ `rehype-sanitize` 白名单净化�
 提交(post:submitted) → 关键词扫描（block=直接拒 / warn=标记）
    → reviewMode=llm：OpenAI 兼容接口打分（失败按 llmFailMode open/closed 放行或拦截）
    → 需人工：进入 pending_review 队列 → 管理员批准/驳回（附理由）
-全程痕迹写入 posts.moderation；结果事件（approved/rejected）驱动通知与 Webhook。
+全程痕迹写入 posts.moderation；结果事件（approved/rejected）驱动 Webhook，通知只在未通过时打扰作者。
+作者视角的信息流/时间线不呈现审核中与未通过的内容（通过即自然出现），
+状态与驳回原因由详情页顶部横幅和 /write/posts 管理列表承接。
 ```
 
 关键词黑名单后台可管理（支持批量导入），LLM 提示词/模型/温度后台可配并可测试连通性。

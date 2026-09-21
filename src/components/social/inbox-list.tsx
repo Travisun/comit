@@ -17,6 +17,7 @@ import {
   notificationSchema,
   allowedUserSchema,
 } from "@/lib/models/messages";
+import { mentionSyntaxToPlainText } from "@/lib/mention-syntax";
 
 /**
  * 聊天式左栏 — 纯会话列表（消息发送者视角）：
@@ -77,7 +78,7 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
           displayName: c.displayName,
           avatarPath: c.avatarPath,
           preview: c.lastMessage
-            ? `${c.lastMessage.mine ? (zh ? "我: " : "You: ") : ""}${c.lastMessage.body}`
+            ? `${c.lastMessage.mine ? (zh ? "我: " : "You: ") : ""}${mentionSyntaxToPlainText(c.lastMessage.body)}`
             : `@${c.username}`,
           time: c.lastMessage?.createdAt ?? null,
           unread: c.unread,
@@ -201,8 +202,9 @@ export function InboxList({ selectedUserId }: { selectedUserId?: string }) {
                   </span>
                   <span className="mt-0.5 flex items-center justify-between gap-2">
                     <span className="truncate text-xs text-muted-foreground">
+                      {/* 预览是纯文本槽位：mention 语法（含修复前落库的历史行）拉平为 @昵称 */}
                       {latestNotif
-                        ? latestNotif.body || latestNotif.title
+                        ? mentionSyntaxToPlainText(latestNotif.body || latestNotif.title)
                         : zh
                           ? "官方系统通知"
                           : "Official system notices"}

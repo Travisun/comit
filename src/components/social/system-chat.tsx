@@ -15,6 +15,7 @@ import { queryKeys } from "@/lib/query/keys";
 import { useApiMutation } from "@/lib/query/mutation";
 import { useRealtime } from "@/lib/client/realtime";
 import { notificationSchema, type NotificationItem } from "@/lib/models/messages";
+import { mentionSyntaxToPlainText } from "@/lib/mention-syntax";
 
 /**
  * System 会话（右侧聊天窗）：系统通知抽象为「System 官方账号」发来的私信 —
@@ -210,9 +211,13 @@ export function SystemChat() {
                     n.url && "cursor-pointer transition-colors hover:bg-[var(--selected)]",
                   )}
                 >
+                  {/* 历史通知行仍带 mention 引用语法（写入端修复前落的库）：
+                      展示前拉平为 @昵称，气泡里绝不漏语法字面量 */}
                   <p className="font-medium text-foreground">{n.title}</p>
                   {n.body && (
-                    <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90">{n.body}</p>
+                    <p className="mt-0.5 whitespace-pre-wrap break-words text-foreground/90">
+                      {mentionSyntaxToPlainText(n.body)}
+                    </p>
                   )}
                   <p className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
                     <time dateTime={n.createdAt}>{timeAgo(n.createdAt, locale)}</time>

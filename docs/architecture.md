@@ -117,7 +117,7 @@ pg-boss（同一 PG，pgboss.job 表）→ 各 worker 竞争消费（instrumenta
 | --- | --- | --- |
 | `post:submitted` | postId/needReview | moderation 插件（入审核流水线/`moderation.review` 队列） |
 | `post:published` | postId/slug/title/type | notifications（粉丝订阅）、webhooks |
-| `post:approved` / `post:rejected` | postId/reason | notifications（作者）、webhooks |
+| `post:approved` / `post:rejected` | postId/reason | notifications（仅 rejected 通知作者；通过不通知）、webhooks |
 | `post:liked` / `post:reposted` | actor/author | notifications、webhooks |
 | `comment:created` | postId/replyTo/excerpt | notifications（作者+被回复人）、webhooks |
 | `comment:liked` | commentId/actor | notifications |

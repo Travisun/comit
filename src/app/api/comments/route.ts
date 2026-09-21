@@ -2,20 +2,19 @@ import { z } from "zod";
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { mentions, comments, likes, posts, users } from "@/db/schema";
+import { comments, likes, posts, users } from "@/db/schema";
 import { AppError, forbidden, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { hooks } from "@/core/hooks";
 import { jsonBody, ok, withApi, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
-import { processMentions } from "@/lib/mentions";
+import { expandMentionTokens, processMentions, rebuildMentions } from "@/lib/mentions";
 import { apiUser } from "@/lib/auth/guards";
 import { assertNotBlocked } from "@/lib/users";
 import { getSetting } from "@/lib/settings";
 import { makeExcerpt } from "@/lib/utils";
 import { confiscateBannedUser } from "@/lib/banned";
 import { getWornBadgesByUsernames } from "@/extensions/badges/server";
-import { expandMentionTokens } from "@/lib/mentions";
 
 const createSchema = z.object({
   postId: z.uuid(),
@@ -83,6 +82,11 @@ export async function POST(req: Request) {
       }
       replyToUserId = parent.userId;
       replyToUsername = parent.username;
+      // 回复目标是第三个用户：楼上是 A、被回复人是 B 时，只校验 A 会让 B 拉黑后
+      // 仍被陌生人直接 @回复并收到通知 —— 可触达互动必须对双方都成立。
+      if (parent.userId !== row.post.authorId) {
+        await assertNotBlocked(me.id, parent.userId);
+      }
     }
 
     // @提及：解析并重写为稳定引用语法（渲染端按 userId 同步最新昵称）
@@ -128,19 +132,7 @@ export async function POST(req: Request) {
           .set({ commentCount: sql`${posts.commentCount} + 1` })
           .where(eq(posts.id, postId));
       }
-      if (mentionCtx.mentionedUserIds.length) {
-        await tx
-          .insert(mentions)
-          .values(
-            mentionCtx.mentionedUserIds.map((uid: string) => ({
-              userId: uid,
-              authorId: me.id,
-              targetType: "comment" as const,
-              targetId: created.id,
-            })),
-          )
-          .onConflictDoNothing();
-      }
+      await rebuildMentions(tx, "comment", row.id, me.id, mentionCtx.mentionedUserIds);
       return row;
     });
 
@@ -271,12 +263,12 @@ export async function GET(req: Request) {
     }
 
     const replyUsers = alias(users, "reply_users");
-    // 可见性合并：他人只见 公开+visible；作者自见自己的全部状态
-    // （pending_review / rejected / private 均保留）
+    // 可见性合并：他人只见 公开+visible；作者额外自见自己的私密楼层，
+    // 但审核中/未通过的评论一律不进楼层（失败由通知承接）
     const statusCond = viewer
-      ? or(
-          and(eq(comments.status, "visible"), eq(comments.visibility, "public")),
-          eq(comments.userId, viewer.user.id),
+      ? and(
+          eq(comments.status, "visible"),
+          or(eq(comments.visibility, "public"), eq(comments.userId, viewer.user.id)),
         )
       : and(eq(comments.status, "visible"), eq(comments.visibility, "public"));
     const conditions = [eq(comments.postId, postId), statusCond];

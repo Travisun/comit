@@ -1,16 +1,18 @@
-import { and, eq , inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, posts, users, comments } from "@/db/schema";
 import { getSetting } from "@/lib/settings";
 import { renderMail } from "@/lib/mail";
 import { renderSystemMail, renderTemplate } from "@/lib/mail-templates";
 import { sendOperationNotification } from "@/lib/operation-notify";
-import { flushMentionNotifications } from "@/lib/mentions";
+import { flushMentionNotifications, mentionTokensToPlainText } from "@/lib/mentions";
+import { mentionSyntaxToPlainText } from "@/lib/mention-syntax";
 import { channels, registerChannel, type NotificationChannel, type NotificationMessage, type Plugin, type PluginContext } from "@/core/plugins/types";
 import { routes } from "@/core/routes";
 import { broadcast } from "@/core/capabilities/broadcast";
 import type { Locale } from "@/lib/i18n";
 import { setNotificationDispatcher } from "@/core/capabilities/jobs";
+import { claimDelivery } from "@/core/delivery-ledger";
 import { DEFAULT_NOTIFICATION_CHANNELS } from "@/components/settings/types";
 
 /**
@@ -111,7 +113,9 @@ const mailChannel: NotificationChannel = {
     }
 
     const actorName = String(message.payload?.actorName ?? "");
-    const excerpt = message.body?.zh ?? message.title.zh;
+    // 邮件正文没有 markdown 渲染器：mention 语法（未展开引用 / 已展开链接）一律
+    // 拉平为 @昵称，否则收件人看到 `[武林高萝卜](mention:345e…)` 字面量
+    const excerpt = mentionSyntaxToPlainText(message.body?.zh ?? message.title.zh);
     const url = message.url ?? "";
     const tpl = key.startsWith("comment.")
       ? "commentReply"
@@ -233,7 +237,6 @@ const plugin: Plugin = {
     ctx.events.on("post:reposted", (p) => void notifyPostReposted(p));
     ctx.events.on("comment:liked", (p) => void notifyCommentLiked(p));
     ctx.events.on("comment:solved", (p) => void notifyCommentSolved(p));
-    ctx.events.on("post:approved", (p) => void notifyPostApproved(p));
     ctx.events.on("post:rejected", (p) => void notifyPostRejected(p));
     ctx.events.on("comment:removed", (p) => void notifyCommentRemoved(p));
     ctx.events.on("report:resolved", (p) => void notifyReportResolved(p));
@@ -275,7 +278,9 @@ const plugin: Plugin = {
       })().catch((err) => console.error("[notify] mention flush failed:", err));
     });
     // 首次登录欢迎（System 官方账号消息）：auth:login 每次成功登录触发，
-    // 按 notifications.key = welcome 幂等去重，只有第一条会真正落库
+    // 按 notifications.key = welcome 幂等去重，只有第一条会真正落库。
+    // 计数查询与发送之间有并发窗口（同账号多标签同时登录 / 登录请求重放），
+    // 故再用投递台账认领一次：认领是 INSERT…ON CONFLICT，两个并发只有一个放行。
     ctx.events.on("auth:login", (p) => {
       void (async () => {
         const [existing] = await db
@@ -284,6 +289,7 @@ const plugin: Plugin = {
           .where(and(eq(notifications.userId, p.userId), eq(notifications.key, "welcome")))
           .limit(1);
         if (existing) return;
+        if (!(await claimDelivery(`welcome:${p.userId}`))) return;
         await sendOperationNotification(p.userId, {
           key: "welcome",
           title: {
@@ -386,12 +392,15 @@ async function notifyCommentLiked(p: {
       .limit(1);
     if (!row) return;
     const actorName = await actorNameOf(p.actorId);
+    // 通知正文是纯文本直出：先按 userId 展成最新昵称再拉平为 @昵称，
+    // 截断必须在拉平之后（否则会把引用语法切半截漏出来）
+    const quoted = truncateText(await mentionTokensToPlainText(row.body), 80);
     await deliver(p.commentAuthorId, {
       key: "comment.liked",
       title: { zh: "你的评论收到喜欢", en: "Your comment received a like" },
       body: {
-        zh: `${actorName} 喜欢了你的评论：${truncateText(row.body, 80)}`,
-        en: `${actorName} liked your comment: ${truncateText(row.body, 80)}`,
+        zh: `${actorName} 喜欢了你的评论：${quoted}`,
+        en: `${actorName} liked your comment: ${quoted}`,
       },
       url: `${routes.post(row.publicId)}#comment-${p.commentId}`,
       actorId: p.actorId,
@@ -419,12 +428,13 @@ async function notifyCommentSolved(p: {
       .limit(1);
     if (!row) return;
     const actorName = await actorNameOf(p.postAuthorId);
+    const quoted = truncateText(await mentionTokensToPlainText(row.body), 80);
     await deliver(p.commentAuthorId, {
       key: "comment.solved",
       title: { zh: "你的评论被标记为解决方案", en: "Your comment was marked as the solution" },
       body: {
-        zh: `${actorName} 将你的评论标记为解决方案：${truncateText(row.body, 80)}`,
-        en: `${actorName} marked your comment as the solution: ${truncateText(row.body, 80)}`,
+        zh: `${actorName} 将你的评论标记为解决方案：${quoted}`,
+        en: `${actorName} marked your comment as the solution: ${quoted}`,
       },
       url: `${routes.post(row.publicId)}#comment-${p.commentId}`,
       actorId: p.postAuthorId,
@@ -435,31 +445,11 @@ async function notifyCommentSolved(p: {
   }
 }
 
-/** 人工过审（管理端 approve）：通知作者已发布。 */
-async function notifyPostApproved(p: { postId: string; authorId: string; moderatorId?: string }): Promise<void> {
-  try {
-    const [post] = await db
-      .select({ publicId: posts.publicId, title: posts.title })
-      .from(posts)
-      .where(eq(posts.id, p.postId))
-      .limit(1);
-    if (!post) return;
-    await deliver(p.authorId, {
-      key: "moderation.approved",
-      title: { zh: "审核通过", en: "Approved" },
-      body: {
-        zh: `你的内容「${post.title ?? "（无标题）"}」已通过人工审核并发布。`,
-        en: `"${post.title ?? "Untitled"}" has passed manual review and is now published.`,
-      },
-      url: routes.post(post.publicId),
-      payload: { postId: p.postId, approved: true },
-    });
-  } catch (err) {
-    console.error("[notify] post:approved listener failed:", err);
-  }
-}
-
-/** 内容被驳回（人工驳回 / 举报处置）：通知作者并附原因。 */
+/**
+ * 内容被驳回（人工驳回 / 举报处置）：通知作者并附原因。
+ * 产品语义「审核通过不通知、只有未通过才打扰作者」——过审发布走
+ * `post:approved` 事件（供 webhook），不发站内/邮件通知（见 notifyModerationCompleted）。
+ */
 async function notifyPostRejected(p: {
   postId: string;
   authorId: string;
@@ -624,7 +614,8 @@ async function notifyReportResolved(p: {
   }
 }
 
-/** 通知正文截断（纯文本，无 markdown 处理，够用即可）。 */
+/** 通知正文截断（纯文本，无 markdown 处理，够用即可）；mention 语法由调用方
+ *  先拉平（mentionTokensToPlainText），截点才不会落在引用语法中间。 */
 function truncateText(text: string, max: number): string {
   const t = text.replace(/\s+/g, " ").trim();
   return t.length > max ? `${t.slice(0, max)}…` : t;

@@ -11,15 +11,17 @@ import { useConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const STATUS_LABEL: Record<string, string> = {
   draft: "草稿",
-  pending_review: "审核中",
   rejected: "被驳回",
   deleted: "回收站",
 };
 
 /**
- * Author preview banner for non-published posts (draft / pending review /
- * rejected / recycle bin). Renders the state label plus context-appropriate
- * quick actions: continue editing, or restore / purge from the recycle bin.
+ * Author preview banner for non-published posts (draft / rejected / recycle
+ * bin). Renders the state label plus context-appropriate quick actions:
+ * continue editing, or restore / purge from the recycle bin.
+ *
+ * `pending_review` deliberately renders nothing: 审核中 is not a state the
+ * author is shown anywhere (通过即出现在信息流，未通过另有通知与驳回原因).
  */
 export function PreviewBanner({
   postId,
@@ -58,7 +60,7 @@ export function PreviewBanner({
   );
   const busy = quickMutation.pending;
   const confirm = useConfirmDialog();
-  if (status === "published") return null;
+  if (status === "published" || status === "pending_review") return null;
 
   const deleted = status === "deleted";
   const label = STATUS_LABEL[status] ?? status;
@@ -80,9 +82,9 @@ export function PreviewBanner({
       {status === "rejected" && rejectReason && (
         <span className="truncate text-destructive">驳回原因:{rejectReason}</span>
       )}
-      <span>
-        {deleted ? "此内容在回收站中，仅自己可见" : "此内容尚未发布，仅自己可见"}
-      </span>
+      {status !== "rejected" && (
+        <span>{deleted ? "此内容在回收站中，仅自己可见" : "草稿仅自己可见"}</span>
+      )}
       <span className="ml-auto flex items-center gap-3">
         {deleted ? (
           <>

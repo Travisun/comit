@@ -4,6 +4,7 @@ import { comments, keywords, posts, type Comment, type Post } from "@/db/schema"
 import { getSetting } from "@/lib/settings";
 import { emit } from "@/core/events";
 import { makeExcerpt, markdownToPlain } from "@/lib/utils";
+import { mentionTokensToPlainText } from "@/lib/mentions";
 import {
   llmAvailable,
   llmChat,
@@ -362,7 +363,11 @@ export async function reviewComment(comment: Comment): Promise<CommentReviewOutc
   let llm: LlmReviewResult | null = null;
 
   if (reviewMode === "llm" && !warned) {
-    llm = await llmReview(comment.body.slice(0, 8000));
+    // 与帖子同口径：喂给模型的永远是拉平后的纯文本（mention 引用语法会把它
+    // 稀释成一串 uuid，既干扰判定也白烧 token）
+    llm = await llmReview(
+      markdownToPlain(await mentionTokensToPlainText(comment.body)).slice(0, 8000),
+    );
     if (!llm) {
       if (failMode === "closed") {
         await finishComment(comment, "pending_review", keywordHits, llm, "LLM 审核暂时不可用", "llm");

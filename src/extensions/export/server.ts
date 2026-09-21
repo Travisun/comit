@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { posts, exportJobs, users, postTopics, topics, collections, media } from "@/db/schema";
 import { readMediaFile } from "@/lib/media";
 import { asStorageTag, type StorageTag } from "@/lib/storage";
+import { expandMentionTokens } from "@/lib/mentions";
 import { config } from "@/core/config";
 import type { Plugin } from "@/core/plugins/types";
 
@@ -94,7 +95,9 @@ async function buildExport(userId: string, requestId: string): Promise<void> {
     for (const m of contentImagePaths(post.content)) mediaRefs.add(m);
 
     const mediaDir = path.join(dir, "media");
-    let body = post.content;
+    // 导出物是 markdown（归档后可再导入）：mention 稳定引用展成合法链接
+    // `[@昵称](/u/用户名)`，而不是漏出 `@[x](mention:id)` 这种内部语法
+    let body = await expandMentionTokens(post.content);
     for (const rel of mediaRefs) {
       const local = await copyMedia(rel, mediaDir);
       body = body.replaceAll(`/api/media/file/${rel}`, local).replaceAll(rel, local);

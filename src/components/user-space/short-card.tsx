@@ -7,12 +7,16 @@ import { postHref } from "./post-href";
 import { RowActionsMenu } from "./row-actions-menu";
 import { FeedRowAfterSlot } from "@/extensions/_boot/client";
 import { Badge } from "@/components/ui/primitives";
+import { InlineText } from "@/components/social/inline-text";
 import type { FeedItemDTO } from "./types";
 
 /**
  * Short-post ("动态") timeline row: author line + full text (markdown stripped
  * to paragraphs) + inline image thumbnails + action strip. Flat row style —
  * 1px bottom border, hover tint, no card chrome.
+ *
+ * 正文由 DAL 出口展开过 @提及（`[@昵称](/u/用户名)`），故必须经 InlineText 成链：
+ * 直接当文本渲染会把链接语法漏给用户。
  */
 
 function extractImages(md: string): { text: string; images: string[] } {
@@ -34,7 +38,7 @@ function ShortBody({ content }: { content: string }) {
     <div className="reading-serif space-y-2 text-[15px] leading-relaxed">
       {paragraphs.map((p, i) => (
         <p key={i} className="whitespace-pre-wrap break-words">
-          {p}
+          <InlineText text={p} />
         </p>
       ))}
       {images.length > 0 && (
@@ -84,7 +88,7 @@ export function ShortCard({
   rowHref?: boolean;
   /** render the「···」quick-actions menu (home/following feeds) */
   menu?: boolean;
-  /** 附带状态徽标（如本人视角的「审核中 / 未通过审核」） */
+  /** 附带状态徽标（如本人视角的「仅自己可见」隐私标记） */
   badge?: { text: string; tone?: "default" | "destructive" };
 }) {
   const href = postHref(post);
@@ -99,16 +103,6 @@ export function ShortCard({
         </div>
       )}
       <TimelineAuthorLine post={post} author={author} href={href} showLabel={showLabel} />
-      {post.status === "pending_review" && (
-        <span className="mb-1 inline-flex items-center gap-1 self-start rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium text-amber-600">
-          审核中 · 仅自己可见
-        </span>
-      )}
-      {post.status === "rejected" && (
-        <span className="mb-1 inline-flex items-center gap-1 self-start rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive">
-          未通过审核 · 仅自己可见
-        </span>
-      )}
       {badge && (
         <Badge variant={badge.tone === "destructive" ? "destructive" : "secondary"} className="mt-0.5">
           {badge.text}

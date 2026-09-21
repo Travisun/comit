@@ -10,6 +10,7 @@ import { emit } from "@/core/events";
 import { AppError } from "@/core/errors";
 import { escapeLikePattern, makeExcerpt, slugifyTitle } from "@/lib/utils";
 import { preSubmitCheck } from "@/lib/moderation";
+import { mentionTokensToPlainText } from "@/lib/mentions";
 import { getInteractablePost } from "@/lib/interactions";
 import { deleteMediaFile } from "@/lib/media";
 import { asStorageTag } from "@/lib/storage";
@@ -236,7 +237,9 @@ export const TOOLS: McpToolDef[] = [
         type: row.post.type,
         title: row.post.title,
         publicId: row.post.publicId,
-        content: row.post.content,
+        // mention 稳定引用对 agent 无意义（且回写时 processMentions 会重新命中）：
+        // 输出可读 @昵称，不把引用语法字面量交给调用方
+        content: await mentionTokensToPlainText(row.post.content),
         status: row.post.status,
         author: { username: row.author.username, displayName: row.author.displayName },
       };
@@ -604,7 +607,12 @@ export const TOOLS: McpToolDef[] = [
         )
         .orderBy(desc(comments.createdAt))
         .limit(limit);
-      return { comments: rows };
+      // 评论体同 get_post：mention 语法拉平为可读 @昵称
+      return {
+        comments: await Promise.all(
+          rows.map(async (r) => ({ ...r, body: await mentionTokensToPlainText(r.body) })),
+        ),
+      };
     },
   ),
   tool(

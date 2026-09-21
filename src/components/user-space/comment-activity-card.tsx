@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Heart, Lock, MessageCircle } from "lucide-react";
 import { routes } from "@/core/routes";
-import { timeAgo } from "@/lib/utils";
-import { Badge } from "@/components/ui/primitives";
+import { timeAgo, truncate } from "@/lib/utils";
+import { InlineText } from "@/components/social/inline-text";
 import { TimelineRow } from "./article-card";
 import { CommentMenu } from "@/components/social/comment-menu";
 import type { CommentActivityRow, UserBrief } from "./types";
@@ -17,18 +17,22 @@ import type { CommentActivityRow, UserBrief } from "./types";
  * manage=true（本人视角）时右上角挂「···」菜单：可见性切换 / 删除。
  */
 
-/** 轻量 markdown 摘录：去掉图片/链接语法，保留可读文本 */
-function excerpt(md: string, max = 280): string {
-  const text = md
+/** 轻量 markdown 归一：图片/代码/引用/强调语法去掉，链接语法保留给 InlineText
+ *  成链（正文已由 DAL 出口展开 @提及，先截断会把链接语法切半截）。 */
+function flattenMarkdown(md: string): string {
+  return md
     .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // 图片
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // 链接 → 文本
     .replace(/(```[\s\S]*?```|`[^`]*`)/g, " ") // 代码块/行内代码
     .replace(/^>\s?/gm, "") // 引用符
     .replace(/[*_~]{1,3}([^*_~]+)[*_~]{1,3}/g, "$1") // 加粗/斜体/删除线
     .replace(/^#{1,6}\s+/gm, "") // 标题符
     .replace(/\s+/g, " ")
     .trim();
-  return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/** 来源帖摘要（库里已是纯文本摘要）：无链接语法，直接截断即可 */
+function excerpt(md: string, max: number): string {
+  return truncate(flattenMarkdown(md), max);
 }
 
 function sourceLabel(c: CommentActivityRow): string {
@@ -53,8 +57,6 @@ export function CommentActivityCard({
   const router = useRouter();
   const href = `${routes.post(comment.postPublicId)}#comment-${comment.id}`;
   const date = new Date(comment.createdAt);
-  const pending = comment.status === "pending_review";
-  const rejected = comment.status === "rejected";
   const private_ = comment.visibility === "private";
 
   return (
@@ -80,16 +82,6 @@ export function CommentActivityCard({
         <time dateTime={date.toISOString()} className="text-muted-foreground">
           {timeAgo(date, "zh")}
         </time>
-        {pending && (
-          <Badge variant="secondary" className="ml-0.5 shrink-0">
-            审核中
-          </Badge>
-        )}
-        {rejected && (
-          <Badge variant="destructive" className="ml-0.5 shrink-0">
-            未通过审核
-          </Badge>
-        )}
         {private_ && (
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-[var(--muted)] px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
             <Lock className="size-2.5" aria-hidden /> 仅自己可见
@@ -116,7 +108,7 @@ export function CommentActivityCard({
       </div>
 
       <p className="reading-serif mt-1 line-clamp-4 whitespace-pre-wrap break-words text-[15px] leading-relaxed">
-        {excerpt(comment.body)}
+        <InlineText text={flattenMarkdown(comment.body)} max={280} />
       </p>
 
       <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
