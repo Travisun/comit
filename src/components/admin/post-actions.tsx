@@ -175,13 +175,19 @@ export function PostRowActions({ post }: { post: PostLike }) {
           <DropdownMenuItem disabled={post.status === "rejected"} onSelect={() => setRejectOpen(true)}>
             <X /> 驳回…
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
-            onSelect={() => setDeleteOpen(true)}
-          >
-            <Trash2 /> 删除…
-          </DropdownMenuItem>
+          {/* 彻底删除仅对回收站中的文章开放（服务端同款前置：status='deleted'，
+              且权限 admin.posts.purge 仅 admin）—— 不在回收站时不显示死按钮 */}
+          {post.status === "deleted" && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onSelect={() => setDeleteOpen(true)}
+              >
+                <Trash2 /> 彻底删除…
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

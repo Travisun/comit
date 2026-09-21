@@ -36,6 +36,12 @@ export async function GET(req: NextRequest) {
     //    合法长会话，其重放窗口由 CF 自己签的 exp 界定。
     const profile = await verifyCfAccessJwt(jwt, headerJwt ? { maxIatAgeSec: 60 } : {});
     if (!profile) return NextResponse.redirect(loginError);
+    // 按外部身份再限一次：cookie 分支的重放窗口由 CF 自己签的 exp 界定（不做
+    // jti 单次消费 —— Access 会在同一 CF 会话内的每次回调重发同一枚 cookie，
+    // 单次消费会把合法登录也一起拒掉；而能偷到该 cookie 的人本来也已通过边缘）。
+    // 因此这里补的是「换 IP 轮换重放」这一维：按身份计数，10 次/小时后即便拿到
+    // 有效断言也无法反复 mint 会话。
+    await rateLimitBucket("auth.federated.account", `cfaccess:${profile.email.toLowerCase()}`);
 
     const { user } = await findOrCreateFederatedUser(profile);
     await createSession(user.id, {

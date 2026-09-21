@@ -180,18 +180,54 @@ const DANGEROUS_STYLE_PROPS = new Set([
  *  视口单位（配合尺寸类属性可撑满全屏）。要求数字前缀避免误伤字体名等。 */
 const DANGEROUS_STYLE_VALUE = /url\s*\(|expression\s*\(|\d(?:\.\d+)?\s*(?:vh|vw|vmin|vmax)\b/i;
 
+/** var()/env() 是「值的间接引用」：声明的字面文本与浏览器最终解析出的值不同，
+ *  任何基于字面文本的黑名单在它面前都会失效（`color:var(--a)` 展开成 `--a` 的
+ *  真实内容）。内联 style 没有合法用途需要它（shiki 输出的是字面色值），一律拒。 */
+const STYLE_INDIRECTION = /var\s*\(|env\s*\(/i;
+
+/**
+ * 解码 CSS 转义序列（`positio\6e` ⇒ `position`、`\66 ixed` ⇒ `fixed`）。
+ * 浏览器在解析声明块**之后**才解标识符转义，因此属性/值黑名单必须在解码后的
+ * 文本上匹配，否则 `\` 十六进制转义可逐条绕过字面匹配。只用于判定，输出仍保留
+ * 原文（两者对浏览器等价）。
+ */
+function decodeCssEscapes(input: string): string {
+  return input.replace(/\\([0-9a-fA-F]{1,6})[ \t\r\n\f]?|\\([^\n\r])/g, (whole, hex, ch) => {
+    if (hex) {
+      const cp = parseInt(hex, 16);
+      // 0 与超范围码点在 CSS 中是替换字符 U+FFFD；此处宁可还原成不可识别文本
+      // 也不能残留反斜杠形态（那正是绕过用的形状）
+      if (!Number.isFinite(cp) || cp <= 0 || cp > 0x10ffff) return "\uFFFD";
+      try {
+        return String.fromCodePoint(cp);
+      } catch {
+        return "\uFFFD";
+      }
+    }
+    return ch;
+  });
+}
+
 export function rehypeTightenStyles() {
-  // 严格白名单（pre/code 之外）：仅保留颜色/字重子集
+  /** 解码转义后拆出 [属性名, 值]；不可解析（无冒号/冒号在首位）⇒ null。 */
+  const parseDecl = (decl: string): [prop: string, value: string] | null => {
+    if (decl.indexOf(":") <= 0) return null;
+    const view = decodeCssEscapes(decl);
+    const i = view.indexOf(":");
+    if (i <= 0) return null;
+    return [view.slice(0, i).trim().toLowerCase(), view.slice(i + 1)];
+  };
+  const valueSafe = (value: string): boolean =>
+    !DANGEROUS_STYLE_VALUE.test(value) && !STYLE_INDIRECTION.test(value);
+  // 严格白名单（pre/code 之外）：仅保留颜色/字重子集，白名单属性同样要过值
+  // 层面黑名单（url()/var() 一律丢弃）
   const strictStyle = (style: string): string =>
     style
       .split(";")
       .map((decl) => decl.trim())
       .filter((decl) => {
-        const i = decl.indexOf(":");
-        if (i <= 0) return false;
-        // 双保险：即使白名单误放行，含 url()/expression() 的声明一律丢弃
-        if (/url\s*\(|expression\s*\(/i.test(decl)) return false;
-        return SAFE_STYLE_PROPS.has(decl.slice(0, i).trim().toLowerCase());
+        const parsed = parseDecl(decl);
+        return !!parsed && SAFE_STYLE_PROPS.has(parsed[0]) && valueSafe(parsed[1]);
       })
       .join("; ");
   // pre/code 子树：属性白名单放宽（保留 --shiki-* 自定义属性、display 等
@@ -201,13 +237,15 @@ export function rehypeTightenStyles() {
       .split(";")
       .map((decl) => decl.trim())
       .filter((decl) => {
-        const i = decl.indexOf(":");
-        if (i <= 0) return false;
-        const prop = decl.slice(0, i).trim().toLowerCase();
-        if (prop.startsWith("--")) return true; // CSS 自定义属性（如 shiki 的 --shiki-*）
-        if (DANGEROUS_STYLE_PROPS.has(prop)) return false;
-        if (DANGEROUS_STYLE_VALUE.test(decl)) return false;
-        return true;
+        const parsed = parseDecl(decl);
+        if (!parsed) return false;
+        const [prop, value] = parsed;
+        // 值检查先于属性白名单：自定义属性（--shiki-*）同样要挡下 url()/var()，
+        // 后代 `var(--a)` 会把 `--a` 的字面值展开成真实声明，值黑名单只对展开
+        // 结果生效的话就太晚了 —— 必须在写入前拦住
+        if (!valueSafe(value)) return false;
+        if (prop.startsWith("--")) return true;
+        return !DANGEROUS_STYLE_PROPS.has(prop);
       })
       .join("; ");
   return (tree: Root) => {

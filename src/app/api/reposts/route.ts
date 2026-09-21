@@ -7,6 +7,7 @@ import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getInteractablePost } from "@/lib/interactions";
+import { assertNotBlocked } from "@/lib/users";
 
 const bodySchema = z.object({
   postId: z.uuid(),
@@ -35,21 +36,22 @@ export async function POST(req: Request) {
     };
     const post = await getInteractablePost(postId, me, { allowExisting: existingRepost });
 
-    // 转发不可撤销（产品语义）：已存在直接幂等返回，不再支持 delete 取消
-    const [existing] = await db
-      .select({ id: reposts.id })
-      .from(reposts)
-      .where(and(eq(reposts.userId, me), eq(reposts.postId, postId)))
-      .limit(1);
-
-    const isNew = !existing;
-    if (isNew) {
-      // insert now, or it already exists from a concurrent repost — either way: reposted
-      await db
-        .insert(reposts)
-        .values({ userId: me, postId, comment: comment ?? null })
-        .onConflictDoNothing();
+    // 拉黑关系双向拒绝：转发会给作者推通知，属「可触达」互动。已转发过的直接放行
+    // 给下面的幂等分支（否则历史转发会在作者拉黑后被 403 卡在原地，连状态都读不回）。
+    if (post.authorId !== me && !(await existingRepost())) {
+      await assertNotBlocked(post.authorId, me);
     }
+
+    // 转发不可撤销（产品语义）：已存在直接幂等返回，不再支持 delete 取消。
+    // 「是否新转发」由插入结果判定（RETURNING 有行 ⇒ 本次真正插入成功）：用插入
+    // 前的 select 推导时，两个并发请求都看不到对方的行，会各发一次 post:reposted
+    // ⇒ 作者收到重复通知。
+    const inserted = await db
+      .insert(reposts)
+      .values({ userId: me, postId, comment: comment ?? null })
+      .onConflictDoNothing()
+      .returning({ id: reposts.id });
+    const isNew = inserted.length > 0;
 
     // 单条原子 SQL：UPDATE … SET repost_count = (SELECT COUNT(*) …)，
     // 消除 select→update 读改写竞态；RETURNING 取回最新计数。

@@ -22,8 +22,21 @@ export const TOKEN_SCOPES = [
  * resolveApiToken 的候选行；20 个对个人 agent 场景足够宽裕。 */
 const MAX_ACTIVE_TOKENS_PER_USER = 20;
 
-export async function createApiToken(userId: string, name: string, scopes: string[]) {
-  const [existing] = await db
+/**
+ * 在 `withAdvisoryLock("api-token:<userId>")` 的事务内调用。
+ *
+ * WHY：count-then-insert 的配额判定在 cluster 模式（多 worker 共用一个 PG）下
+ * 没有并发隔离 —— 两个请求同时数到 19 就能各自插入，把 20 的上限翻倍，而
+ * token 数直接决定 resolveApiToken 的候选行与按 token 的限流键基数。故把
+ * 「数 + 插」收敛到同一事务 + 同一把用户级 advisory 锁，且两次读写都走 tx。
+ */
+export async function createApiToken(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+  name: string,
+  scopes: string[],
+) {
+  const [existing] = await tx
     .select({ n: count() })
     .from(apiTokens)
     .where(and(eq(apiTokens.userId, userId), isNull(apiTokens.revokedAt)));
@@ -37,7 +50,7 @@ export async function createApiToken(userId: string, name: string, scopes: strin
   const secret = randomToken(24);
   const prefix = randomToken(6).slice(0, 6);
   const token = `mbt_${prefix}_${secret}`;
-  const [row] = await db
+  const [row] = await tx
     .insert(apiTokens)
     .values({
       userId,

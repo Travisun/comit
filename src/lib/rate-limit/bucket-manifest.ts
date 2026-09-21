@@ -72,6 +72,13 @@ export const RATE_BUCKETS = [
     en: "Federated sign-in callbacks: OAuth, Discourse SSO, CF Access (per IP)",
   },
   {
+    name: "auth.federated.account",
+    limit: 10,
+    windowSec: 3600,
+    zh: "第三方登录成功次数（按外部身份）—— 换 IP 重放同一断言/票据时按 IP 的桶不计数，需按身份兜底",
+    en: "Successful federated sign-ins (per external identity) — IP rotation defeats the per-IP bucket",
+  },
+  {
     name: "auth.login.account",
     limit: 10,
     windowSec: 900,
@@ -86,6 +93,13 @@ export const RATE_BUCKETS = [
     en: "Passkey registration/authentication (per IP)",
   },
   { name: "write.post", limit: 10, windowSec: 3600, zh: "发文章/短动态（按用户）", en: "Post creation (per user)" },
+  {
+    name: "write.post.edit",
+    limit: 30,
+    windowSec: 60,
+    zh: "编辑已有内容（按用户）—— 已发布内容每次保存都要重回审核管线，无上限即可刷爆审核队列与钩子开销",
+    en: "Post editing (per user) — published edits re-enter the review pipeline",
+  },
   { name: "write.comment", limit: 30, windowSec: 60, zh: "发评论（按用户）", en: "Comment creation (per user)" },
   { name: "write.upload", limit: 20, windowSec: 60, zh: "图片上传（按用户）", en: "Media upload (per user)" },
   { name: "message.send", limit: 30, windowSec: 60, zh: "发私信（按用户）", en: "Direct message send (per user)" },
@@ -125,6 +139,20 @@ export const RATE_BUCKETS = [
     windowSec: 3600,
     zh: "创建数据导出任务（按用户）",
     en: "Export job creation (per user)",
+  },
+  {
+    name: "token.create",
+    limit: 10,
+    windowSec: 3600,
+    zh: "签发 API 令牌（按用户）—— 令牌是绕过会话体系的长期 bearer 凭证，签发频率必须受限",
+    en: "API token issuance (per user) — long-lived bearer credentials outside the session system",
+  },
+  {
+    name: "invite.create",
+    limit: 10,
+    windowSec: 3600,
+    zh: "生成邀请码（按用户）—— 邀请制站点的准入通道，配额之外再限速以防反复撤销/重发",
+    en: "Invite code generation (per user)",
   },
   {
     name: "webhook.manage",

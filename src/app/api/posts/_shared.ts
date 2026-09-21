@@ -1,7 +1,8 @@
+import { randomBytes } from "crypto";
 import { z } from "zod";
 import { and, eq, inArray, ne } from "drizzle-orm";
 import { db } from "@/db";
-import { collections, postTopics, posts, topics, type Post } from "@/db/schema";
+import { collections, media, postTopics, posts, topics, type Post } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { makeExcerpt, slugifyTitle } from "@/lib/utils";
@@ -127,11 +128,15 @@ export async function topicNamesOf(postId: string): Promise<string[]> {
 export function normalizeSlug(name: string): string {
   const s = slugifyTitle(name);
   const fallback = name.trim().toLowerCase().replace(/\s+/g, "-").slice(0, 100);
-  const out = (s.startsWith("post-") && !name.match(/^[a-z0-9]/i) ? fallback : s).replace(
-    /[^a-z0-9\u4e00-\u9fff-]/gi,
-    "",
-  );
-  return out || fallback || `t-${Date.now().toString(36)}`;
+  // 白名单必须作用在最终输出上：旧实现在过滤结果为空时直接返回未经过滤的 fallback
+  // （`|| fallback` 分支），于是感叹号、引号、问号、井号、百分号等字符可以进入 slug；
+  // 合集与话题 slug 会被拼进 URL 和 data-slug 属性，等于把未过滤文本送进链接。
+  const out = (s.startsWith("post-") && !name.match(/^[a-z0-9]/i) ? fallback : s)
+    .replace(/[^a-z0-9\u4e00-\u9fff-]/gi, "")
+    .slice(0, 120);
+  // 纯符号名（过滤后为空）改用 CSPRNG 后缀而非可预测的时间戳：后者会让两个用户同时
+  // 创建同名符号合集时算出同一 slug，onConflictDoNothing 之后静默命中别人的记录。
+  return out || `c-${randomBytes(4).toString("hex")}`;
 }
 
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -172,6 +177,26 @@ export async function assertCollectionOwned(collectionId: string, userId: string
     .where(and(eq(collections.id, collectionId), eq(collections.userId, userId)))
     .limit(1);
   if (!row) throw notFound("合集不存在 / Collection not found");
+}
+
+/**
+ * 校验媒体路径属于该用户（上传时按用户落 media 表）。
+ *
+ * WHY：帖子封面与短动态图集的 path 完全由调用方提供，而媒体对象是**按 key 直读**
+ * 的 —— 没有归属判定，任何登录用户都能把别人上传过的 object key 挂到自己的内容上
+ * （他人未公开的图片因此可被公开引用/读取），也能填入 `//evil.example/x` 这类外部
+ * 地址，让每个访客的浏览器去攻击者的服务器取图（IP/UA 外泄 + 追踪像素）。
+ */
+export async function assertOwnedMedia(userId: string, paths: string[]): Promise<void> {
+  const uniq = [...new Set(paths)];
+  if (uniq.length === 0) return;
+  const owned = await db
+    .select({ path: media.path })
+    .from(media)
+    .where(and(eq(media.userId, userId), inArray(media.path, uniq)));
+  if (owned.length !== uniq.length) {
+    throw new AppError("媒体文件不存在或不属于你 / Media not found", 400, "bad_media");
+  }
 }
 
 export interface SubmitCheckResult {

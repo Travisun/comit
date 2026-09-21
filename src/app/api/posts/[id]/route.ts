@@ -1,16 +1,18 @@
 import { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { mentions, follows, posts } from "@/db/schema";
+import { follows, posts } from "@/db/schema";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { preSubmitCheck } from "@/lib/moderation";
-import { clearMentions, processMentions } from "@/lib/mentions";
+import { processMentions, rebuildMentions } from "@/lib/mentions";
 import { authorize } from "@/core/capabilities/policies";
 import { updatePostWithHooks } from "../_shared";
 import {
   assertCollectionOwned,
+  assertOwnedMedia,
   blockedResponse,
   ensureSummary,
   existingLabelColumns,
@@ -107,6 +109,10 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     parseWith(idSchema, id);
     const post = await getAuthorPost(id, auth.user.id);
     const body = parseWith(updateSchema, await jsonBody(req));
+    // 编辑与创建分开计桶：创建 10/小时对写作足够，但每次保存已发布内容都会把它
+    // 打回 pending_review（重审 + 钩子 + 提及重建），无上限即可用廉价 PUT 循环
+    // 把审核队列和下游开销刷满；30/分钟对人手工编辑不会误伤。
+    await rateLimitBucket("write.post.edit", auth.user.id);
 
     const nextContentRaw = body.content ?? post.content;
     if (post.type === "short" && nextContentRaw.length > SHORT_CONTENT_MAX) {
@@ -119,6 +125,8 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
       throw new AppError("文章必须有标题 / Articles require a title", 400, "validation_error");
     }
     if (body.collectionId) await assertCollectionOwned(body.collectionId, auth.user.id);
+    // 封面必须来自本人媒体库（与创建同口径，见 _shared.assertOwnedMedia）
+    if (body.coverPath) await assertOwnedMedia(auth.user.id, [body.coverPath]);
 
     // hard keyword gate for submit — nothing changes when blocked
     if (body.action === "submit") {
@@ -176,17 +184,10 @@ export async function PUT(req: Request, ctx: Ctx): Promise<Response> {
     }
 
     // 重建提及记录（内容变更 → 新提及集合；通知在内容可见时 flush）
-    await clearMentions("post", post.id);
-    if (mentionCtx.mentionedUserIds.length) {
-      await db.insert(mentions).values(
-        mentionCtx.mentionedUserIds.map((userId) => ({
-          userId,
-          authorId: auth.user.id,
-          targetType: "post" as const,
-          targetId: post.id,
-        })),
-      ).onConflictDoNothing();
-    }
+    // 删+插同事务：避免中途失败留下"提及被清空但未重建"的窗口
+    await db.transaction(async (tx) => {
+      await rebuildMentions(tx, "post", post.id, auth.user.id, mentionCtx.mentionedUserIds);
+    });
 
     // 重新进入审核队列（草稿首次提审 / 过审后编辑重审）：
     // reviewMode=off 时 moderation 插件会立即发布

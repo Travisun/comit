@@ -6,6 +6,7 @@ import { conflict, unauthorized } from "@/core/errors";
 import {ok, withApi, withUser, jsonBody} from "@/lib/http";
 import { getCurrentUser } from "@/lib/auth/session";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
+import { withAdvisoryLock } from "@/lib/pg-lock";
 import {
   ALL_WEBHOOK_EVENT_NAMES,
   MAX_WEBHOOKS_PER_USER,
@@ -43,7 +44,10 @@ export async function GET(req: Request) {
 const postSchema = z.object({
   // webhookUrlSchema：仅 https + 拦截本机/内网字面量（与 PATCH 更新接口共用，见 me/_shared）
   url: webhookUrlSchema,
-  events: z.array(z.enum(ALL_WEBHOOK_EVENT_NAMES)).min(1, "至少选择一个事件 / Pick at least one event"),
+  events: z
+    .array(z.enum(ALL_WEBHOOK_EVENT_NAMES))
+    .min(1, "至少选择一个事件 / Pick at least one event")
+    .max(ALL_WEBHOOK_EVENT_NAMES.length),
 });
 
 /** POST /api/me/webhooks — create a webhook; the signing secret is returned once. */
@@ -57,32 +61,42 @@ export async function POST(req: Request) {
     // 端点数量上限 + 同址去重（一次读取同时服务两个判定）：
     //  - 无上限时任一账号即可把「平台事件 × 端点数 × 失败重试」变成队列放大器；
     //  - 同址重复注册通常是脚本失误或刻意放大同一目标的投递量，直接拒。
-    const mine = await db
-      .select({ url: webhooks.url })
-      .from(webhooks)
-      .where(eq(webhooks.userId, auth.user.id));
-    if (mine.length >= MAX_WEBHOOKS_PER_USER) {
-      throw conflict(
-        `Webhook 端点数已达上限（${String(MAX_WEBHOOKS_PER_USER)}）/ Webhook limit reached (${String(MAX_WEBHOOKS_PER_USER)})`,
-      );
-    }
-    const created = webhookUrlDedupKey(body.url);
-    if (mine.some((w) => webhookUrlDedupKey(w.url) === created)) {
-      throw conflict("该端点已注册 / Endpoint already registered");
-    }
+    // 读校验与插入放在同一用户级 advisory 锁的事务里：cluster 多 worker 下
+    // count-then-insert 没有隔离性，并发请求可各自数到「未达上限」而把端点数翻倍。
+    const events = [...new Set(body.events)];
+    const created = await withAdvisoryLock(`webhook:${auth.user.id}`, async (tx) => {
+      const mine = await tx
+        .select({ url: webhooks.url })
+        .from(webhooks)
+        .where(eq(webhooks.userId, auth.user.id));
+      if (mine.length >= MAX_WEBHOOKS_PER_USER) {
+        throw conflict(
+          `Webhook 端点数已达上限（${String(MAX_WEBHOOKS_PER_USER)}）/ Webhook limit reached (${String(MAX_WEBHOOKS_PER_USER)})`,
+        );
+      }
+      const dedup = webhookUrlDedupKey(body.url);
+      if (mine.some((w) => webhookUrlDedupKey(w.url) === dedup)) {
+        throw conflict("该端点已注册 / Endpoint already registered");
+      }
 
-    const secret = newWebhookSecret();
-    const [row] = await db
-      .insert(webhooks)
-      .values({
-        userId: auth.user.id,
-        url: body.url,
-        secret,
-        events: [...body.events],
-        active: true,
-      })
-      .returning({ id: webhooks.id });
+      const secret = newWebhookSecret();
+      const [row] = await tx
+        .insert(webhooks)
+        .values({
+          userId: auth.user.id,
+          url: body.url,
+          secret,
+          events,
+          active: true,
+        })
+        .returning({ id: webhooks.id });
+      // 私钥随锁内一次性返回给调用方，之后 GET 只出前缀（WEBHOOK_VIEW_COLUMNS）
+      return { id: row.id, secret };
+    });
 
-    return ok({ webhook: { id: row.id, secret }, message: "签名密钥仅显示一次 / Secret shown once" });
+    return ok({
+      webhook: { id: created.id, secret: created.secret },
+      message: "签名密钥仅显示一次 / Secret shown once",
+    });
   });
 }

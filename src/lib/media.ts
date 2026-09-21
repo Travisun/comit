@@ -58,7 +58,11 @@ export async function processAndSaveImage(
   originalName = "image",
 ): Promise<SavedMedia> {
   const spec = PIPELINE[kind];
-  const img = sharp(input, { failOn: "none" }).rotate(); // respect EXIF
+  // limitInputPixels：上传体积上限（10MB）管不住解压炸弹 —— 一张几 KB 的
+  // APNG/PNG 头部可声明 2.6 亿像素，libvips 默认按该上限放行，解码即数百 MB
+  // RGBA × 并发数 = 内存打爆。40Mpix（≈8160×4896）已覆盖所有真实照片，
+  // 而本管线最终只输出到 1920 宽。
+  const img = sharp(input, { failOn: "none", limitInputPixels: 40_000_000 }).rotate(); // respect EXIF
   const meta = await img.metadata();
   let pipeline = img.resize({ width: spec.width, height: spec.height, fit: spec.fit, withoutEnlargement: true });
   if (meta.hasAlpha) pipeline = pipeline.webp({ quality: spec.quality, alphaQuality: 90, effort: 3 });

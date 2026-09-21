@@ -6,7 +6,7 @@ import { AppError, conflict } from "@/core/errors";
 import { emit } from "@/core/events";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
-import { getUserByUsername } from "@/lib/users";
+import { assertNotBlocked, getUserByUsername } from "@/lib/users";
 
 const bodySchema = z.object({
   username: z.string().min(1).max(64),
@@ -47,6 +47,11 @@ export async function POST(req: Request) {
     if (target.id === auth.user.id) {
       throw conflict("不能关注自己 / You cannot follow yourself");
     }
+    // 拉黑双向都要挡：blocks 表是「谁拉黑谁」的唯一真相，评论/私信侧均已调用
+    // assertNotBlocked，唯独关注写入路径漏了 —— 被 A 拉黑的 B 仍能建立 follow
+    // 关系，从而通过 visibility='followers' 的读取闸口看到 A 的仅关注者可见内容，
+    // 并持续触发「开始关注你」通知（拉黑形同失效）。
+    await assertNotBlocked(target.id, auth.user.id);
 
     const removed = await db
       .delete(follows)

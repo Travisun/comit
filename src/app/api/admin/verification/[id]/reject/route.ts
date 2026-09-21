@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ok, jsonBody } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
-import { rejectRequest } from "@/lib/verification.server";
+import { assertReviewerNotApplicant, rejectRequest } from "@/lib/verification.server";
 import { assertUuid, parseOrThrow } from "../../../_shared";
 import { afterRejection } from "../../_notify";
 
@@ -18,6 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     assertUuid(id);
     const body = parseOrThrow(bodySchema, await jsonBody(req));
+    await assertReviewerNotApplicant(id, user);
     const request = await rejectRequest(id, user.id, body.reason);
     await afterRejection(user.id, request);
     return ok({ ok: true, request });

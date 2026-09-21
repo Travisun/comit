@@ -75,11 +75,23 @@ function blockedPaths(): RouteMiddleware {
       const blocked = raw.split(",").map((p) => p.trim()).filter(Boolean);
       if (blocked.length === 0) return;
       const path = new URL(req.url).pathname;
+      // 双重形态匹配（raw + 解码）：URL.pathname 保留 %XX，而 Next 的路由分发
+      // 按**解码后**的路径命中 handler —— 只比 raw 时 `/api/%69nternal` 能绕过
+      // 屏蔽却照样进到被屏蔽的接口。非法 % 序列无法判定真实路径 ⇒ 拒绝（fail closed）
+      const candidates = [path];
+      if (path.includes("%")) {
+        try {
+          const decoded = decodeURIComponent(path);
+          if (decoded !== path) candidates.push(decoded);
+        } catch {
+          throw forbidden("非法路径编码 / Invalid path encoding");
+        }
+      }
       // 条目归一化去尾斜杠："/api/internal/" 与 "/api/internal" 同义，
       // 均拦裸路径与整棵子树
       const hit = blocked.some((p) => {
         const norm = p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
-        return path === norm || path.startsWith(`${norm}/`);
+        return candidates.some((c) => c === norm || c.startsWith(`${norm}/`));
       });
       if (hit) throw forbidden("路径已被屏蔽 / Path blocked");
     },

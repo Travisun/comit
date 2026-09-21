@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { collections } from "@/db/schema";
 import { notFound } from "@/core/errors";
 import { jsonBody, ok, withUser } from "@/lib/http";
+import { withAdvisoryLock } from "@/lib/pg-lock";
 import { parseWith, normalizeSlug } from "../../_shared";
 
 /**
@@ -32,18 +33,23 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     // re-derive the slug; on a unique conflict keep the old slug (name is
     // what users see — the slug only needs to stay stable and unique)
     const slug = normalizeSlug(name).slice(0, 120) || row.slug;
-    const [conflict] = await db
-      .select({ id: collections.id })
-      .from(collections)
-      .where(and(eq(collections.userId, row.userId), eq(collections.slug, slug)))
-      .limit(1);
-    const nextSlug = conflict && conflict.id !== row.id ? row.slug : slug;
-
-    const [updated] = await db
-      .update(collections)
-      .set({ name, slug: nextSlug })
-      .where(eq(collections.id, row.id))
-      .returning();
+    // 与创建共用同一把用户级锁：改名是「查冲突 → 写」序列，并发改名可一起通过
+    // 冲突检查，再由 unique 索引把其中一个打成 500（或写入非预期 slug）。
+    const updated = await withAdvisoryLock(`collection:${auth.user.id}`, async (tx) => {
+      const [clash] = await tx
+        .select({ id: collections.id })
+        .from(collections)
+        .where(and(eq(collections.userId, auth.user.id), eq(collections.slug, slug)))
+        .limit(1);
+      const nextSlug = clash && clash.id !== row.id ? row.slug : slug;
+      const [r] = await tx
+        .update(collections)
+        .set({ name, slug: nextSlug })
+        .where(and(eq(collections.id, row.id), eq(collections.userId, auth.user.id)))
+        .returning();
+      if (!r) throw notFound("合集不存在 / Collection not found");
+      return r;
+    });
     return ok(updated);
   });
 }

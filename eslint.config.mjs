@@ -20,6 +20,8 @@ const eslintConfig = defineConfig([
     ".qoder/**",
     ".cursor/**",
     ".opencode/**",
+    // 双轨发布通道：只在本地手动执行的一次性运维脚本（含 work 克隆），非产品源码
+    ".oss/**",
     "storage/**",
     // 本地诊断/并行 dev 构建产物（.gitignore 已排除，不应成为 lint 门禁对象）
     ".next-diag/**",

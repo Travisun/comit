@@ -24,7 +24,7 @@ const bgValue = z
       /^\/(?!\/)/.test(v) ||
       /^https?:\/\//i.test(v) ||
       (/^url\(/i.test(v)
-        ? /^url\(["']?(\/(?!\/)|https?:\/\/)[^"')]*["']?\)$/i.test(v) &&
+        ? /^url\(["']?(\/(?!\/)|https?:\/\/)[^"';)\s]*["']?\)$/i.test(v) &&
           !/javascript:|data:/i.test(v)
         : CSS_COLOR_RE.test(v)),
     "不支持背景值格式",
@@ -36,7 +36,13 @@ const appearanceSchema = z.object({
     .string()
     .trim()
     .max(100)
-    .refine((v) => CSS_COLOR_RE.test(v) || /^var\(--/.test(v), "不支持的颜色格式")
+    // var(...) 必须整体锚定：React 对自定义属性（--primary）按字面量序列化、
+    // 不做 CSS 转义，`var(--x);background-image:url(https://evil/1)` 会以
+    // 前缀合法、尾部越界的形式落进 style，变成访客页上的存储式 CSS 注入。
+    .refine(
+      (v) => CSS_COLOR_RE.test(v) || /^var\(--[A-Za-z][A-Za-z0-9_-]*\)$/.test(v),
+      "不支持的颜色格式",
+    )
     .nullable()
     .optional(),
   fontFamily: z.enum(["system", "serif", "mono"]).nullable().optional(),

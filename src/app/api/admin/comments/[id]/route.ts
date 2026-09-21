@@ -7,7 +7,7 @@ import { withPermission } from "@/lib/permissions";
 import { notFound } from "@/core/errors";
 import { emit } from "@/core/events";
 import { publishComment } from "@/lib/moderation";
-import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
+import { assertNotSelfReview, assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +29,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // 审核态 → visible 走人工过审管线（计数 +1 + comment:created 通知），
     // 避免「状态改了但计数/通知没跟上」的漂移。
     if (body.status === "visible" && (current.status === "pending_review" || current.status === "rejected")) {
+      // 利益冲突：editor 不能放行自己的待审评论（对所有用户生效的审核管线
+      // 不能被被授予的审核权绕过）；admin 单人运营时自审属主流程
+      assertNotSelfReview(user, current.userId, { zh: "评论", en: "comment" });
       await publishComment(current, { reviewedBy: "manual" });
       await logAdmin(user.id, "comment.approve", "comment", id);
       return ok({ ok: true, status: body.status });

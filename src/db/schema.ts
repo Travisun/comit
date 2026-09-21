@@ -223,6 +223,9 @@ export const mentions = pgTable(
   (t) => [
     index("mentions_user_idx").on(t.userId),
     index("mentions_target_idx").on(t.targetType, t.targetId),
+    // 同一目标对同一用户只记一条：三处写入点都用 onConflictDoNothing，但
+    // 此前无唯一约束可冲突 ⇒ 该语句形同装饰，重试/并发写入会让行数无界增长。
+    uniqueIndex("mentions_user_target_key").on(t.userId, t.targetType, t.targetId),
   ],
 );
 
@@ -630,7 +633,14 @@ export const verificationRequests = pgTable(
     reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("verification_user_idx").on(t.userId), index("verification_status_idx").on(t.status, t.createdAt)],
+  (t) => [
+    index("verification_user_idx").on(t.userId),
+    index("verification_status_idx").on(t.status, t.createdAt),
+    // 每用户至多一条 pending：提交前的「查 pending → 插入」不是原子序列，并发双提
+    // 会留下两条待审申请，审核人可能对同一身份批出两条 approved 记录（徽章锚点重复、
+    // 撤销语义混乱）。部分唯一索引把这条不变式交给数据库，不依赖应用代码记得加锁。
+    uniqueIndex("verification_one_pending_key").on(t.userId).where(sql`status = 'pending'`),
+  ],
 );
 
 /* ========================== notifications ============================= */
@@ -657,8 +667,31 @@ export const notifications = pgTable(
   ],
 );
 
-/* ============================ webhooks ================================ */
+/* ====================== notification delivery ledger =================== */
 
+/**
+ * 异步投递的幂等台账（一次投递尝试一行，无业务字段）。
+ *
+ * WHY：pg-boss 是 at-least-once —— worker 在副作用之后、确认之前崩溃（或 job 超时
+ * 被回收）时同一任务会被重投。对 notify.dispatch / event.dispatch 这类「处理器里
+ * 还会派站内信、入队邮件、跑监听器」的任务，重投等于把整串副作用再做一遍（用户
+ * 收到重复通知与重复邮件）。故入队时生成一个 deliveryKey 随 payload 走，处理器
+ * 执行前用 `INSERT … ON CONFLICT DO NOTHING RETURNING` 原子认领：拿到行的那次才
+ * 执行，重投拿不到行即空转。键由入队方生成、随 payload 持久化，与 job id 无关，
+ * 因此对「重试新建 job 行」的形态同样有效。
+ *
+ * 表由 maintenance.retention 每日清理 30 天前的行（幂等窗口远大于任何重试跨度）。
+ */
+export const notificationDeliveries = pgTable(
+  "notification_deliveries",
+  {
+    dedupeKey: varchar("dedupe_key", { length: 96 }).primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (t) => [index("notification_deliveries_created_idx").on(t.createdAt)],
+);
+
+/* ============================ webhooks ================================ */
 export const webhooks = pgTable(
   "webhooks",
   {
@@ -755,7 +788,14 @@ export const reports = pgTable(
     status: reportStatusEnum("status").default("open").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (t) => [index("reports_status_idx").on(t.status, t.createdAt)],
+  (t) => [
+    index("reports_status_idx").on(t.status, t.createdAt),
+    // 同一举报人对同一目标只允许一条未处理举报：部分唯一索引既挡住
+    // 「重复刷同一目标」（队列噪声 + open 计数虚高），又保留结案后再举报。
+    uniqueIndex("reports_open_key")
+      .on(t.reporterId, t.targetType, t.targetId)
+      .where(sql`status = 'open'`),
+  ],
 );
 
 export const modLogs = pgTable(

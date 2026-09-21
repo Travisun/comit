@@ -124,7 +124,7 @@ export async function startWorkers(): Promise<void> {
 
   // 队列化事件（ShouldQueue 语义）
   await queue.work("event.dispatch", async (data) => {
-    await dispatchQueuedEvent(data.name, data.payloadJson);
+    await dispatchQueuedEvent(data.name, data.payloadJson, data.deliveryKey);
   });
 
   // 异步通知
@@ -160,6 +160,12 @@ export async function startWorkers(): Promise<void> {
     const oneTimePurged = await purgeOneTimeChallenges();
     if (oneTimePurged > 0) {
       console.log(`[cron:maintenance.retention] purged ${oneTimePurged} rows from one_time_challenges`);
+    }
+    // notification_deliveries（异步投递幂等台账，src/core/delivery-ledger.ts）：
+    // 认领键只需覆盖队列重试跨度（分钟级），30 天前的行永远不会再被命中
+    const ledgerPurged = await purgeDeliveryLedger();
+    if (ledgerPurged > 0) {
+      console.log(`[cron:maintenance.retention] purged ${ledgerPurged} rows from notification_deliveries`);
     }
   });
 
@@ -247,6 +253,27 @@ async function purgeOneTimeChallenges(batchSize = 1000): Promise<number> {
             WHERE expires_at < now()
             LIMIT ${batchSize}
           ) RETURNING key`,
+    );
+    const deleted = res.rows.length;
+    total += deleted;
+    if (deleted < batchSize) break;
+  }
+  return total;
+}
+
+/**
+ * notification_deliveries 专用清理：主键是 dedupe_key（无 id 列），按 30 天窗口
+ * 批量删除。幂等。
+ */
+async function purgeDeliveryLedger(batchSize = 1000): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const res = await db.execute(
+      sql`DELETE FROM notification_deliveries WHERE dedupe_key IN (
+            SELECT dedupe_key FROM notification_deliveries
+            WHERE created_at < now() - interval '30 days'
+            LIMIT ${batchSize}
+          ) RETURNING dedupe_key`,
     );
     const deleted = res.rows.length;
     total += deleted;

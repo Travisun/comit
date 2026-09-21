@@ -27,6 +27,9 @@ const PERMISSIONS = {
   "admin.verification": ["admin", "editor"],
   "admin.badges": ["admin"],
   "admin.posts": ["admin", "editor"],
+  // 「彻底删除」与「通过/驳回」同级破坏性不同：审核是日常工作（editor 足够），
+  // 物理删帖会连带 cascade 掉评论/点赞/投票且不可恢复，仅限 admin。
+  "admin.posts.purge": ["admin"],
   "admin.settings": ["admin"],
   "admin.users": ["admin"],
   "admin.templates": ["admin"],

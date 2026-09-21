@@ -5,6 +5,7 @@ import { comments, likes, posts } from "@/db/schema";
 import { emit } from "@/core/events";
 import { rateLimitAction, defineAction } from "@/core/capabilities/actions";
 import { getInteractableComment, getInteractablePost } from "@/lib/interactions";
+import { assertNotBlocked } from "@/lib/users";
 
 /**
  * 点赞切换（Action 层示范 — 原 route.ts 的完整业务，现为声明式定义）。
@@ -63,14 +64,25 @@ export const toggleLike = defineAction({
       .returning({ userId: likes.userId });
 
     let liked: boolean;
+    let newlyLiked = false;
     if (removed.length > 0) {
       liked = false;
     } else {
-      // insert now, or it already exists from a concurrent like — either way: liked
-      await db
+      // 拉黑关系双向拒绝：点赞会给对方推通知，属「可触达」互动。只在将要插入时
+      // 校验（撤销路径已在上面的 delete 命中并返回），保证作者拉黑后用户仍能把
+      // 自己的旧赞取消掉。
+      if (authorId !== userId) await assertNotBlocked(authorId, userId);
+      // insert now, or it already exists from a concurrent like — either way: liked.
+      // 「是否本次新插」必须由插入结果判定（RETURNING 有行 ⇒ 本次真正插入成功）：
+      // 之前用插入前的 select 推导，两个并发 toggle 请求都看不到对方的行，于是
+      // 各发一次 post:liked/comment:liked，作者收到重复点赞通知。冲突未插入 ⇒
+      // 通知由并发的那次请求负责，此处静默；liked 仍为 true（行确实存在）。
+      const inserted = await db
         .insert(likes)
         .values({ userId, targetType, targetId })
-        .onConflictDoNothing();
+        .onConflictDoNothing()
+        .returning({ userId: likes.userId });
+      newlyLiked = inserted.length > 0;
       liked = true;
     }
 
@@ -88,7 +100,7 @@ export const toggleLike = defineAction({
         .where(eq(posts.id, targetId))
         .returning({ likeCount: posts.likeCount });
       n = row?.likeCount ?? 0;
-      if (liked) {
+      if (newlyLiked) {
         void emit("post:liked", { postId: targetId, actorId: userId, authorId });
       }
     } else {
@@ -100,7 +112,7 @@ export const toggleLike = defineAction({
         .where(eq(comments.id, targetId))
         .returning({ likeCount: comments.likeCount });
       n = row?.likeCount ?? 0;
-      if (liked) {
+      if (newlyLiked) {
         void emit("comment:liked", {
           commentId: targetId,
           actorId: userId,

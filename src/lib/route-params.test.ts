@@ -28,4 +28,14 @@ describe("routeParam", () => {
   it("空串", () => {
     expect(routeParam("")).toBe("");
   });
+
+  it("多层编码不链式解码：%252f 保持原值（避免两个 URL 命中同一记录）", () => {
+    expect(routeParam("%252f")).toBe("%252f");
+    expect(routeParam("a%2520b")).toBe("a%2520b");
+  });
+
+  it("解码后含路径分隔符（/ 与 \\）一律回落原值", () => {
+    expect(routeParam("%2f..%2fetc")).toBe("%2f..%2fetc");
+    expect(routeParam("%5Cwindows")).toBe("%5Cwindows");
+  });
 });

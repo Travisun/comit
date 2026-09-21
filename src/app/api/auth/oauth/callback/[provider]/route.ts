@@ -86,6 +86,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ provider: s
     }
 
     const profile = await exchangeOAuthCode(provider, code, verifier);
+    // 按外部身份再限一次（与按 IP 的回调桶互补）：state 已单次消费，但攻击者若
+    // 能通过其他途径获得有效 state/code（日志、代理、被入侵的 IdP 重放），换 IP
+    // 轮换即可绕过按 IP 的桶反复 mint 会话 —— 按身份计数才能封住总量。
+    await rateLimitBucket("auth.federated.account", `oauth:${provider}:${profile.providerAccountId}`);
 
     // 绑定模式：来自设置页「账号绑定」，把第三方账户挂到当前登录用户。
     // 安全：link cookie 可被伪造，绝不能直接信任——必须与当前会话用户一致

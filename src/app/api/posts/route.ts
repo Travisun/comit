@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { db } from "@/db";
-import { mentions, polls, posts, type Post } from "@/db/schema";
+import { polls, posts, type Post } from "@/db/schema";
 import { jsonBody, ok, withUser } from "@/lib/http";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { AppError, conflict } from "@/core/errors";
@@ -8,7 +8,7 @@ import { routes } from "@/core/routes";
 import { emit } from "@/core/events";
 import { queue } from "@/core/queue";
 import { preSubmitCheck } from "@/lib/moderation";
-import { processMentions } from "@/lib/mentions";
+import { processMentions, rebuildMentions } from "@/lib/mentions";
 import { runPostSaved, runPostSaving } from "@/core/capabilities/post-lifecycle";
 import { DEFAULT_LABEL } from "@/lib/content-labels";
 import {
@@ -20,6 +20,7 @@ import {
 import { newPublicId } from "@/lib/public-id";
 import {
   assertCollectionOwned,
+  assertOwnedMedia,
   blockedResponse,
   ensureSummary,
   labelFieldsSchema,
@@ -89,10 +90,18 @@ export async function POST(req: Request): Promise<Response> {
     const type = body.type;
     const title = body.title?.trim() || null;
 
-    // short-post images are appended to content as markdown image syntax
-    const imageMarkdown = (body.mediaPaths ?? [])
-      .map((p) => `![](${p.startsWith("/") ? p : routes.media(p)})`)
-      .join("\n");
+    // short-post images are appended to content as markdown image syntax.
+    // 每个路径都必须先是**本人媒体库**里的行（媒体上传时落 media 表）：
+    //  - 原先 `p.startsWith("/")` 分支把调用方给的任意字符串原样写进 markdown，
+    //    `//evil.example/x` 这类协议相对地址会让每个访客的浏览器去攻击者的服务器
+    //    取图（访客 IP/UA 外泄 + 可被用作追踪像素），等于把内容渲染变成出站通道；
+    //    现在所有取值统一经 routes.media() 拼成本站媒体端点，不承认外部地址。
+    //  - 归属校验同时堵住「引用他人未公开的 object key」：媒体对象按 key 直读，
+    //    没有归属判定就能把别人上传过的图挂到自己帖子的封面/图集里。
+    const mediaPaths = [...new Set(body.mediaPaths ?? [])];
+    if (mediaPaths.length) await assertOwnedMedia(auth.user.id, mediaPaths);
+    if (body.coverPath) await assertOwnedMedia(auth.user.id, [body.coverPath]);
+    const imageMarkdown = mediaPaths.map((p) => `![](${routes.media(p)})`).join("\n");
     const content =
       type === "short" && imageMarkdown
         ? `${body.content.trim()}${body.content.trim() ? "\n\n" : ""}${imageMarkdown}`
@@ -177,16 +186,7 @@ export async function POST(req: Request): Promise<Response> {
         const [row] = await tx.insert(posts).values(payload as typeof posts.$inferInsert).returning();
 
         if (body.topicNames?.length) await syncPostTopics(tx, row.id, body.topicNames);
-        if (mentionCtx.mentionedUserIds.length) {
-          await tx.insert(mentions).values(
-            mentionCtx.mentionedUserIds.map((userId) => ({
-              userId,
-              authorId: auth.user.id,
-              targetType: "post" as const,
-              targetId: row.id,
-            })),
-          ).onConflictDoNothing();
-        }
+        await rebuildMentions(tx, "post", row.id, auth.user.id, mentionCtx.mentionedUserIds);
         if (pollRow) {
           await tx.insert(polls).values({
             postId: row.id,

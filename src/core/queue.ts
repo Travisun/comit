@@ -24,9 +24,9 @@ export interface JobPayloads {
   "export.cleanup": { requestId: string };
   /** 投票到期：给作者与投票用户派发结果通知（创建时按 endsAt 延迟投递） */
   /** 队列化事件（ShouldQueue 语义，core/capabilities/jobs.ts） */
-  "event.dispatch": { name: string; payloadJson: string };
-  /** 异步通知（渠道扇出走队列） */
-  "notify.dispatch": { userId: string; messageJson: string };
+  "event.dispatch": { name: string; payloadJson: string; deliveryKey: string };
+  /** 异步通知（渠道扇出走队列）；deliveryKey 是 at-least-once 重投的幂等认领键 */
+  "notify.dispatch": { userId: string; messageJson: string; deliveryKey: string };
   /** 扩展异步任务（ext.job，按 extensionId.task 路由到注册的处理器） */
   "ext.job": { extensionId: string; task: string; payloadJson: string };
 }

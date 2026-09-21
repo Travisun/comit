@@ -66,3 +66,7 @@ scripts/tmp-*.mts
 /QODER.md
 /logos/
 /.oss-publish/
+
+# 双轨发布通道（配置 + 脚本本身绝不进索引，否则私有/公开提交树不可能一致）
+/.oss/
+/.zcodeignore

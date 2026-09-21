@@ -22,17 +22,26 @@ export function generateInviteCode(): string {
   return randomBytes(8).toString("hex").toUpperCase();
 }
 
-export async function createInvite(userId: string): Promise<string> {
-  const [{ n }] = await db
+/**
+ * 在 `withAdvisoryLock("invite:<userId>")` 的事务内调用（见 lib/pg-lock.ts）。
+ *
+ * WHY：未使用邀请码数量同样是 count-then-insert 配额，并发下可绕过上限；
+ * 多出的邀请码等于多出一条条注册通道，在邀请制站点上是直接的准入放大。
+ */
+export async function createInvite(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  userId: string,
+): Promise<string> {
+  const [{ n }] = await tx
     .select({ n: count() })
     .from(invites)
     .where(and(eq(invites.createdBy, userId), isNull(invites.usedBy)));
   // per-tier invite quota (VIP1 free = 5; future tiers hook in via tiers.ts)
-  const [u] = await db.select({ tier: users.tier }).from(users).where(eq(users.id, userId)).limit(1);
+  const [u] = await tx.select({ tier: users.tier }).from(users).where(eq(users.id, userId)).limit(1);
   const maxInvites = applyTierLimits(u?.tier ?? 1).maxInvites;
   if (n >= maxInvites) throw forbidden(`最多生成 ${maxInvites} 个邀请码 / Invite limit reached`);
   const code = generateInviteCode();
-  await db.insert(invites).values({ code, createdBy: userId });
+  await tx.insert(invites).values({ code, createdBy: userId });
   return code;
 }
 

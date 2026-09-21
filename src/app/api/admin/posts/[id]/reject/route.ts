@@ -6,7 +6,7 @@ import { ok, jsonBody } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
-import { assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
+import { assertNotSelfReview, assertUuid, logAdmin, parseOrThrow } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,6 +28,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const [post] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
     if (!post) throw notFound("文章不存在 / Post not found");
+    // 利益冲突：editor 不得处置自己的稿件（详见 _shared.assertNotSelfReview）
+    assertNotSelfReview(user, post.authorId, { zh: "内容", en: "content" });
     if (post.status !== "pending_review") {
       throw new AppError(
         `文章当前状态为 ${post.status}，仅待审内容可驳回 / Only posts pending review can be rejected`,

@@ -26,10 +26,44 @@ const voteSchema = z.object({
     .max(POLL_OPTIONS_MAX),
 });
 
+/**
+ * 投票视图对谁可见 —— 与 /api/posts/[id] 的帖子可见性同口径。
+ *
+ * WHY：getPollView 会带出选项文本、票数和参与人数，这些是帖子内容的一部分。
+ * 草稿 / 待审 / 回收站 / 私有帖子虽然没有公开页面，但 poll 端点原先只按 postId
+ * 查投票，任何人凭 id 就能读到作者尚未公开的内容（信息泄露）。
+ */
+async function visiblePollPost(postId: string, viewerId: string | null) {
+  const [row] = await db
+    .select({
+      authorId: posts.authorId,
+      status: posts.status,
+      visibility: posts.visibility,
+    })
+    .from(posts)
+    .where(eq(posts.id, postId))
+    .limit(1);
+  if (!row) return null;
+  if (viewerId && row.authorId === viewerId) return row;
+  if (row.status !== "published" || row.visibility === "private") return null;
+  if (row.visibility === "followers") {
+    if (!viewerId) return null;
+    const [f] = await db
+      .select({ followerId: follows.followerId })
+      .from(follows)
+      .where(and(eq(follows.followerId, viewerId), eq(follows.followeeId, row.authorId)))
+      .limit(1);
+    if (!f) return null;
+  }
+  return row;
+}
+
 export async function GET(req: Request, ctx: Ctx): Promise<Response> {
   return withApi(req, async () => {
     const { id } = await ctx.params;
     const viewer = await apiUser();
+    if (!(await visiblePollPost(id, viewer?.user.id ?? null)))
+      throw notFound("投票不存在 / Poll not found");
     const view = await getPollView(id, viewer?.user.id ?? null);
     if (!view) throw notFound("投票不存在 / Poll not found");
     return ok(view);
@@ -54,6 +88,10 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
     if (post.status !== "published") {
       throw forbidden("帖子尚未发布 / Post is not published");
+    }
+    // 私有帖仅作者可见：非作者凭 postId 也拿不到 poll，但投票写入仍要挡住
+    if (post.visibility === "private" && post.authorId !== auth.user.id) {
+      throw notFound("投票不存在 / Poll not found");
     }
     // 关注者可见帖：仅作者的关注者可投
     if (post.visibility === "followers" && post.authorId !== auth.user.id) {
@@ -81,6 +119,15 @@ export async function POST(req: Request, ctx: Ctx): Promise<Response> {
 
     // 整组替换：改票 = 删旧插新
     await db.transaction(async (tx) => {
+      // 先锁投票行：唯一索引是 (pollId,userId,optionIndex)，两个并发的单选投票
+      // （各选不同项）互相看不到对方的行，会同时提交 ⇒ 同一人在 single/pk 上
+      // 留下两票。锁住 poll 行把整场改票串行化（同 verification.server 的写法）。
+      await tx
+        .select({ id: polls.id })
+        .from(polls)
+        .where(eq(polls.id, poll.id))
+        .limit(1)
+        .for("update");
       await tx
         .delete(pollVotes)
         .where(and(eq(pollVotes.pollId, poll.id), eq(pollVotes.userId, auth.user.id)));

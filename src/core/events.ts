@@ -186,5 +186,11 @@ export async function emitQueued<K extends keyof AppEventPayloads>(
   payload: AppEventPayloads[K],
 ): Promise<string | null> {
   const { queue } = await import("@/core/queue");
-  return queue.send("event.dispatch", { name, payloadJson: JSON.stringify(payload) });
+  const { newDeliveryKey } = await import("@/core/delivery-ledger");
+  return queue.send("event.dispatch", {
+    name,
+    payloadJson: JSON.stringify(payload),
+    // 入队即定键：重投时同一键 → worker 认领失败即整次跳过（见 dispatchQueuedEvent）
+    deliveryKey: newDeliveryKey(),
+  });
 }

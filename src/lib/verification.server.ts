@@ -3,7 +3,7 @@ import "server-only";
 import { and, count, desc, eq, ilike, inArray, or, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { media, users, verificationRequests } from "@/db/schema";
-import { conflict, notFound } from "@/core/errors";
+import { conflict, forbidden, notFound } from "@/core/errors";
 import {
   createVerificationRequestSchema,
   type AdminVerificationRequestView,
@@ -14,6 +14,7 @@ import {
   type VerificationType,
 } from "./verification";
 import { escapeLikePattern } from "@/lib/utils";
+import { withAdvisoryLock } from "@/lib/pg-lock";
 
 /**
  * db-backed half of the verification domain (the pure constants live in
@@ -138,6 +139,28 @@ export async function listRequests({
 /* ------------------------------- writes ---------------------------------- */
 
 /**
+ * 利益冲突闸口：审核人不得处置**自己**提交的认证申请（非 admin）。
+ *
+ * admin 例外是单人运营形态的必然结果（管理员自己就是申请人兼审核人），且 admin
+ * 本就握有全部权限，不构成提权；editor 持有的是被授予的 admin.verification，用它
+ * 给自己签发 `users.verified` 蓝标 = 绕过认证流程，必须拒绝。
+ */
+export async function assertReviewerNotApplicant(
+  requestId: string,
+  reviewer: { id: string; role: string },
+): Promise<void> {
+  const [row] = await db
+    .select({ userId: verificationRequests.userId })
+    .from(verificationRequests)
+    .where(eq(verificationRequests.id, requestId))
+    .limit(1);
+  if (!row) throw notFound("认证申请不存在 / Verification request not found");
+  if (row.userId === reviewer.id && reviewer.role !== "admin") {
+    throw forbidden("不能审核自己的认证申请 / You cannot review your own verification request");
+  }
+}
+
+/**
  * Submit a new request. Rejects when a pending request already exists and
  * validates that every attachment path belongs to the user's media library.
  */
@@ -147,35 +170,45 @@ export async function createVerificationRequest(
 ): Promise<VerificationRequestView> {
   createVerificationRequestSchema.parse(input);
 
-  const [pending] = await db
-    .select({ id: verificationRequests.id })
-    .from(verificationRequests)
-    .where(and(eq(verificationRequests.userId, userId), eq(verificationRequests.status, "pending")))
-    .limit(1);
-  if (pending) {
-    throw conflict("已有待审核的认证申请 / A pending verification request already exists");
-  }
+  // 检查 + 插入放在同一把用户级锁的临界区里：并发双提原先可各自通过 pending 检查
+  // 而留下两条待审申请（同一身份被批出两条 approved 锚点）。schema 上的部分唯一
+  // 索引 verification_one_pending_key 是硬护栏，onConflictDoNothing 把它转成业务错误。
+  const row = await withAdvisoryLock(`verification:${userId}`, async (tx) => {
+    const [pending] = await tx
+      .select({ id: verificationRequests.id })
+      .from(verificationRequests)
+      .where(and(eq(verificationRequests.userId, userId), eq(verificationRequests.status, "pending")))
+      .limit(1);
+    if (pending) {
+      throw conflict("已有待审核的认证申请 / A pending verification request already exists");
+    }
 
-  // attachments must be rows of the caller's own media library
-  const owned = await db
-    .select({ path: media.path })
-    .from(media)
-    .where(and(eq(media.userId, userId), inArray(media.path, input.attachments)));
-  if (owned.length !== new Set(input.attachments).size) {
-    throw conflict("附件不存在或不属于你的媒体库 / Attachments must come from your media library");
-  }
+    // attachments must be rows of the caller's own media library
+    const owned = await tx
+      .select({ path: media.path })
+      .from(media)
+      .where(and(eq(media.userId, userId), inArray(media.path, input.attachments)));
+    if (owned.length !== new Set(input.attachments).size) {
+      throw conflict("附件不存在或不属于你的媒体库 / Attachments must come from your media library");
+    }
 
-  const [row] = await db
-    .insert(verificationRequests)
-    .values({
-      userId,
-      type: input.type as VerificationType,
-      label: input.label,
-      description: input.description,
-      attachments: input.attachments,
-      status: "pending",
-    })
-    .returning();
+    const [created] = await tx
+      .insert(verificationRequests)
+      .values({
+        userId,
+        type: input.type as VerificationType,
+        label: input.label,
+        description: input.description,
+        attachments: input.attachments,
+        status: "pending",
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!created) {
+      throw conflict("已有待审核的认证申请 / A pending verification request already exists");
+    }
+    return created;
+  });
   return toView(row);
 }
 

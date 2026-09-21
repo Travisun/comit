@@ -14,7 +14,13 @@ export function routeParam(value: string): string {
   if (!value.includes("%")) return value;
   try {
     const decoded = decodeURIComponent(value);
-    return decoded === value ? value : decoded;
+    // 只在「解出来更浅且仍是单段」时采用：解码结果再含 % 说明是多层编码
+    // （%252f → %2f → /），含 / 或 \ 说明解出了路径分隔符 —— 两者都会让两个
+    // 不同 URL 命中同一条记录（缓存/权限判定与真实目标分歧），一律回落原值。
+    if (decoded === value || decoded.includes("%") || decoded.includes("/") || decoded.includes("\\")) {
+      return value;
+    }
+    return decoded;
   } catch {
     return value;
   }

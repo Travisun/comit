@@ -2,6 +2,9 @@
 // 依赖 mock：@/lib/settings（受控 getSetting）、@/lib/rate-limit（捕获 rateLimit 入参）——全程无 DB / Redis。
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 import { RATE_BUCKETS } from "@/lib/rate-limit/bucket-manifest";
 import { rateLimitBucket } from "@/lib/rate-limit/buckets";
 import { getSetting } from "@/lib/settings";
@@ -129,5 +132,35 @@ describe("rateLimitBucket · 坏形状覆盖整条忽略、回落默认", () => 
         base.windowSec * 1000,
       );
     }
+  });
+});
+
+describe("调用点桶名与清单对账", () => {
+  // 未知桶名在运行时是 BUCKET_MAP[name] === undefined → 读 limit 抛 TypeError，
+  // 表现为该路由 500（限流形同未接入且击穿请求）。类型层靠 BucketName 约束，
+  // 但 `as` 断言、跨文件复制粘贴与字符串常量都会绕过，故用静态扫描兜底。
+  const SRC = fileURLToPath(new URL("../../", import.meta.url));
+
+  function* walk(dir: string): Generator<string> {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) yield* walk(p);
+      else if (/\.tsx?$/.test(e.name) && !e.name.endsWith(".test.ts")) yield p;
+    }
+  }
+
+  it("每个 rateLimitBucket 字面量桶名都在清单中声明", () => {
+    const declared = new Set<string>(RATE_BUCKETS.map((b) => b.name));
+    const orphans: string[] = [];
+    const used = new Set<string>();
+    for (const file of walk(SRC)) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(/rateLimitBucket\(\s*"([^"]+)"/g)) {
+        used.add(m[1]);
+        if (!declared.has(m[1])) orphans.push(`${relative(SRC, file)} → ${m[1]}`);
+      }
+    }
+    expect(orphans, `未声明的桶名：${orphans.join(", ")}`).toEqual([]);
+    expect(used.size, "扫描未命中任何调用点，正则可能已失效").toBeGreaterThan(10);
   });
 });

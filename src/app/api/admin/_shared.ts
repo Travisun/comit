@@ -75,3 +75,26 @@ export function assertUuid(id: string): string {
   }
   return id;
 }
+
+/**
+ * 利益冲突闸口：审核对象的归属人若是操作者本人，非 admin 一律拒绝。
+ *
+ * why 只挡非 admin：本站是单人运营形态 —— 管理员既是作者也是审核人，把 admin
+ * 一并挡住会让「自己投稿 → 后台过审发布」这条主流程直接不可用；而 admin 本就
+ * 握有全部权限（可直接改数据/改设置），自审不构成提权。editor 拿到的却是
+ * 「被授予的审核权」，用它放行自己的内容/认证、或驳回针对自己内容的举报 =
+ * 绕过对所有普通用户生效的审核管线，属于真提权，必须拒绝。
+ */
+export function assertNotSelfReview(
+  actor: { id: string; role: string },
+  ownerId: string,
+  label: { zh: string; en: string },
+): void {
+  if (ownerId === actor.id && actor.role !== "admin") {
+    throw new AppError(
+      `不能审核自己的${label.zh} / You cannot review your own ${label.en}`,
+      403,
+      "conflict_of_interest",
+    );
+  }
+}

@@ -5,7 +5,7 @@ import { ok } from "@/lib/http";
 import { withPermission } from "@/lib/permissions";
 import { AppError, notFound } from "@/core/errors";
 import { emit } from "@/core/events";
-import { assertUuid, logAdmin } from "@/app/api/admin/_shared";
+import { assertNotSelfReview, assertUuid, logAdmin } from "@/app/api/admin/_shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,6 +23,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const [post] = await db.select().from(posts).where(eq(posts.id, id)).limit(1);
     if (!post) throw notFound("文章不存在 / Post not found");
+    // 利益冲突：editor 不能放行自己的稿件（对所有用户生效的审核管线不能被
+    // 被授予的审核权绕过）；admin 单人运营时自审是主流程，见 _shared 注释
+    assertNotSelfReview(user, post.authorId, { zh: "内容", en: "content" });
     if (post.status !== "pending_review") {
       throw new AppError(
         `文章当前状态为 ${post.status}，仅待审内容可通过审核 / Only posts pending review can be approved`,
